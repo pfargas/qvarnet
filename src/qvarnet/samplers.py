@@ -11,6 +11,7 @@ class MetropolisHastingsSampler(nn.Module):
         self.is_wf = is_wf
         self.batches = batches
         self.values_per_batch = n_samples // batches
+        self.is_batched = is_batched
         if n_samples % batches != 0:
             print("n_samples are not divisible by batches \n")
             print(f"Setting n_samples to {self.values_per_batch * batches} \n")
@@ -21,8 +22,9 @@ class MetropolisHastingsSampler(nn.Module):
         x_new = x + torch.randn_like(x) * self.step_size
 
         if self.is_wf:
-            p_new = self.model(x_new).pow(2)
-            p_old = self.model(x).pow(2)
+            p_new = self.model(x_new).pow(2)[0] # LOOK INTO THIS
+            # model returns [D, out]? if so, look into how to define this
+            p_old = self.model(x).pow(2)[0]
         else:
             p_new = torch.exp(-self.model(x_new))
             p_old = torch.exp(-self.model(x))
@@ -47,18 +49,19 @@ class MetropolisHastingsSampler(nn.Module):
             for i in range(self.batches): #parallelize this
                 batch_samples = self._mh_single_batch(x)
                 samples[i] = batch_samples # shape [values_per_batch, D]
-            
+        return None
     
-    def _mh_no_batch(self, x: torch.Tensor) -> torch.Tensor:
+    def _mh_no_batch(self, x0: torch.Tensor) -> torch.Tensor:
+        if x0.ndim == 1:
+            x0 = x0.unsqueeze(0)  # Make it shape [1, D]
         samples = torch.zeros((self.n_samples, x0.shape[1]), device=x0.device)
         x = x0.clone().detach()
         with torch.no_grad():
             for i in range(self.n_samples + self.burn_in):
                 x = self._mh_step(x)
                 if i >= self.burn_in:
-                    samples[i - self.burn_in] = x.view(1, -1).clone() # force shape [1, D]
+                    samples[i - self.burn_in] = x.clone().view(1,-1) # force shape [1, D]
 
-        samples = torch.cat(samples, dim=0)  # shape [n_samples, D]
         samples.requires_grad_(True)
         return samples
         
