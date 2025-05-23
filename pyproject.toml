@@ -9,7 +9,14 @@ description = "Modular ANNs for VMC scheme"
 authors = [{ name = "Pau Fargas", email = "pau.fargas@upc.edu" }]
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "numpy",
+    "matplotlib",
+    "torch"
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[project.optional-dependencies]
+docs = ["sphinx", "sphinx-rtd-theme"]
