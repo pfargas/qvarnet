@@ -93,6 +93,35 @@
 </ul>
 <p>That is in ML the generation of the training data.</p>
 </div></blockquote>
+<dl>
+<dt>Basic usage</dt><dd><ul class="simple">
+<li><p>In <em>.src/qvarnet/models</em> one can find the ANNs defined.</p></li>
+<li><p>In <em>.src/qvarnet/hamiltonians</em> one can find the Hamiltonians defined, as well as the base class for the Hamiltonians.</p></li>
+<li><p>In <em>.src/qvarnet/samplers</em> one can find the samplers defined.</p></li>
+</ul>
+<p>In the notebooks folder one can find examples of how to use the package.</p>
+</dd>
+</dl>
+<p>The general description is:
+1. Define a model with the architecture you want.
+2. Define a pytorch optimizer
+3. TODO: Define a hamiltonian object</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Now you have to define the kinetic and potential term separately.</p></li>
+</ul>
+</div></blockquote>
+<ol class="arabic simple" start="4">
+<li><p>Define a sampler object/define your discretization</p></li>
+<li><p>Start the training loop
+- Set optimizer gradients to zero
+- perform a forward pass of the model
+- calculate the energy
+- Add to the loss the energy and all the contributions you want to take into account
+- Perform a backward pass
+- Step the optimizer</p></li>
+<li><p>Repeat until convergence</p></li>
+</ol>
 </section>
 
 
