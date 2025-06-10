@@ -1,8 +1,17 @@
 import torch
 from torch import nn
+import time
 
 class MetropolisHastingsSampler(nn.Module):
-    def __init__(self, model: nn.Module, n_samples: int = 1000, step_size: float = 0.1, burn_in: int = 100, is_wf: bool = True, batches: int = 1, is_batched: bool = False):
+    def __init__(self, 
+                 model: nn.Module, 
+                 n_samples: int = 1000, 
+                 step_size: float = 0.1, 
+                 burn_in: int = 100, 
+                 is_wf: bool = True, 
+                 batches: int = 1, 
+                 is_batched: bool = False
+                 ):
         super().__init__()
         self.model = model
         self.n_samples = n_samples
@@ -22,16 +31,25 @@ class MetropolisHastingsSampler(nn.Module):
         x_new = x + torch.randn_like(x) * self.step_size
 
         if self.is_wf:
+            start_time = time.time()
             p_new = self.model(x_new).pow(2)[0] # LOOK INTO THIS
+            end_time = time.time()
+            print(f"Model evaluation time: {end_time - start_time:.6f} seconds")
             # model returns [D, out]? if so, look into how to define this
             p_old = self.model(x).pow(2)[0]
         else:
+            start_time = time.time()
             p_new = torch.exp(-self.model(x_new))
+            end_time = time.time()
+            print(f"Model evaluation time: {end_time - start_time:.6f} seconds")
             p_old = torch.exp(-self.model(x))
 
+        start_time = time.time()
         acceptance_ratio = (p_new / (p_old + 1e-12)).clamp(max=1.0)
         accept = (torch.rand_like(acceptance_ratio) < acceptance_ratio).float().unsqueeze(-1)
         x = accept * x_new + (1 - accept) * x
+        end_time = time.time()
+        print(f"Acceptance ratio computation time: {end_time - start_time:.6f} seconds")
         return x
     
     def _mh_single_batch(self, x: torch.Tensor) -> torch.Tensor:
@@ -64,6 +82,14 @@ class MetropolisHastingsSampler(nn.Module):
 
         samples.requires_grad_(True)
         return samples
+    
+    # def importance_sampling(self) -> torch.Tensor:
+    #     """Importance sampling with wavefunction"""
+        
+    #     x0 = torch.rand((self.n_samples), device=self.model.device)  # Initialize with random samples
+    #     x0 = x0.unsqueeze(-1)  # Ensure shape is [n_samples, 1]
+    #     mask = 
+        
         
         
     def forward(self, x0: torch.Tensor) -> torch.Tensor:
