@@ -35,7 +35,7 @@ class MetropolisHastingsSampler(nn.Module):
         """Optimized probability evaluation with batching"""
         if self.is_wf:
             # Assuming model returns [batch_size, ...], take appropriate slice
-            model_output = self.model(x)
+            model_output = self.model(x) # Wavefunction!
             if model_output.dim() > 1:
                 return model_output.pow(2)[:, 0] if model_output.shape[1] > 1 else model_output.pow(2).squeeze()
             else:
