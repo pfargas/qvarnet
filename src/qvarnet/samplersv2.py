@@ -10,7 +10,8 @@ class MetropolisHastingsSampler(nn.Module):
                  burn_in: int = 100, 
                  is_wf: bool = True, 
                  batches: int = 1, 
-                 is_batched: bool = False
+                 is_batched: bool = False,
+                 PBC: float = None
                  ):
         super().__init__()
         self.model = model
@@ -21,6 +22,7 @@ class MetropolisHastingsSampler(nn.Module):
         self.batches = batches
         self.values_per_batch = n_samples // batches
         self.is_batched = is_batched
+        self.PBC = PBC # box -PBC/2 to PBC/2
         
         # Statistics tracking
         self.accepted_moves = 0
@@ -43,6 +45,12 @@ class MetropolisHastingsSampler(nn.Module):
         else:
             # Assume Boltzmann distribution
             return torch.exp(-self.model(x))
+        
+    def _apply_pbc(self, x: torch.Tensor) -> torch.Tensor:
+        """Apply periodic boundary conditions if specified"""
+        if self.PBC is not None:
+            return ((x + self.PBC/2) % self.PBC) - self.PBC/2
+        return x
 
     def _mh_step_vectorized(self, x: torch.Tensor, n_walkers: int = 1) -> torch.Tensor:
         """Vectorized MH step for multiple walkers simultaneously"""
@@ -52,6 +60,8 @@ class MetropolisHastingsSampler(nn.Module):
         
         # Generate proposals for all walkers at once
         x_new = x + torch.randn_like(x) * self.step_size
+        
+        x_new = self._apply_pbc(x_new)  # Apply PBC if needed
         
         # Evaluate probabilities in batch
         p_old = self._evaluate_probability(x)
@@ -87,8 +97,8 @@ class MetropolisHastingsSampler(nn.Module):
             x0 = x0.unsqueeze(0)
         
         # Initialize multiple walkers
-        x = x0.repeat(n_walkers, 1) + torch.randn(n_walkers, x0.shape[1], device=x0.device) * 0.1
-        
+        x = x0.repeat(n_walkers, 1) + (torch.rand(n_walkers, x0.shape[1], device=x0.device) * self.PBC) - self.PBC / 2
+
         samples_per_walker = self.n_samples // n_walkers
         # if self.n_samples % n_walkers != 0:
         #     print("n_samples is not divisible by n_walkers, adjusting samples_per_walker.")

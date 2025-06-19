@@ -13,20 +13,20 @@ class GeneralHamiltonian(nn.Module):
     def kinetic_local_energy(self, x: torch.Tensor) -> torch.Tensor:
         psi = self.model(x)
         # numerical second derivative no pytorch
-        d2psi = torch.zeros_like(psi)
-        for i,x_val in enumerate(x):
-            if i == 0:
-                d2psi[i] = (psi[i+1] - 2*psi[i] + psi[i]) / ((x[i+1] - x[i])**2)
-            elif i == len(x) - 1:
-                d2psi[i] = (psi[i] - 2*psi[i] + psi[i-1]) / ((x[i] - x[i-1])**2)
-            else:
-                d2psi[i] = (psi[i+1] - 2*psi[i] + psi[i-1]) / ((x[i+1] - x[i-1])**2)
+        # d2psi = torch.zeros_like(psi)
+        # for i,x_val in enumerate(x):
+        #     if i == 0:
+        #         d2psi[i] = (psi[i+1] - 2*psi[i] + psi[i]) / ((x[i+1] - x[i])**2)
+        #     elif i == len(x) - 1:
+        #         d2psi[i] = (psi[i] - 2*psi[i] + psi[i-1]) / ((x[i] - x[i-1])**2)
+        #     else:
+        #         d2psi[i] = (psi[i+1] - 2*psi[i] + psi[i-1]) / ((x[i+1] - x[i-1])**2)
                 
-        # dpsi = torch.autograd.grad(psi, x, grad_outputs=torch.ones_like(x),
-        #                             create_graph=True, retain_graph=True)[0]
+        dpsi = torch.autograd.grad(psi, x, grad_outputs=torch.ones_like(x),
+                                    create_graph=True, retain_graph=True)[0]
         
-        # d2psi = torch.autograd.grad(dpsi, x, grad_outputs=torch.ones_like(dpsi),
-        #                             create_graph=True, retain_graph=True)[0]
+        d2psi = torch.autograd.grad(dpsi, x, grad_outputs=torch.ones_like(dpsi),
+                                    create_graph=True, retain_graph=True)[0]
 
         return -0.5 * d2psi/psi
     
