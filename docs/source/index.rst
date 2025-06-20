@@ -54,3 +54,8 @@ The general description is:
    - Perform a backward pass
    - Step the optimizer
 6. Repeat until convergence
+
+API reference  
+================
+.. automodule:: qvarnet/samplersv2.py
+   :members:
