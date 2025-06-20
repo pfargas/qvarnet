@@ -1,6 +1,16 @@
 qvarnet.models package
 ======================
 
+Module contents
+---------------
+
+.. automodule:: qvarnet.models
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+OTHER STUFF
+===================
 Submodules
 ----------
 
@@ -12,10 +22,3 @@ qvarnet.models.mlp module
    :undoc-members:
    :show-inheritance:
 
-Module contents
----------------
-
-.. automodule:: qvarnet.models
-   :members:
-   :undoc-members:
-   :show-inheritance:
