@@ -56,12 +56,16 @@ class HarmonicOscillator(GeneralHamiltonian):
     This class implements the Hamiltonian for a 1D, single particle quantum harmonic oscillator.
     
     The Hamiltonian is given by:
-    ..math:`H = -\\frac{\\hbar^2}{2m} \\frac{d^2}{dx^2} + \\frac{1}{2} m \\omega^2 x^2`
+    
+    .. math:: 
+    
+        H = -\\frac{\\hbar^2}{2m} \\frac{d^2}{dx^2} + \\frac{1}{2} m \\omega^2 x^2
+
     where :math:`\\hbar` is the reduced Planck's constant, :math:`m` is the mass of the particle, and :math:`\\omega` is the angular frequency of the oscillator.
     The kinetic energy operator is given by:
-    ...math:`T = -\\frac{\\hbar^2}{2m} \\frac{d^2}{dx^2}`
+    :math:`T = -\\frac{\\hbar^2}{2m} \\frac{d^2}{dx^2}`
     The potential energy operator is given by:
-    ...math:`V = \\frac{1}{2} m \\omega^2 x^2`
+    :math:`V = \\frac{1}{2} m \\omega^2 x^2`
     The interaction potential is set to zero for this case.
     
     Args:
@@ -83,7 +87,11 @@ class GrossPitaevskii(GeneralHamiltonian):
     This class implements the Hamiltonian for a 1D, single particle Gross-Pitaevskii equation.
     
     The Hamiltonian is given by:
-    ..math:`H = -\\frac{\\hbar^2}{2m} \\frac{d^2}{dx^2} + V(x) + g |\\psi(x)|^2`
+
+    .. math::
+
+        H = -\\frac{\\hbar^2}{2m} \\frac{d^2}{dx^2} + V(x) + g |\\psi(x)|^2
+    
     where :math:`\\hbar` is the reduced Planck's constant, :math:`m` is the mass of the particle, :math:`V(x)` is the external potential, and :math:`g` is the interaction strength.
     
     Args:
@@ -102,8 +110,11 @@ class GrossPitaevskii(GeneralHamiltonian):
     def interaction_local_potential(self, x: torch.Tensor) -> torch.Tensor:
         """
         Interaction potential term in the Gross-Pitaevskii equation.
-        ..math:
-            V_{int}(x) = g |\\psi(x)|^2/\\psi(x)
+
+        .. math::
+
+            V_{int}(x) = g |\\psi(x)|^2\\psi(x)
+        
         where :math:`g` is the interaction strength and :math:`\\psi(x)` is the wave function.
         """
         psi = self.model(x)

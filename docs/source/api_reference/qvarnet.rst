@@ -23,7 +23,7 @@ qvarnet.hamiltonians module
 qvarnet.samplers module
 -----------------------
 
-.. automodule:: qvarnet.samplers
+.. automodule:: qvarnet.samplersv2
    :members:
    :undoc-members:
    :show-inheritance:
