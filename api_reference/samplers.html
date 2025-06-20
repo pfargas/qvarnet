@@ -6,7 +6,7 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>qvarnet package &mdash; qvarnet 0.1.0 documentation</title>
+  <title>Samplers &mdash; qvarnet 0.1.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
 
@@ -16,11 +16,11 @@
       <script src="../_static/documentation_options.js?v=01f34227"></script>
       <script src="../_static/doctools.js?v=9bcbadda"></script>
       <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
-      <script>window.MathJax = {"tex": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "displayMath": [["$$", "$$"], ["\\[", "\\]"]], "macros": {"ket": ["\\left|#1\\right\\rangle", 1], "bra": ["\\left\\langle#1\\right|", 1], "braket": ["\\left\\langle#1\\middle|#2\\right\\rangle", 2], "expval": ["\\left\\langle#1\\right\\rangle", 1], "psi": "\\psi", "Psi": "\\Psi", "hamiltonian": "\\hat{H}", "hbar": "\\hbar"}}}</script>
-      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
-    <link rel="search" title="Search" href="../search.html" /> 
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Hamiltonians" href="hamiltonians.html" />
+    <link rel="prev" title="API reference" href="index.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -43,20 +43,20 @@
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
               <p class="caption" role="heading"><span class="caption-text">Quick Links</span></p>
-<ul>
+<ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../introduction.html">Explanation of the details</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="../installation.html#installation-steps">Installation Steps</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="index.html">API reference</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="samplers.html">Samplers</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="samplers.html#module-qvarnet.samplersv2">Available Samplers</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="samplers.html#qvarnet.samplersv2.MetropolisHastingsSampler"><code class="docutils literal notranslate"><span class="pre">MetropolisHastingsSampler</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="samplers.html#qvarnet.samplersv2.benchmark_sampler"><code class="docutils literal notranslate"><span class="pre">benchmark_sampler()</span></code></a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">API reference</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Samplers</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#module-qvarnet.samplersv2">Available Samplers</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#qvarnet.samplersv2.MetropolisHastingsSampler"><code class="docutils literal notranslate"><span class="pre">MetropolisHastingsSampler</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#qvarnet.samplersv2.benchmark_sampler"><code class="docutils literal notranslate"><span class="pre">benchmark_sampler()</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="samplers.html#usage-examples">Usage Examples</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#usage-examples">Usage Examples</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="hamiltonians.html">Hamiltonians</a><ul>
@@ -101,9 +101,10 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
-      <li class="breadcrumb-item active">qvarnet package</li>
+          <li class="breadcrumb-item"><a href="index.html">API reference</a></li>
+      <li class="breadcrumb-item active">Samplers</li>
       <li class="wy-breadcrumbs-aside">
-            <a href="../_sources/api_reference/qvarnet.rst.txt" rel="nofollow"> View page source</a>
+            <a href="../_sources/api_reference/samplers.rst.txt" rel="nofollow"> View page source</a>
       </li>
   </ul>
   <hr/>
@@ -111,134 +112,11 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="qvarnet-package">
-<h1>qvarnet package<a class="headerlink" href="#qvarnet-package" title="Link to this heading"></a></h1>
-<section id="subpackages">
-<h2>Subpackages<a class="headerlink" href="#subpackages" title="Link to this heading"></a></h2>
-<div class="toctree-wrapper compound">
-</div>
-</section>
-<section id="submodules">
-<h2>Submodules<a class="headerlink" href="#submodules" title="Link to this heading"></a></h2>
-</section>
-<section id="module-qvarnet.hamiltonians">
-<span id="qvarnet-hamiltonians-module"></span><h2>qvarnet.hamiltonians module<a class="headerlink" href="#module-qvarnet.hamiltonians" title="Link to this heading"></a></h2>
-<dl class="py class">
-<dt class="sig sig-object py" id="qvarnet.hamiltonians.GeneralHamiltonian">
-<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">qvarnet.hamiltonians.</span></span><span class="sig-name descname"><span class="pre">GeneralHamiltonian</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/generated/torch.nn.Module.html#torch.nn.Module" title="(in PyTorch v2.7)"><span class="pre">Module</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/qvarnet/hamiltonians.html#GeneralHamiltonian"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qvarnet.hamiltonians.GeneralHamiltonian" title="Link to this definition"></a></dt>
-<dd><p>Bases: <a class="reference external" href="https://docs.pytorch.org/docs/stable/generated/torch.nn.Module.html#torch.nn.Module" title="(in PyTorch v2.7)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code></a></p>
-<p>General Hamiltonian class</p>
-<dl class="py method">
-<dt class="sig sig-object py" id="qvarnet.hamiltonians.GeneralHamiltonian.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/generated/torch.nn.Module.html#torch.nn.Module" title="(in PyTorch v2.7)"><span class="pre">Module</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/qvarnet/hamiltonians.html#GeneralHamiltonian.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qvarnet.hamiltonians.GeneralHamiltonian.__init__" title="Link to this definition"></a></dt>
-<dd><p>Initialize internal Module state, shared by both nn.Module and ScriptModule.</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="qvarnet.hamiltonians.GeneralHamiltonian.kinetic_local_energy">
-<span class="sig-name descname"><span class="pre">kinetic_local_energy</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">Tensor</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">Tensor</span></a></span></span><a class="reference internal" href="../_modules/qvarnet/hamiltonians.html#GeneralHamiltonian.kinetic_local_energy"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qvarnet.hamiltonians.GeneralHamiltonian.kinetic_local_energy" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="qvarnet.hamiltonians.GeneralHamiltonian.trapping_potential">
-<span class="sig-name descname"><span class="pre">trapping_potential</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">Tensor</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">Tensor</span></a></span></span><a class="reference internal" href="../_modules/qvarnet/hamiltonians.html#GeneralHamiltonian.trapping_potential"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qvarnet.hamiltonians.GeneralHamiltonian.trapping_potential" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="qvarnet.hamiltonians.GeneralHamiltonian.interaction_local_potential">
-<span class="sig-name descname"><span class="pre">interaction_local_potential</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">Tensor</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">Tensor</span></a></span></span><a class="reference internal" href="../_modules/qvarnet/hamiltonians.html#GeneralHamiltonian.interaction_local_potential"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qvarnet.hamiltonians.GeneralHamiltonian.interaction_local_potential" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="qvarnet.hamiltonians.GeneralHamiltonian.forward">
-<span class="sig-name descname"><span class="pre">forward</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">Tensor</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">Tensor</span></a></span></span><a class="reference internal" href="../_modules/qvarnet/hamiltonians.html#GeneralHamiltonian.forward"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qvarnet.hamiltonians.GeneralHamiltonian.forward" title="Link to this definition"></a></dt>
-<dd><p>Calculate the local energy of the system.</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="qvarnet.hamiltonians.GeneralHamiltonian.__repr__">
-<span class="sig-name descname"><span class="pre">__repr__</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/qvarnet/hamiltonians.html#GeneralHamiltonian.__repr__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qvarnet.hamiltonians.GeneralHamiltonian.__repr__" title="Link to this definition"></a></dt>
-<dd><p>String representation of the Hamiltonian.</p>
-</dd></dl>
-
-</dd></dl>
-
-<dl class="py class">
-<dt class="sig sig-object py" id="qvarnet.hamiltonians.HarmonicOscillator">
-<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">qvarnet.hamiltonians.</span></span><span class="sig-name descname"><span class="pre">HarmonicOscillator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/generated/torch.nn.Module.html#torch.nn.Module" title="(in PyTorch v2.7)"><span class="pre">Module</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">omega</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/qvarnet/hamiltonians.html#HarmonicOscillator"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qvarnet.hamiltonians.HarmonicOscillator" title="Link to this definition"></a></dt>
-<dd><p>Bases: <a class="reference internal" href="#qvarnet.hamiltonians.GeneralHamiltonian" title="qvarnet.hamiltonians.GeneralHamiltonian"><code class="xref py py-class docutils literal notranslate"><span class="pre">GeneralHamiltonian</span></code></a></p>
-<p>Harmonic oscillator Hamiltonian class</p>
-<p>This class implements the Hamiltonian for a 1D, single particle quantum harmonic oscillator.</p>
-<p>The Hamiltonian is given by:</p>
-<div class="math notranslate nohighlight">
-\[H = -\frac{\hbar^2}{2m} \frac{d^2}{dx^2} + \frac{1}{2} m \omega^2 x^2\]</div>
-<p>where <span class="math notranslate nohighlight">\(\hbar\)</span> is the reduced Planck’s constant, <span class="math notranslate nohighlight">\(m\)</span> is the mass of the particle, and <span class="math notranslate nohighlight">\(\omega\)</span> is the angular frequency of the oscillator.
-The kinetic energy operator is given by:
-<span class="math notranslate nohighlight">\(T = -\frac{\hbar^2}{2m} \frac{d^2}{dx^2}\)</span>
-The potential energy operator is given by:
-<span class="math notranslate nohighlight">\(V = \frac{1}{2} m \omega^2 x^2\)</span>
-The interaction potential is set to zero for this case.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>omega</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><em>float</em></a>) – Angular frequency of the oscillator. Default is 1.0.</p>
-</dd>
-</dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="qvarnet.hamiltonians.HarmonicOscillator.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/generated/torch.nn.Module.html#torch.nn.Module" title="(in PyTorch v2.7)"><span class="pre">Module</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">omega</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/qvarnet/hamiltonians.html#HarmonicOscillator.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qvarnet.hamiltonians.HarmonicOscillator.__init__" title="Link to this definition"></a></dt>
-<dd><p>Initialize internal Module state, shared by both nn.Module and ScriptModule.</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="qvarnet.hamiltonians.HarmonicOscillator.trapping_potential">
-<span class="sig-name descname"><span class="pre">trapping_potential</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">Tensor</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">Tensor</span></a></span></span><a class="reference internal" href="../_modules/qvarnet/hamiltonians.html#HarmonicOscillator.trapping_potential"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qvarnet.hamiltonians.HarmonicOscillator.trapping_potential" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-</dd></dl>
-
-<dl class="py class">
-<dt class="sig sig-object py" id="qvarnet.hamiltonians.GrossPitaevskii">
-<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">qvarnet.hamiltonians.</span></span><span class="sig-name descname"><span class="pre">GrossPitaevskii</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/generated/torch.nn.Module.html#torch.nn.Module" title="(in PyTorch v2.7)"><span class="pre">Module</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">omega</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">g</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/qvarnet/hamiltonians.html#GrossPitaevskii"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qvarnet.hamiltonians.GrossPitaevskii" title="Link to this definition"></a></dt>
-<dd><p>Bases: <a class="reference internal" href="#qvarnet.hamiltonians.GeneralHamiltonian" title="qvarnet.hamiltonians.GeneralHamiltonian"><code class="xref py py-class docutils literal notranslate"><span class="pre">GeneralHamiltonian</span></code></a></p>
-<p>Gross-Pitaevskii Hamiltonian class</p>
-<p>This class implements the Hamiltonian for a 1D, single particle Gross-Pitaevskii equation.</p>
-<p>The Hamiltonian is given by:</p>
-<div class="math notranslate nohighlight">
-\[H = -\frac{\hbar^2}{2m} \frac{d^2}{dx^2} + V(x) + g |\psi(x)|^2\]</div>
-<p>where <span class="math notranslate nohighlight">\(\hbar\)</span> is the reduced Planck’s constant, <span class="math notranslate nohighlight">\(m\)</span> is the mass of the particle, <span class="math notranslate nohighlight">\(V(x)\)</span> is the external potential, and <span class="math notranslate nohighlight">\(g\)</span> is the interaction strength.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>omega</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><em>float</em></a>) – Angular frequency of the oscillator. Default is 1.0.</p></li>
-<li><p><strong>g</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><em>float</em></a>) – Interaction strength. Default is 1.0.</p></li>
-</ul>
-</dd>
-</dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="qvarnet.hamiltonians.GrossPitaevskii.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/generated/torch.nn.Module.html#torch.nn.Module" title="(in PyTorch v2.7)"><span class="pre">Module</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">omega</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">g</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/qvarnet/hamiltonians.html#GrossPitaevskii.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qvarnet.hamiltonians.GrossPitaevskii.__init__" title="Link to this definition"></a></dt>
-<dd><p>Initialize internal Module state, shared by both nn.Module and ScriptModule.</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="qvarnet.hamiltonians.GrossPitaevskii.trapping_potential">
-<span class="sig-name descname"><span class="pre">trapping_potential</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">Tensor</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">Tensor</span></a></span></span><a class="reference internal" href="../_modules/qvarnet/hamiltonians.html#GrossPitaevskii.trapping_potential"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qvarnet.hamiltonians.GrossPitaevskii.trapping_potential" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="qvarnet.hamiltonians.GrossPitaevskii.interaction_local_potential">
-<span class="sig-name descname"><span class="pre">interaction_local_potential</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">Tensor</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.7)"><span class="pre">Tensor</span></a></span></span><a class="reference internal" href="../_modules/qvarnet/hamiltonians.html#GrossPitaevskii.interaction_local_potential"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qvarnet.hamiltonians.GrossPitaevskii.interaction_local_potential" title="Link to this definition"></a></dt>
-<dd><p>Interaction potential term in the Gross-Pitaevskii equation.</p>
-<div class="math notranslate nohighlight">
-\[V_{int}(x) = g |\psi(x)|^2\psi(x)\]</div>
-<p>where <span class="math notranslate nohighlight">\(g\)</span> is the interaction strength and <span class="math notranslate nohighlight">\(\psi(x)\)</span> is the wave function.</p>
-</dd></dl>
-
-</dd></dl>
-
-</section>
+  <section id="samplers">
+<h1>Samplers<a class="headerlink" href="#samplers" title="Link to this heading"></a></h1>
+<p>This section provides an overview of the samplers available in the <cite>qvarnet</cite> library. Samplers are used to generate samples from distributions or datasets for various purposes.</p>
 <section id="module-qvarnet.samplersv2">
-<span id="qvarnet-samplers-module"></span><h2>qvarnet.samplers module<a class="headerlink" href="#module-qvarnet.samplersv2" title="Link to this heading"></a></h2>
+<span id="available-samplers"></span><h2>Available Samplers<a class="headerlink" href="#module-qvarnet.samplersv2" title="Link to this heading"></a></h2>
 <dl class="py class">
 <dt class="sig sig-object py" id="qvarnet.samplersv2.MetropolisHastingsSampler">
 <em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">qvarnet.samplersv2.</span></span><span class="sig-name descname"><span class="pre">MetropolisHastingsSampler</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/generated/torch.nn.Module.html#torch.nn.Module" title="(in PyTorch v2.7)"><span class="pre">Module</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_samples</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">step_size</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">burn_in</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">100</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">is_wf</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">batches</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">is_batched</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">PBC</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">assume_boltzmann</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/qvarnet/samplersv2.html#MetropolisHastingsSampler"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qvarnet.samplersv2.MetropolisHastingsSampler" title="Link to this definition"></a></dt>
@@ -406,15 +284,33 @@ and methods for sampling from a quantum variational model.
 </dd></dl>
 
 </section>
-<section id="module-qvarnet">
-<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-qvarnet" title="Link to this heading"></a></h2>
+<section id="usage-examples">
+<h2>Usage Examples<a class="headerlink" href="#usage-examples" title="Link to this heading"></a></h2>
+<p>Below are examples of how to use the samplers in <cite>qvarnet</cite>.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">qvarnet.samplersv2</span><span class="w"> </span><span class="kn">import</span> <span class="n">MetropolisHastingsSampler</span>
+
+<span class="c1"># Initialize the sampler</span>
+<span class="n">sampler</span> <span class="o">=</span> <span class="n">ExampleSampler</span><span class="p">(</span><span class="n">parameters</span><span class="p">)</span>
+
+<span class="c1"># Generate samples</span>
+<span class="n">samples</span> <span class="o">=</span> <span class="n">sampler</span><span class="o">.</span><span class="n">sample</span><span class="p">()</span>
+
+<span class="c1"># Process the samples</span>
+<span class="k">for</span> <span class="n">sample</span> <span class="ow">in</span> <span class="n">samples</span><span class="p">:</span>
+     <span class="nb">print</span><span class="p">(</span><span class="n">sample</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>For more details, refer to the documentation of individual sampler classes and methods.</p>
 </section>
 </section>
 
 
            </div>
           </div>
-          <footer>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="API reference" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="hamiltonians.html" class="btn btn-neutral float-right" title="Hamiltonians" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
 
   <hr/>
 

@@ -5,12 +5,14 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Index &mdash; qvarnet  documentation</title>
+  <title>Index &mdash; qvarnet 0.1.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
 
   
-      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=01f34227"></script>
       <script src="_static/doctools.js?v=9bcbadda"></script>
       <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/js/theme.js"></script>
@@ -37,8 +39,51 @@
   </form>
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
-              <!-- Local TOC -->
-              <div class="local-toc"></div>
+              <p class="caption" role="heading"><span class="caption-text">Quick Links</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Explanation of the details</a></li>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#installation-steps">Installation Steps</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api_reference/index.html">API reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api_reference/samplers.html">Samplers</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api_reference/samplers.html#module-qvarnet.samplersv2">Available Samplers</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api_reference/samplers.html#qvarnet.samplersv2.MetropolisHastingsSampler"><code class="docutils literal notranslate"><span class="pre">MetropolisHastingsSampler</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="api_reference/samplers.html#qvarnet.samplersv2.benchmark_sampler"><code class="docutils literal notranslate"><span class="pre">benchmark_sampler()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="api_reference/samplers.html#usage-examples">Usage Examples</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference/hamiltonians.html">Hamiltonians</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GeneralHamiltonian"><code class="docutils literal notranslate"><span class="pre">GeneralHamiltonian</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GeneralHamiltonian.__init__"><code class="docutils literal notranslate"><span class="pre">GeneralHamiltonian.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GeneralHamiltonian.kinetic_local_energy"><code class="docutils literal notranslate"><span class="pre">GeneralHamiltonian.kinetic_local_energy()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GeneralHamiltonian.trapping_potential"><code class="docutils literal notranslate"><span class="pre">GeneralHamiltonian.trapping_potential()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GeneralHamiltonian.interaction_local_potential"><code class="docutils literal notranslate"><span class="pre">GeneralHamiltonian.interaction_local_potential()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GeneralHamiltonian.forward"><code class="docutils literal notranslate"><span class="pre">GeneralHamiltonian.forward()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GeneralHamiltonian.__repr__"><code class="docutils literal notranslate"><span class="pre">GeneralHamiltonian.__repr__()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.HarmonicOscillator"><code class="docutils literal notranslate"><span class="pre">HarmonicOscillator</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.HarmonicOscillator.__init__"><code class="docutils literal notranslate"><span class="pre">HarmonicOscillator.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.HarmonicOscillator.trapping_potential"><code class="docutils literal notranslate"><span class="pre">HarmonicOscillator.trapping_potential()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GrossPitaevskii"><code class="docutils literal notranslate"><span class="pre">GrossPitaevskii</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GrossPitaevskii.__init__"><code class="docutils literal notranslate"><span class="pre">GrossPitaevskii.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GrossPitaevskii.trapping_potential"><code class="docutils literal notranslate"><span class="pre">GrossPitaevskii.trapping_potential()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GrossPitaevskii.interaction_local_potential"><code class="docutils literal notranslate"><span class="pre">GrossPitaevskii.interaction_local_potential()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="api_reference/hamiltonians.html#usage-examples">Usage Examples</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
         </div>
       </div>
     </nav>
@@ -66,25 +111,92 @@
 <h1 id="index">Index</h1>
 
 <div class="genindex-jumpbox">
- <a href="#F"><strong>F</strong></a>
+ <a href="#_"><strong>_</strong></a>
+ | <a href="#A"><strong>A</strong></a>
+ | <a href="#B"><strong>B</strong></a>
+ | <a href="#F"><strong>F</strong></a>
  | <a href="#G"><strong>G</strong></a>
  | <a href="#H"><strong>H</strong></a>
  | <a href="#I"><strong>I</strong></a>
  | <a href="#K"><strong>K</strong></a>
  | <a href="#M"><strong>M</strong></a>
+ | <a href="#N"><strong>N</strong></a>
+ | <a href="#P"><strong>P</strong></a>
  | <a href="#Q"><strong>Q</strong></a>
+ | <a href="#R"><strong>R</strong></a>
+ | <a href="#S"><strong>S</strong></a>
  | <a href="#T"><strong>T</strong></a>
  
 </div>
+<h2 id="_">_</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GeneralHamiltonian.__init__">__init__() (qvarnet.hamiltonians.GeneralHamiltonian method)</a>, <a href="api_reference/qvarnet.html#qvarnet.hamiltonians.GeneralHamiltonian.__init__">[1]</a>
+
+      <ul>
+        <li><a href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GrossPitaevskii.__init__">(qvarnet.hamiltonians.GrossPitaevskii method)</a>, <a href="api_reference/qvarnet.html#qvarnet.hamiltonians.GrossPitaevskii.__init__">[1]</a>
+</li>
+        <li><a href="api_reference/hamiltonians.html#qvarnet.hamiltonians.HarmonicOscillator.__init__">(qvarnet.hamiltonians.HarmonicOscillator method)</a>, <a href="api_reference/qvarnet.html#qvarnet.hamiltonians.HarmonicOscillator.__init__">[1]</a>
+</li>
+        <li><a href="api_reference/models.html#qvarnet.models.mlp.MLP.__init__">(qvarnet.models.mlp.MLP method)</a>
+</li>
+        <li><a href="api_reference/qvarnet.html#qvarnet.samplersv2.MetropolisHastingsSampler.__init__">(qvarnet.samplersv2.MetropolisHastingsSampler method)</a>, <a href="api_reference/samplers.html#qvarnet.samplersv2.MetropolisHastingsSampler.__init__">[1]</a>
+</li>
+      </ul></li>
+      <li><a href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GeneralHamiltonian.__repr__">__repr__() (qvarnet.hamiltonians.GeneralHamiltonian method)</a>, <a href="api_reference/qvarnet.html#qvarnet.hamiltonians.GeneralHamiltonian.__repr__">[1]</a>
+
+      <ul>
+        <li><a href="api_reference/models.html#qvarnet.models.mlp.MLP.__repr__">(qvarnet.models.mlp.MLP method)</a>
+</li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api_reference/qvarnet.html#qvarnet.samplersv2.MetropolisHastingsSampler._apply_pbc">_apply_pbc() (qvarnet.samplersv2.MetropolisHastingsSampler method)</a>, <a href="api_reference/samplers.html#qvarnet.samplersv2.MetropolisHastingsSampler._apply_pbc">[1]</a>
+</li>
+      <li><a href="api_reference/qvarnet.html#qvarnet.samplersv2.MetropolisHastingsSampler._evaluate_probability">_evaluate_probability() (qvarnet.samplersv2.MetropolisHastingsSampler method)</a>, <a href="api_reference/samplers.html#qvarnet.samplersv2.MetropolisHastingsSampler._evaluate_probability">[1]</a>
+</li>
+      <li><a href="api_reference/qvarnet.html#qvarnet.samplersv2.MetropolisHastingsSampler._mh_no_batch_optimized">_mh_no_batch_optimized() (qvarnet.samplersv2.MetropolisHastingsSampler method)</a>, <a href="api_reference/samplers.html#qvarnet.samplersv2.MetropolisHastingsSampler._mh_no_batch_optimized">[1]</a>
+</li>
+      <li><a href="api_reference/qvarnet.html#qvarnet.samplersv2.MetropolisHastingsSampler._mh_parallel_walkers">_mh_parallel_walkers() (qvarnet.samplersv2.MetropolisHastingsSampler method)</a>, <a href="api_reference/samplers.html#qvarnet.samplersv2.MetropolisHastingsSampler._mh_parallel_walkers">[1]</a>
+</li>
+      <li><a href="api_reference/qvarnet.html#qvarnet.samplersv2.MetropolisHastingsSampler._mh_step">_mh_step() (qvarnet.samplersv2.MetropolisHastingsSampler method)</a>, <a href="api_reference/samplers.html#qvarnet.samplersv2.MetropolisHastingsSampler._mh_step">[1]</a>
+</li>
+      <li><a href="api_reference/qvarnet.html#qvarnet.samplersv2.MetropolisHastingsSampler._mh_step_vectorized">_mh_step_vectorized() (qvarnet.samplersv2.MetropolisHastingsSampler method)</a>, <a href="api_reference/samplers.html#qvarnet.samplersv2.MetropolisHastingsSampler._mh_step_vectorized">[1]</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="A">A</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api_reference/qvarnet.html#qvarnet.samplersv2.MetropolisHastingsSampler.assume_boltzmann">assume_boltzmann (qvarnet.samplersv2.MetropolisHastingsSampler attribute)</a>, <a href="api_reference/samplers.html#qvarnet.samplersv2.MetropolisHastingsSampler.assume_boltzmann">[1]</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="B">B</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api_reference/qvarnet.html#qvarnet.samplersv2.MetropolisHastingsSampler.batches">batches (qvarnet.samplersv2.MetropolisHastingsSampler attribute)</a>, <a href="api_reference/samplers.html#qvarnet.samplersv2.MetropolisHastingsSampler.batches">[1]</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api_reference/qvarnet.html#qvarnet.samplersv2.benchmark_sampler">benchmark_sampler() (in module qvarnet.samplersv2)</a>, <a href="api_reference/samplers.html#qvarnet.samplersv2.benchmark_sampler">[1]</a>
+</li>
+      <li><a href="api_reference/qvarnet.html#qvarnet.samplersv2.MetropolisHastingsSampler.burn_in">burn_in (qvarnet.samplersv2.MetropolisHastingsSampler attribute)</a>, <a href="api_reference/samplers.html#qvarnet.samplersv2.MetropolisHastingsSampler.burn_in">[1]</a>
+</li>
+  </ul></td>
+</tr></table>
+
 <h2 id="F">F</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api_reference/qvarnet.html#qvarnet.hamiltonians.GeneralHamiltonian.forward">forward() (qvarnet.hamiltonians.GeneralHamiltonian method)</a>
+      <li><a href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GeneralHamiltonian.forward">forward() (qvarnet.hamiltonians.GeneralHamiltonian method)</a>, <a href="api_reference/qvarnet.html#qvarnet.hamiltonians.GeneralHamiltonian.forward">[1]</a>
 
       <ul>
-        <li><a href="api_reference/qvarnet.models.html#qvarnet.models.mlp.MLP.forward">(qvarnet.models.mlp.MLP method)</a>
+        <li><a href="api_reference/models.html#qvarnet.models.mlp.MLP.forward">(qvarnet.models.mlp.MLP method)</a>
 </li>
-        <li><a href="api_reference/qvarnet.html#qvarnet.samplers.MetropolisHastingsSampler.forward">(qvarnet.samplers.MetropolisHastingsSampler method)</a>
+        <li><a href="api_reference/qvarnet.html#id3">(qvarnet.samplersv2.MetropolisHastingsSampler method)</a>, <a href="api_reference/qvarnet.html#qvarnet.samplersv2.MetropolisHastingsSampler.forward">[1]</a>, <a href="api_reference/samplers.html#id3">[2]</a>, <a href="api_reference/samplers.html#qvarnet.samplersv2.MetropolisHastingsSampler.forward">[3]</a>
 </li>
       </ul></li>
   </ul></td>
@@ -93,11 +205,13 @@
 <h2 id="G">G</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api_reference/qvarnet.html#qvarnet.hamiltonians.GeneralHamiltonian">GeneralHamiltonian (class in qvarnet.hamiltonians)</a>
+      <li><a href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GeneralHamiltonian">GeneralHamiltonian (class in qvarnet.hamiltonians)</a>, <a href="api_reference/qvarnet.html#qvarnet.hamiltonians.GeneralHamiltonian">[1]</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api_reference/qvarnet.html#qvarnet.hamiltonians.GrossPitaevskii">GrossPitaevskii (class in qvarnet.hamiltonians)</a>
+      <li><a href="api_reference/qvarnet.html#id0">get_acceptance_rate() (qvarnet.samplersv2.MetropolisHastingsSampler method)</a>, <a href="api_reference/qvarnet.html#qvarnet.samplersv2.MetropolisHastingsSampler.get_acceptance_rate">[1]</a>, <a href="api_reference/samplers.html#id0">[2]</a>, <a href="api_reference/samplers.html#qvarnet.samplersv2.MetropolisHastingsSampler.get_acceptance_rate">[3]</a>
+</li>
+      <li><a href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GrossPitaevskii">GrossPitaevskii (class in qvarnet.hamiltonians)</a>, <a href="api_reference/qvarnet.html#qvarnet.hamiltonians.GrossPitaevskii">[1]</a>
 </li>
   </ul></td>
 </tr></table>
@@ -105,7 +219,7 @@
 <h2 id="H">H</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api_reference/qvarnet.html#qvarnet.hamiltonians.HarmonicOscillator">HarmonicOscillator (class in qvarnet.hamiltonians)</a>
+      <li><a href="api_reference/hamiltonians.html#qvarnet.hamiltonians.HarmonicOscillator">HarmonicOscillator (class in qvarnet.hamiltonians)</a>, <a href="api_reference/qvarnet.html#qvarnet.hamiltonians.HarmonicOscillator">[1]</a>
 </li>
   </ul></td>
 </tr></table>
@@ -113,19 +227,25 @@
 <h2 id="I">I</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api_reference/qvarnet.html#qvarnet.hamiltonians.GeneralHamiltonian.interaction_local_potential">interaction_local_potential() (qvarnet.hamiltonians.GeneralHamiltonian method)</a>
+      <li><a href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GeneralHamiltonian.interaction_local_potential">interaction_local_potential() (qvarnet.hamiltonians.GeneralHamiltonian method)</a>, <a href="api_reference/qvarnet.html#qvarnet.hamiltonians.GeneralHamiltonian.interaction_local_potential">[1]</a>
 
       <ul>
-        <li><a href="api_reference/qvarnet.html#qvarnet.hamiltonians.GrossPitaevskii.interaction_local_potential">(qvarnet.hamiltonians.GrossPitaevskii method)</a>
+        <li><a href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GrossPitaevskii.interaction_local_potential">(qvarnet.hamiltonians.GrossPitaevskii method)</a>, <a href="api_reference/qvarnet.html#qvarnet.hamiltonians.GrossPitaevskii.interaction_local_potential">[1]</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api_reference/qvarnet.html#qvarnet.samplersv2.MetropolisHastingsSampler.is_batched">is_batched (qvarnet.samplersv2.MetropolisHastingsSampler attribute)</a>, <a href="api_reference/samplers.html#qvarnet.samplersv2.MetropolisHastingsSampler.is_batched">[1]</a>
+</li>
+      <li><a href="api_reference/qvarnet.html#qvarnet.samplersv2.MetropolisHastingsSampler.is_wf">is_wf (qvarnet.samplersv2.MetropolisHastingsSampler attribute)</a>, <a href="api_reference/samplers.html#qvarnet.samplersv2.MetropolisHastingsSampler.is_wf">[1]</a>
+</li>
   </ul></td>
 </tr></table>
 
 <h2 id="K">K</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api_reference/qvarnet.html#qvarnet.hamiltonians.GeneralHamiltonian.kinetic_local_energy">kinetic_local_energy() (qvarnet.hamiltonians.GeneralHamiltonian method)</a>
+      <li><a href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GeneralHamiltonian.kinetic_local_energy">kinetic_local_energy() (qvarnet.hamiltonians.GeneralHamiltonian method)</a>, <a href="api_reference/qvarnet.html#qvarnet.hamiltonians.GeneralHamiltonian.kinetic_local_energy">[1]</a>
 </li>
   </ul></td>
 </tr></table>
@@ -133,9 +253,9 @@
 <h2 id="M">M</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api_reference/qvarnet.html#qvarnet.samplers.MetropolisHastingsSampler">MetropolisHastingsSampler (class in qvarnet.samplers)</a>
+      <li><a href="api_reference/qvarnet.html#qvarnet.samplersv2.MetropolisHastingsSampler">MetropolisHastingsSampler (class in qvarnet.samplersv2)</a>, <a href="api_reference/samplers.html#qvarnet.samplersv2.MetropolisHastingsSampler">[1]</a>
 </li>
-      <li><a href="api_reference/qvarnet.models.html#qvarnet.models.mlp.MLP">MLP (class in qvarnet.models.mlp)</a>
+      <li><a href="api_reference/models.html#qvarnet.models.mlp.MLP">MLP (class in qvarnet.models.mlp)</a>
 </li>
       <li>
     module
@@ -143,15 +263,31 @@
       <ul>
         <li><a href="api_reference/qvarnet.html#module-qvarnet">qvarnet</a>
 </li>
-        <li><a href="api_reference/qvarnet.html#module-qvarnet.hamiltonians">qvarnet.hamiltonians</a>
+        <li><a href="api_reference/hamiltonians.html#module-qvarnet.hamiltonians">qvarnet.hamiltonians</a>, <a href="api_reference/qvarnet.html#module-qvarnet.hamiltonians">[1]</a>
 </li>
-        <li><a href="api_reference/qvarnet.models.html#module-qvarnet.models">qvarnet.models</a>
+        <li><a href="api_reference/models.html#module-qvarnet.models">qvarnet.models</a>
 </li>
-        <li><a href="api_reference/qvarnet.models.html#module-qvarnet.models.mlp">qvarnet.models.mlp</a>
+        <li><a href="api_reference/models.html#module-qvarnet.models.mlp">qvarnet.models.mlp</a>
 </li>
-        <li><a href="api_reference/qvarnet.html#module-qvarnet.samplers">qvarnet.samplers</a>
+        <li><a href="api_reference/qvarnet.html#module-qvarnet.samplersv2">qvarnet.samplersv2</a>, <a href="api_reference/samplers.html#module-qvarnet.samplersv2">[1]</a>
 </li>
       </ul></li>
+  </ul></td>
+</tr></table>
+
+<h2 id="N">N</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api_reference/qvarnet.html#qvarnet.samplersv2.MetropolisHastingsSampler.n_samples">n_samples (qvarnet.samplersv2.MetropolisHastingsSampler attribute)</a>, <a href="api_reference/samplers.html#qvarnet.samplersv2.MetropolisHastingsSampler.n_samples">[1]</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="P">P</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api_reference/qvarnet.html#qvarnet.samplersv2.MetropolisHastingsSampler.PBC">PBC (qvarnet.samplersv2.MetropolisHastingsSampler attribute)</a>, <a href="api_reference/samplers.html#qvarnet.samplersv2.MetropolisHastingsSampler.PBC">[1]</a>
+</li>
   </ul></td>
 </tr></table>
 
@@ -169,14 +305,14 @@
     qvarnet.hamiltonians
 
       <ul>
-        <li><a href="api_reference/qvarnet.html#module-qvarnet.hamiltonians">module</a>
+        <li><a href="api_reference/hamiltonians.html#module-qvarnet.hamiltonians">module</a>, <a href="api_reference/qvarnet.html#module-qvarnet.hamiltonians">[1]</a>
 </li>
       </ul></li>
       <li>
     qvarnet.models
 
       <ul>
-        <li><a href="api_reference/qvarnet.models.html#module-qvarnet.models">module</a>
+        <li><a href="api_reference/models.html#module-qvarnet.models">module</a>
 </li>
       </ul></li>
   </ul></td>
@@ -185,30 +321,50 @@
     qvarnet.models.mlp
 
       <ul>
-        <li><a href="api_reference/qvarnet.models.html#module-qvarnet.models.mlp">module</a>
+        <li><a href="api_reference/models.html#module-qvarnet.models.mlp">module</a>
 </li>
       </ul></li>
       <li>
-    qvarnet.samplers
+    qvarnet.samplersv2
 
       <ul>
-        <li><a href="api_reference/qvarnet.html#module-qvarnet.samplers">module</a>
+        <li><a href="api_reference/qvarnet.html#module-qvarnet.samplersv2">module</a>, <a href="api_reference/samplers.html#module-qvarnet.samplersv2">[1]</a>
 </li>
       </ul></li>
+  </ul></td>
+</tr></table>
+
+<h2 id="R">R</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api_reference/qvarnet.html#id1">reset_statistics() (qvarnet.samplersv2.MetropolisHastingsSampler method)</a>, <a href="api_reference/qvarnet.html#qvarnet.samplersv2.MetropolisHastingsSampler.reset_statistics">[1]</a>, <a href="api_reference/samplers.html#id1">[2]</a>, <a href="api_reference/samplers.html#qvarnet.samplersv2.MetropolisHastingsSampler.reset_statistics">[3]</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="S">S</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api_reference/qvarnet.html#qvarnet.samplersv2.MetropolisHastingsSampler.step_size">step_size (qvarnet.samplersv2.MetropolisHastingsSampler attribute)</a>, <a href="api_reference/samplers.html#qvarnet.samplersv2.MetropolisHastingsSampler.step_size">[1]</a>
+</li>
   </ul></td>
 </tr></table>
 
 <h2 id="T">T</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api_reference/qvarnet.html#qvarnet.hamiltonians.GeneralHamiltonian.trapping_potential">trapping_potential() (qvarnet.hamiltonians.GeneralHamiltonian method)</a>
+      <li><a href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GeneralHamiltonian.trapping_potential">trapping_potential() (qvarnet.hamiltonians.GeneralHamiltonian method)</a>, <a href="api_reference/qvarnet.html#qvarnet.hamiltonians.GeneralHamiltonian.trapping_potential">[1]</a>
 
       <ul>
-        <li><a href="api_reference/qvarnet.html#qvarnet.hamiltonians.GrossPitaevskii.trapping_potential">(qvarnet.hamiltonians.GrossPitaevskii method)</a>
+        <li><a href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GrossPitaevskii.trapping_potential">(qvarnet.hamiltonians.GrossPitaevskii method)</a>, <a href="api_reference/qvarnet.html#qvarnet.hamiltonians.GrossPitaevskii.trapping_potential">[1]</a>
 </li>
-        <li><a href="api_reference/qvarnet.html#qvarnet.hamiltonians.HarmonicOscillator.trapping_potential">(qvarnet.hamiltonians.HarmonicOscillator method)</a>
+        <li><a href="api_reference/hamiltonians.html#qvarnet.hamiltonians.HarmonicOscillator.trapping_potential">(qvarnet.hamiltonians.HarmonicOscillator method)</a>, <a href="api_reference/qvarnet.html#qvarnet.hamiltonians.HarmonicOscillator.trapping_potential">[1]</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api_reference/qvarnet.html#id2">tune_step_size() (qvarnet.samplersv2.MetropolisHastingsSampler method)</a>, <a href="api_reference/qvarnet.html#qvarnet.samplersv2.MetropolisHastingsSampler.tune_step_size">[1]</a>, <a href="api_reference/samplers.html#id2">[2]</a>, <a href="api_reference/samplers.html#qvarnet.samplersv2.MetropolisHastingsSampler.tune_step_size">[3]</a>
+</li>
   </ul></td>
 </tr></table>
 

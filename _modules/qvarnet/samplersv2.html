@@ -1,0 +1,443 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>qvarnet.samplersv2 &mdash; qvarnet 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            qvarnet
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Quick Links</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../introduction.html">Explanation of the details</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../installation.html">Installation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../installation.html#installation-steps">Installation Steps</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../api_reference/index.html">API reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../api_reference/samplers.html">Samplers</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference/samplers.html#module-qvarnet.samplersv2">Available Samplers</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../api_reference/samplers.html#qvarnet.samplersv2.MetropolisHastingsSampler"><code class="docutils literal notranslate"><span class="pre">MetropolisHastingsSampler</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api_reference/samplers.html#qvarnet.samplersv2.benchmark_sampler"><code class="docutils literal notranslate"><span class="pre">benchmark_sampler()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference/samplers.html#usage-examples">Usage Examples</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../api_reference/hamiltonians.html">Hamiltonians</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference/hamiltonians.html#qvarnet.hamiltonians.GeneralHamiltonian"><code class="docutils literal notranslate"><span class="pre">GeneralHamiltonian</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../api_reference/hamiltonians.html#qvarnet.hamiltonians.GeneralHamiltonian.__init__"><code class="docutils literal notranslate"><span class="pre">GeneralHamiltonian.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api_reference/hamiltonians.html#qvarnet.hamiltonians.GeneralHamiltonian.kinetic_local_energy"><code class="docutils literal notranslate"><span class="pre">GeneralHamiltonian.kinetic_local_energy()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api_reference/hamiltonians.html#qvarnet.hamiltonians.GeneralHamiltonian.trapping_potential"><code class="docutils literal notranslate"><span class="pre">GeneralHamiltonian.trapping_potential()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api_reference/hamiltonians.html#qvarnet.hamiltonians.GeneralHamiltonian.interaction_local_potential"><code class="docutils literal notranslate"><span class="pre">GeneralHamiltonian.interaction_local_potential()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api_reference/hamiltonians.html#qvarnet.hamiltonians.GeneralHamiltonian.forward"><code class="docutils literal notranslate"><span class="pre">GeneralHamiltonian.forward()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api_reference/hamiltonians.html#qvarnet.hamiltonians.GeneralHamiltonian.__repr__"><code class="docutils literal notranslate"><span class="pre">GeneralHamiltonian.__repr__()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference/hamiltonians.html#qvarnet.hamiltonians.HarmonicOscillator"><code class="docutils literal notranslate"><span class="pre">HarmonicOscillator</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../api_reference/hamiltonians.html#qvarnet.hamiltonians.HarmonicOscillator.__init__"><code class="docutils literal notranslate"><span class="pre">HarmonicOscillator.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api_reference/hamiltonians.html#qvarnet.hamiltonians.HarmonicOscillator.trapping_potential"><code class="docutils literal notranslate"><span class="pre">HarmonicOscillator.trapping_potential()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference/hamiltonians.html#qvarnet.hamiltonians.GrossPitaevskii"><code class="docutils literal notranslate"><span class="pre">GrossPitaevskii</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../api_reference/hamiltonians.html#qvarnet.hamiltonians.GrossPitaevskii.__init__"><code class="docutils literal notranslate"><span class="pre">GrossPitaevskii.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api_reference/hamiltonians.html#qvarnet.hamiltonians.GrossPitaevskii.trapping_potential"><code class="docutils literal notranslate"><span class="pre">GrossPitaevskii.trapping_potential()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api_reference/hamiltonians.html#qvarnet.hamiltonians.GrossPitaevskii.interaction_local_potential"><code class="docutils literal notranslate"><span class="pre">GrossPitaevskii.interaction_local_potential()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference/hamiltonians.html#usage-examples">Usage Examples</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">qvarnet</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">qvarnet.samplersv2</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for qvarnet.samplersv2</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">torch</span><span class="w"> </span><span class="kn">import</span> <span class="n">nn</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+
+<div class="viewcode-block" id="MetropolisHastingsSampler">
+<a class="viewcode-back" href="../../api_reference/samplers.html#qvarnet.samplersv2.MetropolisHastingsSampler">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">MetropolisHastingsSampler</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<div class="viewcode-block" id="MetropolisHastingsSampler.__init__">
+<a class="viewcode-back" href="../../api_reference/samplers.html#qvarnet.samplersv2.MetropolisHastingsSampler.__init__">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> 
+                 <span class="n">model</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span> 
+                 <span class="n">n_samples</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1000</span><span class="p">,</span> 
+                 <span class="n">step_size</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.1</span><span class="p">,</span> 
+                 <span class="n">burn_in</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">100</span><span class="p">,</span> 
+                 <span class="n">is_wf</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> 
+                 <span class="n">batches</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> 
+                 <span class="n">is_batched</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+                 <span class="n">PBC</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">assume_boltzmann</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+                 <span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model</span> <span class="o">=</span> <span class="n">model</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_samples</span> <span class="o">=</span> <span class="n">n_samples</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">step_size</span> <span class="o">=</span> <span class="n">step_size</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">burn_in</span> <span class="o">=</span> <span class="n">burn_in</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">is_wf</span> <span class="o">=</span> <span class="n">is_wf</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">batches</span> <span class="o">=</span> <span class="n">batches</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">values_per_batch</span> <span class="o">=</span> <span class="n">n_samples</span> <span class="o">//</span> <span class="n">batches</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">is_batched</span> <span class="o">=</span> <span class="n">is_batched</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assume_boltzmann</span> <span class="o">=</span> <span class="n">assume_boltzmann</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">PBC</span> <span class="o">=</span> <span class="n">PBC</span> <span class="c1"># box -PBC/2 to PBC/2</span>
+        
+        <span class="c1"># Statistics tracking</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">accepted_moves</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">total_moves</span> <span class="o">=</span> <span class="mi">0</span>
+        
+        <span class="k">if</span> <span class="n">n_samples</span> <span class="o">%</span> <span class="n">batches</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;n_samples are not divisible by batches </span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Setting n_samples to </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">values_per_batch</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">batches</span><span class="si">}</span><span class="s2"> </span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">n_samples</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">values_per_batch</span> <span class="o">*</span> <span class="n">batches</span></div>
+
+
+<div class="viewcode-block" id="MetropolisHastingsSampler._evaluate_probability">
+<a class="viewcode-back" href="../../api_reference/samplers.html#qvarnet.samplersv2.MetropolisHastingsSampler._evaluate_probability">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_evaluate_probability</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Optimized probability evaluation with batching&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_wf</span><span class="p">:</span>
+            <span class="c1"># Assuming model returns [batch_size, ...], take appropriate slice</span>
+            <span class="n">model_output</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="c1"># Wavefunction!</span>
+            <span class="k">if</span> <span class="n">model_output</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">model_output</span><span class="o">.</span><span class="n">pow</span><span class="p">(</span><span class="mi">2</span><span class="p">)[:,</span> <span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="n">model_output</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">model_output</span><span class="o">.</span><span class="n">pow</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">model_output</span><span class="o">.</span><span class="n">pow</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">assume_boltzmann</span><span class="p">:</span>
+            <span class="c1"># Assume Boltzmann distribution</span>
+            <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">(</span><span class="n">x</span><span class="p">)</span></div>
+
+        
+<div class="viewcode-block" id="MetropolisHastingsSampler._apply_pbc">
+<a class="viewcode-back" href="../../api_reference/samplers.html#qvarnet.samplersv2.MetropolisHastingsSampler._apply_pbc">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_apply_pbc</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Apply periodic boundary conditions if specified&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">PBC</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">((</span><span class="n">x</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">PBC</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">PBC</span><span class="p">)</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">PBC</span><span class="o">/</span><span class="mi">2</span>
+        <span class="k">return</span> <span class="n">x</span></div>
+
+
+<div class="viewcode-block" id="MetropolisHastingsSampler._mh_step_vectorized">
+<a class="viewcode-back" href="../../api_reference/samplers.html#qvarnet.samplersv2.MetropolisHastingsSampler._mh_step_vectorized">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_mh_step_vectorized</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">n_walkers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Vectorized MH step for multiple walkers simultaneously&quot;&quot;&quot;</span>
+        
+        <span class="c1"># x has to have shape [n_walkers, dimensions]</span>
+        <span class="k">assert</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">n_walkers</span><span class="p">,</span> <span class="s2">&quot;x must have shape [n_walkers, dimensions]&quot;</span>
+        
+        <span class="c1"># Generate proposals for all walkers at once</span>
+        <span class="n">x_new</span> <span class="o">=</span> <span class="n">x</span> <span class="o">+</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn_like</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">step_size</span><span class="o">*</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">PBC</span><span class="o">/</span><span class="mi">4</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">PBC</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="mf">1.0</span><span class="p">)</span>
+        
+        <span class="n">x_new</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_apply_pbc</span><span class="p">(</span><span class="n">x_new</span><span class="p">)</span>  <span class="c1"># Apply PBC if needed</span>
+        
+        <span class="c1"># Evaluate probabilities in batch</span>
+        <span class="n">p_old</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_evaluate_probability</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">p_new</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_evaluate_probability</span><span class="p">(</span><span class="n">x_new</span><span class="p">)</span>
+        
+        <span class="c1"># Compute acceptance ratios</span>
+        <span class="n">acceptance_ratio</span> <span class="o">=</span> <span class="p">(</span><span class="n">p_new</span> <span class="o">/</span> <span class="p">(</span><span class="n">p_old</span> <span class="o">+</span> <span class="mf">1e-12</span><span class="p">))</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="nb">max</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>
+        
+        <span class="c1"># Accept/reject moves</span>
+        <span class="n">accept_mask</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand_like</span><span class="p">(</span><span class="n">acceptance_ratio</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">acceptance_ratio</span>
+        
+        <span class="c1"># Update positions</span>
+        <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">accept_mask</span> <span class="o">=</span> <span class="n">accept_mask</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">x</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">==</span> <span class="mi">2</span> <span class="ow">and</span> <span class="n">accept_mask</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">accept_mask</span> <span class="o">=</span> <span class="n">accept_mask</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+            
+        <span class="n">x_updated</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">accept_mask</span><span class="p">,</span> <span class="n">x_new</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+        
+        <span class="c1"># Update statistics</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">accepted_moves</span> <span class="o">+=</span> <span class="n">accept_mask</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">total_moves</span> <span class="o">+=</span> <span class="n">accept_mask</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span>
+        
+        <span class="k">return</span> <span class="n">x_updated</span></div>
+
+
+<div class="viewcode-block" id="MetropolisHastingsSampler._mh_step">
+<a class="viewcode-back" href="../../api_reference/samplers.html#qvarnet.samplersv2.MetropolisHastingsSampler._mh_step">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_mh_step</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Single walker MH step (for compatibility)&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mh_step_vectorized</span><span class="p">(</span><span class="n">x</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="MetropolisHastingsSampler._mh_parallel_walkers">
+<a class="viewcode-back" href="../../api_reference/samplers.html#qvarnet.samplersv2.MetropolisHastingsSampler._mh_parallel_walkers">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_mh_parallel_walkers</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x0</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">n_walkers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">32</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Run multiple independent walkers in parallel&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">x0</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">x0</span> <span class="o">=</span> <span class="n">x0</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        
+        <span class="c1"># Initialize multiple walkers</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">x0</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">n_walkers</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="n">n_walkers</span><span class="p">,</span> <span class="n">x0</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">device</span><span class="o">=</span><span class="n">x0</span><span class="o">.</span><span class="n">device</span><span class="p">)</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">PBC</span><span class="p">)</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">PBC</span> <span class="o">/</span> <span class="mi">2</span>
+
+        <span class="n">samples_per_walker</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_samples</span> <span class="o">//</span> <span class="n">n_walkers</span>
+        <span class="c1"># if self.n_samples % n_walkers != 0:</span>
+        <span class="c1">#     print(&quot;n_samples is not divisible by n_walkers, adjusting samples_per_walker.&quot;)</span>
+        <span class="c1">#     samples_per_walker += 1</span>
+        <span class="n">samples</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">n_walkers</span><span class="p">,</span> <span class="n">samples_per_walker</span><span class="p">,</span> <span class="n">x0</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span> <span class="n">device</span><span class="o">=</span><span class="n">x0</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+        
+        <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+            <span class="c1"># Burn-in phase</span>
+            <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">burn_in</span><span class="p">):</span>
+                <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mh_step_vectorized</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">n_walkers</span><span class="p">)</span>
+            
+            <span class="c1"># Sampling phase</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">samples_per_walker</span><span class="p">):</span>
+                <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mh_step_vectorized</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">n_walkers</span><span class="p">)</span>
+                <span class="n">samples</span><span class="p">[:,</span> <span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">x</span>
+        
+        <span class="c1"># Reshape to [total_samples, dimensions]</span>
+        <span class="k">return</span> <span class="n">samples</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">x0</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span></div>
+
+
+<div class="viewcode-block" id="MetropolisHastingsSampler._mh_no_batch_optimized">
+<a class="viewcode-back" href="../../api_reference/samplers.html#qvarnet.samplersv2.MetropolisHastingsSampler._mh_no_batch_optimized">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_mh_no_batch_optimized</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x0</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Optimized single-chain sampling&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">x0</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">x0</span> <span class="o">=</span> <span class="n">x0</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        
+        <span class="c1"># Pre-allocate memory</span>
+        <span class="n">samples</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">n_samples</span><span class="p">,</span> <span class="n">x0</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span> <span class="n">device</span><span class="o">=</span><span class="n">x0</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">x0</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">x0</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+        
+        <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+            <span class="c1"># Burn-in phase</span>
+            <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">burn_in</span><span class="p">):</span>
+                <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mh_step</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+            
+            <span class="c1"># Sampling phase with reduced overhead</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_samples</span><span class="p">):</span>
+                <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mh_step</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+                <span class="n">samples</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">squeeze</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">x</span>
+        
+        <span class="k">return</span> <span class="n">samples</span></div>
+
+
+<div class="viewcode-block" id="MetropolisHastingsSampler.get_acceptance_rate">
+<a class="viewcode-back" href="../../api_reference/samplers.html#qvarnet.samplersv2.MetropolisHastingsSampler.get_acceptance_rate">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_acceptance_rate</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get current acceptance rate&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">total_moves</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="mf">0.0</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">accepted_moves</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">total_moves</span></div>
+
+
+<div class="viewcode-block" id="MetropolisHastingsSampler.reset_statistics">
+<a class="viewcode-back" href="../../api_reference/samplers.html#qvarnet.samplersv2.MetropolisHastingsSampler.reset_statistics">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">reset_statistics</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Reset acceptance rate statistics&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">accepted_moves</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">total_moves</span> <span class="o">=</span> <span class="mi">0</span></div>
+
+
+<div class="viewcode-block" id="MetropolisHastingsSampler.tune_step_size">
+<a class="viewcode-back" href="../../api_reference/samplers.html#qvarnet.samplersv2.MetropolisHastingsSampler.tune_step_size">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">tune_step_size</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x0</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">target_rate</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span><span class="p">,</span> <span class="n">n_tune</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">100</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Auto-tune step size to achieve target acceptance rate&quot;&quot;&quot;</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Tuning step size (target acceptance rate: </span><span class="si">{</span><span class="n">target_rate</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">)</span>
+        
+        <span class="k">for</span> <span class="n">iteration</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">10</span><span class="p">):</span>  <span class="c1"># Max tuning iterations</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">reset_statistics</span><span class="p">()</span>
+            <span class="n">x</span> <span class="o">=</span> <span class="n">x0</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+            
+            <span class="c1"># Run short sampling to measure acceptance rate</span>
+            <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+                <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_tune</span><span class="p">):</span>
+                    <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mh_step</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+            
+            <span class="n">current_rate</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_acceptance_rate</span><span class="p">()</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Iteration </span><span class="si">{</span><span class="n">iteration</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2">: step_size=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">step_size</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">, acceptance_rate=</span><span class="si">{</span><span class="n">current_rate</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            
+            <span class="k">if</span> <span class="nb">abs</span><span class="p">(</span><span class="n">current_rate</span> <span class="o">-</span> <span class="n">target_rate</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mf">0.05</span><span class="p">:</span>  <span class="c1"># Close enough</span>
+                <span class="k">break</span>
+            
+            <span class="c1"># Adjust step size</span>
+            <span class="k">if</span> <span class="n">current_rate</span> <span class="o">&gt;</span> <span class="n">target_rate</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">step_size</span> <span class="o">*=</span> <span class="mf">1.1</span>  <span class="c1"># Increase step size</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">step_size</span> <span class="o">*=</span> <span class="mf">0.9</span>  <span class="c1"># Decrease step size</span>
+        
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Final step_size: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">step_size</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reset_statistics</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="MetropolisHastingsSampler.forward">
+<a class="viewcode-back" href="../../api_reference/samplers.html#qvarnet.samplersv2.MetropolisHastingsSampler.forward">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x0</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">method</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;parallel&#39;</span><span class="p">,</span> <span class="n">n_walkers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">32</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Forward pass with different sampling methods</span>
+<span class="sd">        </span>
+<span class="sd">        Args:</span>
+<span class="sd">            x0: Initial configuration</span>
+<span class="sd">            method: &#39;single&#39;, &#39;parallel&#39;, &#39;block&#39;, or &#39;optimized&#39;</span>
+<span class="sd">            n_walkers: Number of parallel walkers (for parallel method)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">method</span> <span class="o">==</span> <span class="s1">&#39;parallel&#39;</span> <span class="ow">and</span> <span class="n">n_walkers</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mh_parallel_walkers</span><span class="p">(</span><span class="n">x0</span><span class="p">,</span> <span class="n">n_walkers</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">method</span> <span class="o">==</span> <span class="s1">&#39;no_batch_optimized&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mh_no_batch_optimized</span><span class="p">(</span><span class="n">x0</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mh_no_batch_optimized</span><span class="p">(</span><span class="n">x0</span><span class="p">)</span>  <span class="c1"># Default to optimized single chain</span></div>
+</div>
+
+
+<span class="n">MetropolisHastingsSampler</span><span class="o">.</span><span class="vm">__doc__</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">Metropolis-Hastings Sampler for Quantum Variational Networks</span>
+<span class="s2">This class implements a Metropolis-Hastings sampling algorithm with various optimizations</span>
+<span class="s2">and methods for sampling from a quantum variational model.</span>
+<span class="s2">Attributes:</span>
+<span class="s2">    model: The quantum variational model to sample from.</span>
+<span class="s2">    n_samples: Total number of samples to generate.</span>
+<span class="s2">    step_size: Step size for proposal distribution.</span>
+<span class="s2">    burn_in: Number of initial samples to discard.</span>
+<span class="s2">    is_wf: Whether the model outputs a wavefunction.</span>
+<span class="s2">    batches: Number of batches for sampling.</span>
+<span class="s2">    is_batched: Whether the model supports batched inputs.</span>
+<span class="s2">    PBC: Periodic boundary conditions (if applicable).</span>
+<span class="s2">    assume_boltzmann: Whether to assume Boltzmann distribution for sampling.</span>
+<span class="s2">Methods:</span>
+<span class="s2">    _evaluate_probability: Evaluate the probability of a configuration.</span>
+<span class="s2">    _apply_pbc: Apply periodic boundary conditions to a configuration.</span>
+<span class="s2">    _mh_step_vectorized: Perform a Metropolis-Hastings step for multiple walkers.</span>
+<span class="s2">    _mh_step: Perform a single Metropolis-Hastings step (for compatibility).</span>
+<span class="s2">    _mh_parallel_walkers: Run multiple independent walkers in parallel.</span>
+<span class="s2">    _mh_no_batch_optimized: Optimized single-chain sampling without batching.</span>
+<span class="s2">    get_acceptance_rate: Get the current acceptance rate of the sampler.</span>
+<span class="s2">    reset_statistics: Reset acceptance statistics.</span>
+<span class="s2">    tune_step_size: Auto-tune step size to achieve target acceptance rate.</span>
+<span class="s2">    forward: Forward pass with different sampling methods.</span>
+<span class="s2">&quot;&quot;&quot;</span>
+
+<span class="c1"># Example usage and performance comparison</span>
+<div class="viewcode-block" id="benchmark_sampler">
+<a class="viewcode-back" href="../../api_reference/samplers.html#qvarnet.samplersv2.benchmark_sampler">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">benchmark_sampler</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">x0</span><span class="p">,</span> <span class="n">n_samples</span><span class="o">=</span><span class="mi">1000</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Benchmark different sampling methods&quot;&quot;&quot;</span>
+    
+    <span class="n">sampler</span> <span class="o">=</span> <span class="n">MetropolisHastingsSampler</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">n_samples</span><span class="o">=</span><span class="n">n_samples</span><span class="p">,</span> <span class="n">step_size</span><span class="o">=</span><span class="mf">0.1</span><span class="p">)</span>
+    
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Benchmarking different methods:&quot;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;-&quot;</span> <span class="o">*</span> <span class="mi">50</span><span class="p">)</span>
+    
+    <span class="n">methods</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="p">(</span><span class="s1">&#39;optimized&#39;</span><span class="p">,</span> <span class="p">{}),</span>
+        <span class="p">(</span><span class="s1">&#39;parallel&#39;</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;n_walkers&#39;</span><span class="p">:</span> <span class="mi">16</span><span class="p">}),</span>
+        <span class="p">(</span><span class="s1">&#39;parallel&#39;</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;n_walkers&#39;</span><span class="p">:</span> <span class="mi">32</span><span class="p">}),</span>
+        <span class="p">(</span><span class="s1">&#39;block&#39;</span><span class="p">,</span> <span class="p">{})</span>
+    <span class="p">]</span>
+    
+    <span class="n">results</span> <span class="o">=</span> <span class="p">{}</span>
+    
+    <span class="k">for</span> <span class="n">method_name</span><span class="p">,</span> <span class="n">kwargs</span> <span class="ow">in</span> <span class="n">methods</span><span class="p">:</span>
+        <span class="n">start_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+        <span class="n">samples</span> <span class="o">=</span> <span class="n">sampler</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="n">x0</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="n">method_name</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">end_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+        
+        <span class="n">elapsed</span> <span class="o">=</span> <span class="n">end_time</span> <span class="o">-</span> <span class="n">start_time</span>
+        <span class="n">acceptance_rate</span> <span class="o">=</span> <span class="n">sampler</span><span class="o">.</span><span class="n">get_acceptance_rate</span><span class="p">()</span>
+        
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">method_name</span><span class="si">:</span><span class="s2">12s</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">elapsed</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">s, acceptance: </span><span class="si">{</span><span class="n">acceptance_rate</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">, shape: </span><span class="si">{</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">results</span><span class="p">[</span><span class="n">method_name</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;time&#39;</span><span class="p">:</span> <span class="n">elapsed</span><span class="p">,</span>
+            <span class="s1">&#39;acceptance_rate&#39;</span><span class="p">:</span> <span class="n">acceptance_rate</span><span class="p">,</span>
+            <span class="s1">&#39;samples&#39;</span><span class="p">:</span> <span class="n">samples</span>
+        <span class="p">}</span>
+        
+        <span class="n">sampler</span><span class="o">.</span><span class="n">reset_statistics</span><span class="p">()</span>
+    
+    <span class="k">return</span> <span class="n">results</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Pau Fargas.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

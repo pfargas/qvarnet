@@ -6,17 +6,20 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Welcome to qvarnet’s documentation! &mdash; qvarnet  documentation</title>
+  <title>qvarnet: Artificial Networks for Quantum Variational Monte Carlo &mdash; qvarnet 0.1.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
 
   
-      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=01f34227"></script>
       <script src="_static/doctools.js?v=9bcbadda"></script>
       <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
-    <link rel="search" title="Search" href="search.html" /> 
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Explanation of the details" href="introduction.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -38,14 +41,51 @@
   </form>
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
-              <!-- Local TOC -->
-              <div class="local-toc"><ul>
-<li><a class="reference internal" href="#">Welcome to qvarnet’s documentation!</a></li>
-<li><a class="reference internal" href="#indices-and-tables">Indices and tables</a></li>
-<li><a class="reference internal" href="#explanation-of-the-details">Explanation of the details</a></li>
-<li><a class="reference internal" href="#api-reference">API reference</a></li>
+              <p class="caption" role="heading"><span class="caption-text">Quick Links</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Explanation of the details</a></li>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#installation-steps">Installation Steps</a></li>
 </ul>
-</div>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api_reference/index.html">API reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api_reference/samplers.html">Samplers</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api_reference/samplers.html#module-qvarnet.samplersv2">Available Samplers</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api_reference/samplers.html#qvarnet.samplersv2.MetropolisHastingsSampler"><code class="docutils literal notranslate"><span class="pre">MetropolisHastingsSampler</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="api_reference/samplers.html#qvarnet.samplersv2.benchmark_sampler"><code class="docutils literal notranslate"><span class="pre">benchmark_sampler()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="api_reference/samplers.html#usage-examples">Usage Examples</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference/hamiltonians.html">Hamiltonians</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GeneralHamiltonian"><code class="docutils literal notranslate"><span class="pre">GeneralHamiltonian</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GeneralHamiltonian.__init__"><code class="docutils literal notranslate"><span class="pre">GeneralHamiltonian.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GeneralHamiltonian.kinetic_local_energy"><code class="docutils literal notranslate"><span class="pre">GeneralHamiltonian.kinetic_local_energy()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GeneralHamiltonian.trapping_potential"><code class="docutils literal notranslate"><span class="pre">GeneralHamiltonian.trapping_potential()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GeneralHamiltonian.interaction_local_potential"><code class="docutils literal notranslate"><span class="pre">GeneralHamiltonian.interaction_local_potential()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GeneralHamiltonian.forward"><code class="docutils literal notranslate"><span class="pre">GeneralHamiltonian.forward()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GeneralHamiltonian.__repr__"><code class="docutils literal notranslate"><span class="pre">GeneralHamiltonian.__repr__()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.HarmonicOscillator"><code class="docutils literal notranslate"><span class="pre">HarmonicOscillator</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.HarmonicOscillator.__init__"><code class="docutils literal notranslate"><span class="pre">HarmonicOscillator.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.HarmonicOscillator.trapping_potential"><code class="docutils literal notranslate"><span class="pre">HarmonicOscillator.trapping_potential()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GrossPitaevskii"><code class="docutils literal notranslate"><span class="pre">GrossPitaevskii</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GrossPitaevskii.__init__"><code class="docutils literal notranslate"><span class="pre">GrossPitaevskii.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GrossPitaevskii.trapping_potential"><code class="docutils literal notranslate"><span class="pre">GrossPitaevskii.trapping_potential()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GrossPitaevskii.interaction_local_potential"><code class="docutils literal notranslate"><span class="pre">GrossPitaevskii.interaction_local_potential()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="api_reference/hamiltonians.html#usage-examples">Usage Examples</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
         </div>
       </div>
     </nav>
@@ -60,7 +100,7 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="#" class="icon icon-home" aria-label="Home"></a></li>
-      <li class="breadcrumb-item active">Welcome to qvarnet’s documentation!</li>
+      <li class="breadcrumb-item active">qvarnet: Artificial Networks for Quantum Variational Monte Carlo</li>
       <li class="wy-breadcrumbs-aside">
             <a href="_sources/index.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -70,68 +110,50 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="welcome-to-qvarnet-s-documentation">
-<h1>Welcome to qvarnet’s documentation!<a class="headerlink" href="#welcome-to-qvarnet-s-documentation" title="Link to this heading">¶</a></h1>
+  <section id="qvarnet-artificial-networks-for-quantum-variational-monte-carlo">
+<h1>qvarnet: Artificial Networks for Quantum Variational Monte Carlo<a class="headerlink" href="#qvarnet-artificial-networks-for-quantum-variational-monte-carlo" title="Link to this heading"></a></h1>
+<p>This documentation provides a user guide and an automatic API reference for the <cite>qvarnet</cite> library.x</p>
 <div class="toctree-wrapper compound">
+<p class="caption" role="heading"><span class="caption-text">Quick Links</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Explanation of the details</a></li>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#installation-steps">Installation Steps</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api_reference/index.html">API reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api_reference/samplers.html">Samplers</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api_reference/samplers.html#module-qvarnet.samplersv2">Available Samplers</a></li>
+<li class="toctree-l3"><a class="reference internal" href="api_reference/samplers.html#usage-examples">Usage Examples</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference/hamiltonians.html">Hamiltonians</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GeneralHamiltonian"><code class="docutils literal notranslate"><span class="pre">GeneralHamiltonian</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.HarmonicOscillator"><code class="docutils literal notranslate"><span class="pre">HarmonicOscillator</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GrossPitaevskii"><code class="docutils literal notranslate"><span class="pre">GrossPitaevskii</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api_reference/hamiltonians.html#usage-examples">Usage Examples</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
 </div>
 </section>
 <section id="indices-and-tables">
-<h1>Indices and tables<a class="headerlink" href="#indices-and-tables" title="Link to this heading">¶</a></h1>
+<h1>Indices and tables<a class="headerlink" href="#indices-and-tables" title="Link to this heading"></a></h1>
 <ul class="simple">
 <li><p><a class="reference internal" href="genindex.html"><span class="std std-ref">Index</span></a></p></li>
 <li><p><a class="reference internal" href="py-modindex.html"><span class="std std-ref">Module Index</span></a></p></li>
 <li><p><a class="reference internal" href="search.html"><span class="std std-ref">Search Page</span></a></p></li>
 </ul>
 </section>
-<section id="explanation-of-the-details">
-<h1>Explanation of the details<a class="headerlink" href="#explanation-of-the-details" title="Link to this heading">¶</a></h1>
-<p>The package is designed to have different parts for a whole VMC workflow.</p>
-<blockquote>
-<div><ul class="simple">
-<li><p>Models: The ANN models (pytorch modules). It is really important that the forward pass of these models has to have dimensions (batch_size, input_layer). In the case of 1D, 1particle systems, the input layer is just 1 neuron, so the vector of positions has to have the shape (discretization, 1).</p></li>
-<li><p>Hamiltonians: Definition of the target Hamiltonians</p></li>
-<li><p>Samplers: Responsible for sampling the points at which the Models are evaluated.</p></li>
-</ul>
-<p>That is in ML the generation of the training data.</p>
-</div></blockquote>
-<dl>
-<dt>Basic usage</dt><dd><ul class="simple">
-<li><p>In <em>.src/qvarnet/models</em> one can find the ANNs defined.</p></li>
-<li><p>In <em>.src/qvarnet/hamiltonians</em> one can find the Hamiltonians defined, as well as the base class for the Hamiltonians.</p></li>
-<li><p>In <em>.src/qvarnet/samplers</em> one can find the samplers defined.</p></li>
-</ul>
-<p>In the notebooks folder one can find examples of how to use the package.</p>
-</dd>
-</dl>
-<p>The general description is:
-1. Define a model with the architecture you want.
-2. Define a pytorch optimizer
-3. TODO: Define a hamiltonian object</p>
-<blockquote>
-<div><ul class="simple">
-<li><p>Now you have to define the kinetic and potential term separately.</p></li>
-</ul>
-</div></blockquote>
-<ol class="arabic simple" start="4">
-<li><p>Define a sampler object/define your discretization</p></li>
-<li><p>Start the training loop
-- Set optimizer gradients to zero
-- perform a forward pass of the model
-- calculate the energy
-- Add to the loss the energy and all the contributions you want to take into account
-- Perform a backward pass
-- Step the optimizer</p></li>
-<li><p>Repeat until convergence</p></li>
-</ol>
-</section>
-<section id="api-reference">
-<h1>API reference<a class="headerlink" href="#api-reference" title="Link to this heading">¶</a></h1>
-</section>
 
 
            </div>
           </div>
-          <footer>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="introduction.html" class="btn btn-neutral float-right" title="Explanation of the details" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
 
   <hr/>
 

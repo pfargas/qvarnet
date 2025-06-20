@@ -5,13 +5,15 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Search &mdash; qvarnet  documentation</title>
+  <title>Search &mdash; qvarnet 0.1.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
 
   
     
-      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=01f34227"></script>
       <script src="_static/doctools.js?v=9bcbadda"></script>
       <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/js/theme.js"></script>
@@ -40,8 +42,51 @@
   </form>
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
-              <!-- Local TOC -->
-              <div class="local-toc"></div>
+              <p class="caption" role="heading"><span class="caption-text">Quick Links</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Explanation of the details</a></li>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#installation-steps">Installation Steps</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api_reference/index.html">API reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api_reference/samplers.html">Samplers</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api_reference/samplers.html#module-qvarnet.samplersv2">Available Samplers</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api_reference/samplers.html#qvarnet.samplersv2.MetropolisHastingsSampler"><code class="docutils literal notranslate"><span class="pre">MetropolisHastingsSampler</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="api_reference/samplers.html#qvarnet.samplersv2.benchmark_sampler"><code class="docutils literal notranslate"><span class="pre">benchmark_sampler()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="api_reference/samplers.html#usage-examples">Usage Examples</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="api_reference/hamiltonians.html">Hamiltonians</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GeneralHamiltonian"><code class="docutils literal notranslate"><span class="pre">GeneralHamiltonian</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GeneralHamiltonian.__init__"><code class="docutils literal notranslate"><span class="pre">GeneralHamiltonian.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GeneralHamiltonian.kinetic_local_energy"><code class="docutils literal notranslate"><span class="pre">GeneralHamiltonian.kinetic_local_energy()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GeneralHamiltonian.trapping_potential"><code class="docutils literal notranslate"><span class="pre">GeneralHamiltonian.trapping_potential()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GeneralHamiltonian.interaction_local_potential"><code class="docutils literal notranslate"><span class="pre">GeneralHamiltonian.interaction_local_potential()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GeneralHamiltonian.forward"><code class="docutils literal notranslate"><span class="pre">GeneralHamiltonian.forward()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GeneralHamiltonian.__repr__"><code class="docutils literal notranslate"><span class="pre">GeneralHamiltonian.__repr__()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.HarmonicOscillator"><code class="docutils literal notranslate"><span class="pre">HarmonicOscillator</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.HarmonicOscillator.__init__"><code class="docutils literal notranslate"><span class="pre">HarmonicOscillator.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.HarmonicOscillator.trapping_potential"><code class="docutils literal notranslate"><span class="pre">HarmonicOscillator.trapping_potential()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GrossPitaevskii"><code class="docutils literal notranslate"><span class="pre">GrossPitaevskii</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GrossPitaevskii.__init__"><code class="docutils literal notranslate"><span class="pre">GrossPitaevskii.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GrossPitaevskii.trapping_potential"><code class="docutils literal notranslate"><span class="pre">GrossPitaevskii.trapping_potential()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="api_reference/hamiltonians.html#qvarnet.hamiltonians.GrossPitaevskii.interaction_local_potential"><code class="docutils literal notranslate"><span class="pre">GrossPitaevskii.interaction_local_potential()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="api_reference/hamiltonians.html#usage-examples">Usage Examples</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
         </div>
       </div>
     </nav>

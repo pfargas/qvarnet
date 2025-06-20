@@ -3,9 +3,10 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" data-content_root="./">
 <head>
-  <meta charset="utf-8" />
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Python Module Index &mdash; qvarnet 0.1.0 documentation</title>
+  <title>Explanation of the details &mdash; qvarnet 0.1.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
 
@@ -18,9 +19,8 @@
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
- 
-
-
+    <link rel="next" title="Installation" href="installation.html" />
+    <link rel="prev" title="qvarnet: Artificial Networks for Quantum Variational Monte Carlo" href="index.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -43,8 +43,8 @@
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
               <p class="caption" role="heading"><span class="caption-text">Quick Links</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="introduction.html">Explanation of the details</a></li>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Explanation of the details</a></li>
 <li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="installation.html#installation-steps">Installation Steps</a></li>
 </ul>
@@ -101,8 +101,9 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
-      <li class="breadcrumb-item active">Python Module Index</li>
+      <li class="breadcrumb-item active">Explanation of the details</li>
       <li class="wy-breadcrumbs-aside">
+            <a href="_sources/introduction.rst.txt" rel="nofollow"> View page source</a>
       </li>
   </ul>
   <hr/>
@@ -110,49 +111,55 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-
-   <h1>Python Module Index</h1>
-
-   <div class="modindex-jumpbox">
-   <a href="#cap-q"><strong>q</strong></a>
-   </div>
-
-   <table class="indextable modindextable">
-     <tr class="pcap"><td></td><td>&#160;</td><td></td></tr>
-     <tr class="cap" id="cap-q"><td></td><td>
-       <strong>q</strong></td><td></td></tr>
-     <tr>
-       <td><img src="_static/minus.png" class="toggler"
-              id="toggle-1" style="display: none" alt="-" /></td>
-       <td>
-       <a href="api_reference/qvarnet.html#module-qvarnet"><code class="xref">qvarnet</code></a></td><td>
-       <em></em></td></tr>
-     <tr class="cg-1">
-       <td></td>
-       <td>&#160;&#160;&#160;
-       <a href="api_reference/qvarnet.html#module-qvarnet.hamiltonians"><code class="xref">qvarnet.hamiltonians</code></a></td><td>
-       <em></em></td></tr>
-     <tr class="cg-1">
-       <td></td>
-       <td>&#160;&#160;&#160;
-       <a href="api_reference/models.html#module-qvarnet.models"><code class="xref">qvarnet.models</code></a></td><td>
-       <em></em></td></tr>
-     <tr class="cg-1">
-       <td></td>
-       <td>&#160;&#160;&#160;
-       <a href="api_reference/models.html#module-qvarnet.models.mlp"><code class="xref">qvarnet.models.mlp</code></a></td><td>
-       <em></em></td></tr>
-     <tr class="cg-1">
-       <td></td>
-       <td>&#160;&#160;&#160;
-       <a href="api_reference/samplers.html#module-qvarnet.samplersv2"><code class="xref">qvarnet.samplersv2</code></a></td><td>
-       <em></em></td></tr>
-   </table>
+  <section id="explanation-of-the-details">
+<h1>Explanation of the details<a class="headerlink" href="#explanation-of-the-details" title="Link to this heading"></a></h1>
+<p>The package is designed to have different parts for a whole VMC workflow.</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Models: The ANN models (pytorch modules). It is really important that the forward pass of these models has to have dimensions (batch_size, input_layer). In the case of 1D, 1particle systems, the input layer is just 1 neuron, so the vector of positions has to have the shape (discretization, 1).</p></li>
+<li><p>Hamiltonians: Definition of the target Hamiltonians</p></li>
+<li><p>Samplers: Responsible for sampling the points at which the Models are evaluated.</p></li>
+</ul>
+<p>That is in ML the generation of the training data.</p>
+</div></blockquote>
+<dl>
+<dt>Basic usage</dt><dd><ul class="simple">
+<li><p>In <em>.src/qvarnet/models</em> one can find the ANNs defined.</p></li>
+<li><p>In <em>.src/qvarnet/hamiltonians</em> one can find the Hamiltonians defined, as well as the base class for the Hamiltonians.</p></li>
+<li><p>In <em>.src/qvarnet/samplers</em> one can find the samplers defined.</p></li>
+</ul>
+<p>In the notebooks folder one can find examples of how to use the package.</p>
+</dd>
+</dl>
+<p>The general description is:
+1. Define a model with the architecture you want.
+2. Define a pytorch optimizer
+3. TODO: Define a hamiltonian object</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Now you have to define the kinetic and potential term separately.</p></li>
+</ul>
+</div></blockquote>
+<ol class="arabic simple" start="4">
+<li><p>Define a sampler object/define your discretization</p></li>
+<li><p>Start the training loop
+- Set optimizer gradients to zero
+- perform a forward pass of the model
+- calculate the energy
+- Add to the loss the energy and all the contributions you want to take into account
+- Perform a backward pass
+- Step the optimizer</p></li>
+<li><p>Repeat until convergence</p></li>
+</ol>
+</section>
 
 
            </div>
           </div>
-          <footer>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="qvarnet: Artificial Networks for Quantum Variational Monte Carlo" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="installation.html" class="btn btn-neutral float-right" title="Installation" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
 
   <hr/>
 
