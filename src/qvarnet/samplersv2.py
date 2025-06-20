@@ -11,7 +11,8 @@ class MetropolisHastingsSampler(nn.Module):
                  is_wf: bool = True, 
                  batches: int = 1, 
                  is_batched: bool = False,
-                 PBC: float = None
+                 PBC: float = None,
+                 assume_boltzmann: bool = True
                  ):
         super().__init__()
         self.model = model
@@ -22,6 +23,7 @@ class MetropolisHastingsSampler(nn.Module):
         self.batches = batches
         self.values_per_batch = n_samples // batches
         self.is_batched = is_batched
+        self.assume_boltzmann = assume_boltzmann
         self.PBC = PBC # box -PBC/2 to PBC/2
         
         # Statistics tracking
@@ -42,9 +44,11 @@ class MetropolisHastingsSampler(nn.Module):
                 return model_output.pow(2)[:, 0] if model_output.shape[1] > 1 else model_output.pow(2).squeeze()
             else:
                 return model_output.pow(2)
-        else:
+        elif self.assume_boltzmann:
             # Assume Boltzmann distribution
             return torch.exp(-self.model(x))
+        else:
+            return self.model(x)
         
     def _apply_pbc(self, x: torch.Tensor) -> torch.Tensor:
         """Apply periodic boundary conditions if specified"""
@@ -59,7 +63,7 @@ class MetropolisHastingsSampler(nn.Module):
         assert x.shape[0] == n_walkers, "x must have shape [n_walkers, dimensions]"
         
         # Generate proposals for all walkers at once
-        x_new = x + torch.randn_like(x) * self.step_size
+        x_new = x + torch.randn_like(x) * self.step_size*(self.PBC/4 if self.PBC is not None else 1.0)
         
         x_new = self._apply_pbc(x_new)  # Apply PBC if needed
         
@@ -194,6 +198,32 @@ class MetropolisHastingsSampler(nn.Module):
         else:
             return self._mh_no_batch_optimized(x0)  # Default to optimized single chain
 
+MetropolisHastingsSampler.__doc__ = """
+Metropolis-Hastings Sampler for Quantum Variational Networks
+This class implements a Metropolis-Hastings sampling algorithm with various optimizations
+and methods for sampling from a quantum variational model.
+Attributes:
+    model: The quantum variational model to sample from.
+    n_samples: Total number of samples to generate.
+    step_size: Step size for proposal distribution.
+    burn_in: Number of initial samples to discard.
+    is_wf: Whether the model outputs a wavefunction.
+    batches: Number of batches for sampling.
+    is_batched: Whether the model supports batched inputs.
+    PBC: Periodic boundary conditions (if applicable).
+    assume_boltzmann: Whether to assume Boltzmann distribution for sampling.
+Methods:
+    _evaluate_probability: Evaluate the probability of a configuration.
+    _apply_pbc: Apply periodic boundary conditions to a configuration.
+    _mh_step_vectorized: Perform a Metropolis-Hastings step for multiple walkers.
+    _mh_step: Perform a single Metropolis-Hastings step (for compatibility).
+    _mh_parallel_walkers: Run multiple independent walkers in parallel.
+    _mh_no_batch_optimized: Optimized single-chain sampling without batching.
+    get_acceptance_rate: Get the current acceptance rate of the sampler.
+    reset_statistics: Reset acceptance statistics.
+    tune_step_size: Auto-tune step size to achieve target acceptance rate.
+    forward: Forward pass with different sampling methods.
+"""
 
 # Example usage and performance comparison
 def benchmark_sampler(model, x0, n_samples=1000):
