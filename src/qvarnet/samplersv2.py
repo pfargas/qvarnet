@@ -11,7 +11,7 @@ class MetropolisHastingsSampler(nn.Module):
                  is_wf: bool = True, 
                  batches: int = 1, 
                  is_batched: bool = False,
-                 PBC: float = None,
+                 L_BOX: float = None,
                  assume_boltzmann: bool = True
                  ):
         super().__init__()
@@ -24,7 +24,7 @@ class MetropolisHastingsSampler(nn.Module):
         self.values_per_batch = n_samples // batches
         self.is_batched = is_batched
         self.assume_boltzmann = assume_boltzmann
-        self.PBC = PBC # box -PBC/2 to PBC/2
+        self.L_BOX = L_BOX # box -L_BOX/2 to L_BOX/2
         
         # Statistics tracking
         self.accepted_moves = 0
@@ -50,10 +50,10 @@ class MetropolisHastingsSampler(nn.Module):
         else:
             return self.model(x)
         
-    def _apply_pbc(self, x: torch.Tensor) -> torch.Tensor:
+    def _apply_L_BOX(self, x: torch.Tensor) -> torch.Tensor:
         """Apply periodic boundary conditions if specified"""
-        if self.PBC is not None:
-            return ((x + self.PBC/2) % self.PBC) - self.PBC/2
+        if self.L_BOX is not None:
+            return ((x + self.L_BOX/2) % self.L_BOX) - self.L_BOX/2
         return x
 
     def _mh_step_vectorized(self, x: torch.Tensor, n_walkers: int = 1) -> torch.Tensor:
@@ -63,9 +63,9 @@ class MetropolisHastingsSampler(nn.Module):
         assert x.shape[0] == n_walkers, "x must have shape [n_walkers, dimensions]"
         
         # Generate proposals for all walkers at once
-        x_new = x + torch.randn_like(x) * self.step_size*(self.PBC/4 if self.PBC is not None else 1.0)
+        x_new = x + torch.randn_like(x) * self.step_size*(self.L_BOX/4 if self.L_BOX is not None else 1.0)
         
-        x_new = self._apply_pbc(x_new)  # Apply PBC if needed
+        x_new = self._apply_L_BOX(x_new)  # Apply L_BOX if needed
         
         # Evaluate probabilities in batch
         p_old = self._evaluate_probability(x)
@@ -101,7 +101,7 @@ class MetropolisHastingsSampler(nn.Module):
             x0 = x0.unsqueeze(0)
         
         # Initialize multiple walkers
-        x = x0.repeat(n_walkers, 1) + (torch.rand(n_walkers, x0.shape[1], device=x0.device) * self.PBC) - self.PBC / 2
+        x = x0.repeat(n_walkers, 1) + (torch.rand(n_walkers, x0.shape[1], device=x0.device) * self.L_BOX) - self.L_BOX / 2
 
         samples_per_walker = self.n_samples // n_walkers
         # if self.n_samples % n_walkers != 0:
@@ -210,11 +210,11 @@ Attributes:
     is_wf: Whether the model outputs a wavefunction.
     batches: Number of batches for sampling.
     is_batched: Whether the model supports batched inputs.
-    PBC: Periodic boundary conditions (if applicable).
+    L_BOX: Periodic boundary conditions (if applicable).
     assume_boltzmann: Whether to assume Boltzmann distribution for sampling.
 Methods:
     _evaluate_probability: Evaluate the probability of a configuration.
-    _apply_pbc: Apply periodic boundary conditions to a configuration.
+    _apply_L_BOX: Apply periodic boundary conditions to a configuration.
     _mh_step_vectorized: Perform a Metropolis-Hastings step for multiple walkers.
     _mh_step: Perform a single Metropolis-Hastings step (for compatibility).
     _mh_parallel_walkers: Run multiple independent walkers in parallel.
