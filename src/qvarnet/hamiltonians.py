@@ -22,11 +22,20 @@ class GeneralHamiltonian(nn.Module):
         #     else:
         #         d2psi[i] = (psi[i+1] - 2*psi[i] + psi[i-1]) / ((x[i+1] - x[i-1])**2)
                 
-        dpsi = torch.autograd.grad(psi, x, grad_outputs=torch.ones_like(x),
-                                    create_graph=True, retain_graph=True)[0]
+        # sort x
+        x = x.sort(dim=0)[0]
+        # Compute first and second derivatives using finite differences
+        extended_x = torch.cat((x[-1, None], x, x[0, None]))
         
-        d2psi = torch.autograd.grad(dpsi, x, grad_outputs=torch.ones_like(dpsi),
-                                    create_graph=True, retain_graph=True)[0]
+        psi_extended = self.model(extended_x)
+        psi = psi_extended[1:-1]
+        d2psi = (psi_extended[2:] - 2*psi_extended[1:-1] + psi_extended[:-2]) / ((extended_x[2:] - extended_x[:-2])**2)
+
+        # dpsi = torch.autograd.grad(psi, x, grad_outputs=torch.ones_like(x),
+        #                             create_graph=True, retain_graph=True)[0]
+        
+        # d2psi = torch.autograd.grad(dpsi, x, grad_outputs=torch.ones_like(dpsi),
+        #                             create_graph=True, retain_graph=True)[0]
 
         return -0.5 * d2psi/psi
     
