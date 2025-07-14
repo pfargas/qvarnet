@@ -28,6 +28,7 @@ class MetropolisHastingsSampler(nn.Module):
         self.assume_boltzmann = assume_boltzmann
         self.L_BOX = L_BOX  # box -L_BOX/2 to L_BOX/2
         self.times = {}
+        self.log_prob = False  # Whether to use log probabilities
 
         # Statistics tracking
         self.accepted_moves = 0
@@ -56,6 +57,16 @@ class MetropolisHastingsSampler(nn.Module):
             return torch.exp(-self.model(x))
         else:
             return self.model(x)
+
+    def _evaluate_log_probability(self, x: torch.Tensor) -> torch.Tensor:
+        if self.is_wf:
+            # Assuming model returns [batch_size, ...], take appropriate slice
+            log_psi = self.model(x)
+
+        else:
+            raise ValueError(
+                "Log probability evaluation requires a wavefunction model."
+            )
 
     def _apply_L_BOX(self, x: torch.Tensor) -> torch.Tensor:
         """Apply periodic boundary conditions if specified"""
@@ -90,15 +101,20 @@ class MetropolisHastingsSampler(nn.Module):
 
         # Evaluate probabilities in batch
         start_evaluate_prob = time.time()
-        p_old = self._evaluate_probability(x)
-        p_new = self._evaluate_probability(x_new)
+        if not self.log_prob:
+            p_old = self._evaluate_probability(x)
+            p_new = self._evaluate_probability(x_new)
+            # Compute acceptance ratios
+            start_acceptance_ratio = time.time()
+            acceptance_ratio = (p_new / (p_old + 1e-12)).clamp(max=1.0)
+        else:
+            acceptance_ratio = torch.exp(2 * (self.model(x_new) - self.model(x))).clamp(
+                max=1.0
+            )
         end_evaluate_prob = time.time()
         if "n_evaluate_prob" not in self.times:
             self.times["n_evaluate_prob"] = []
         self.times["n_evaluate_prob"].append(end_evaluate_prob - start_evaluate_prob)
-        # Compute acceptance ratios
-        start_acceptance_ratio = time.time()
-        acceptance_ratio = (p_new / (p_old + 1e-12)).clamp(max=1.0)
 
         # Accept/reject moves
         accept_mask = torch.rand_like(acceptance_ratio) < acceptance_ratio
