@@ -82,10 +82,12 @@ class MetropolisHastingsSampler(nn.Module):
 
         start_generate_proposals = time.time()
         # Generate proposals for all walkers at once
-        # x_new = x + torch.randn_like(x) * self.step_size * (
-        #     self.L_BOX / 4 if self.L_BOX is not None else 1.0
-        # )
-        x_new = x + torch.randn_like(x) * self.step_size
+        x_new = x + torch.randn_like(x) * self.step_size * (
+            self.L_BOX / 4 if self.L_BOX is not None else 1.0
+        )
+        
+        
+        
         end_generate_proposals = time.time()
         if "n_generate_proposals" not in self.times:
             self.times["n_generate_proposals"] = []
@@ -93,26 +95,36 @@ class MetropolisHastingsSampler(nn.Module):
             end_generate_proposals - start_generate_proposals
         )
 
-        if False:
-            start_apply_L_BOX = time.time()
-            x_new = self._apply_L_BOX(x_new)  # Apply L_BOX if needed
-            end_apply_L_BOX = time.time()
-            if "n_apply_L_BOX" not in self.times:
-                self.times["n_apply_L_BOX"] = []
-            self.times["n_apply_L_BOX"].append(end_apply_L_BOX - start_apply_L_BOX)
+        # if False:
+        start_apply_L_BOX = time.time()
+        x_new = self._apply_L_BOX(x_new)  # Apply L_BOX if needed
+        if torch.any(torch.abs(x_new) > self.L_BOX / 2):
+            print(
+                "Warning: Some proposals are outside the L_BOX boundaries. "
+                "This may affect sampling quality."
+            )
+        end_apply_L_BOX = time.time()
+        if "n_apply_L_BOX" not in self.times:
+            self.times["n_apply_L_BOX"] = []
+        self.times["n_apply_L_BOX"].append(end_apply_L_BOX - start_apply_L_BOX)
 
         # Evaluate probabilities in batch
         start_evaluate_prob = time.time()
-        if not self.log_prob:
-            p_old = self._evaluate_probability(x)
-            p_new = self._evaluate_probability(x_new)
-            # Compute acceptance ratios
-            start_acceptance_ratio = time.time()
-            acceptance_ratio = (p_new / (p_old + 1e-12)).clamp(max=1.0)
-        else:
-            acceptance_ratio = torch.exp(2 * (self.model(x_new) - self.model(x))).clamp(
-                max=1.0
-            )
+        p_old = self._evaluate_probability(x)
+        p_new = self._evaluate_probability(x_new)
+        # Compute acceptance ratios
+        start_acceptance_ratio = time.time()
+        acceptance_ratio = (p_new / (p_old + 1e-12)).clamp(max=1.0)
+        # if not self.log_prob:
+        #     p_old = self._evaluate_probability(x)
+        #     p_new = self._evaluate_probability(x_new)
+        #     # Compute acceptance ratios
+        #     start_acceptance_ratio = time.time()
+        #     acceptance_ratio = (p_new / (p_old + 1e-12)).clamp(max=1.0)
+        # else:
+        #     acceptance_ratio = torch.exp(2 * (self.model(x_new) - self.model(x))).clamp(
+        #         max=1.0
+        #     )
         end_evaluate_prob = time.time()
         if "n_evaluate_prob" not in self.times:
             self.times["n_evaluate_prob"] = []
@@ -137,7 +149,7 @@ class MetropolisHastingsSampler(nn.Module):
         # Update statistics
         self.accepted_moves += accept_mask.sum().item()
         self.total_moves += accept_mask.numel()
-
+        
         return x_updated
 
     def _mh_step(self, x: torch.Tensor) -> torch.Tensor:
@@ -151,12 +163,17 @@ class MetropolisHastingsSampler(nn.Module):
         if x0.dim() == 1:
             x0 = x0.unsqueeze(0)
 
-        # Initialize multiple walkers
-        x = (
-            x0.repeat(n_walkers, 1)
-            + (torch.rand(n_walkers, x0.shape[1], device=x0.device) * self.L_BOX)
-            - self.L_BOX / 2
-        )
+        # # Initialize multiple walkers
+        # x = (
+        #     x0.repeat(n_walkers, 1)
+        #     + (torch.randn(n_walkers, x0.shape[1], device=x0.device) * self.L_BOX)
+        #     - self.L_BOX / 2
+        # )
+        
+        # x = self._apply_L_BOX(x)  # Apply L_BOX if needed
+        
+        x = x0.repeat(n_walkers, 1) + torch.randn(n_walkers, x0.shape[1], device=x0.device) * 0.1
+        x = self._apply_L_BOX(x)
 
         samples_per_walker = self.n_samples // n_walkers
         # if self.n_samples % n_walkers != 0:
@@ -179,6 +196,27 @@ class MetropolisHastingsSampler(nn.Module):
         # Reshape to [total_samples, dimensions]
         return samples.view(-1, x0.shape[1])
 
+
+    def forward(
+        self, x0: torch.Tensor, method: str = "parallel", n_walkers: int = 32
+    ) -> torch.Tensor:
+        """
+        Forward pass with different sampling methods
+
+        Args:
+            x0: Initial configuration
+            method: 'single', 'parallel', 'block', or 'optimized'
+            n_walkers: Number of parallel walkers (for parallel method)
+        """
+        if method == "parallel" and n_walkers > 1:
+            print(f" L box: {self.L_BOX} \n")
+            return self._mh_parallel_walkers(x0, n_walkers)
+        elif method == "no_batch_optimized":
+            return self._mh_no_batch_optimized(x0)
+        else:
+            print("wtf")
+            return self._mh_no_batch_optimized(x0)  # Default to optimized single chain
+        
     def _mh_no_batch_optimized(self, x0: torch.Tensor) -> torch.Tensor:
         """Optimized single-chain sampling"""
         if x0.dim() == 1:
@@ -246,23 +284,6 @@ class MetropolisHastingsSampler(nn.Module):
         print(f"Final step_size: {self.step_size:.4f}")
         self.reset_statistics()
 
-    def forward(
-        self, x0: torch.Tensor, method: str = "parallel", n_walkers: int = 32
-    ) -> torch.Tensor:
-        """
-        Forward pass with different sampling methods
-
-        Args:
-            x0: Initial configuration
-            method: 'single', 'parallel', 'block', or 'optimized'
-            n_walkers: Number of parallel walkers (for parallel method)
-        """
-        if method == "parallel" and n_walkers > 1:
-            return self._mh_parallel_walkers(x0, n_walkers)
-        elif method == "no_batch_optimized":
-            return self._mh_no_batch_optimized(x0)
-        else:
-            return self._mh_no_batch_optimized(x0)  # Default to optimized single chain
 
 
 MetropolisHastingsSampler.__doc__ = """
