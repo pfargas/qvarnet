@@ -82,9 +82,10 @@ class MetropolisHastingsSampler(nn.Module):
 
         start_generate_proposals = time.time()
         # Generate proposals for all walkers at once
-        x_new = x + torch.randn_like(x) * self.step_size * (
-            self.L_BOX / 4 if self.L_BOX is not None else 1.0
-        )
+        # x_new = x + torch.randn_like(x) * self.step_size * (
+        #     self.L_BOX / 4 if self.L_BOX is not None else 1.0
+        # )
+        x_new = x + torch.randn_like(x) * self.step_size
         end_generate_proposals = time.time()
         if "n_generate_proposals" not in self.times:
             self.times["n_generate_proposals"] = []
@@ -92,12 +93,13 @@ class MetropolisHastingsSampler(nn.Module):
             end_generate_proposals - start_generate_proposals
         )
 
-        start_apply_L_BOX = time.time()
-        x_new = self._apply_L_BOX(x_new)  # Apply L_BOX if needed
-        end_apply_L_BOX = time.time()
-        if "n_apply_L_BOX" not in self.times:
-            self.times["n_apply_L_BOX"] = []
-        self.times["n_apply_L_BOX"].append(end_apply_L_BOX - start_apply_L_BOX)
+        if False:
+            start_apply_L_BOX = time.time()
+            x_new = self._apply_L_BOX(x_new)  # Apply L_BOX if needed
+            end_apply_L_BOX = time.time()
+            if "n_apply_L_BOX" not in self.times:
+                self.times["n_apply_L_BOX"] = []
+            self.times["n_apply_L_BOX"].append(end_apply_L_BOX - start_apply_L_BOX)
 
         # Evaluate probabilities in batch
         start_evaluate_prob = time.time()
