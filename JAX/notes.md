@@ -64,3 +64,7 @@ def train(n_steps, init_params, model, training_set, optimizer):
     4. Compute the correct gradient
     5. Return $E$ and $\nabla_\theta E$
 - `training_step`: jitted function
+
+## Fun stuff with JAX
+
+- If we want to do a sum of 2 arrays, we have to be careful: shapes (a,)+(a,1) = (a,a)...
