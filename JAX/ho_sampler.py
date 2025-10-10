@@ -56,7 +56,7 @@ def local_energy_batch(params, xs, model_apply):
     psi_safe = psi_vals + 1e-12
 
     kinetic = -0.5 * (d2psi / psi_safe)  # shape (batch,)
-    potential = 0.5 * 5 * (xs_flat**2)  # shape (batch,)
+    potential = 0.5 * (xs_flat**2)  # shape (batch,)
     return (kinetic + potential).reshape(-1, 1)  # keep your (batch,1) convention
 
 
