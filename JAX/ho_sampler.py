@@ -56,7 +56,7 @@ def local_energy_batch(params, xs, model_apply):
     psi_safe = psi_vals + 1e-12
 
     kinetic = -0.5 * (d2psi / psi_safe)  # shape (batch,)
-    potential = 0.5 * (xs_flat**2)  # shape (batch,)
+    potential = 0.5 * 5 * (xs_flat**2)  # shape (batch,)
     return (kinetic + potential).reshape(-1, 1)  # keep your (batch,1) convention
 
 
@@ -119,7 +119,9 @@ def mh_kernel(rng_key, prob_fn, prob_params, position, prob, PBC=None):
         proposal,
     )
     proposal_prob = prob_fn(proposal, prob_params)
-    accept = jax.random.uniform(key2) < (proposal_prob / prob)
+    accept_prob = jnp.minimum(1.0, proposal_prob / prob)
+    accept = jax.random.uniform(key2) < accept_prob
+    # accept = jax.random.uniform(key2) < (proposal_prob / prob)
     new_position = jnp.where(accept, proposal, position)
     new_prob = jnp.where(accept, proposal_prob, prob)
     return new_position, new_prob
@@ -147,7 +149,9 @@ def nan_callback(x):
     return False
 
 
-def train(n_steps, init_params, model_apply, optimizer, PBC=10):
+def train(
+    n_steps, init_params, shape, model_apply, optimizer, PBC=10, n_steps_sampler=100
+):
 
     state = train_state.TrainState.create(
         apply_fn=model_apply, params=init_params, tx=optimizer
@@ -163,13 +167,10 @@ def train(n_steps, init_params, model_apply, optimizer, PBC=10):
     energy_history = []
     # batch = jnp.linspace(-5,5,1000).reshape(-1,1)
     sampler = jax.vmap(mh_chain, in_axes=(0, None, None, None, None, 0), out_axes=0)
-    n_chains = 1_000
+    n_chains = shape[0]
     rng_keys = random.split(random.PRNGKey(42), n_chains)
-    init_position = jnp.zeros(n_chains) * jax.random.normal(
-        random.PRNGKey(0), (n_chains,)
-    )
+    init_position = jax.random.normal(random.PRNGKey(0), (n_chains,)) * (PBC / 8)
     wf_hist = []
-    n_steps_sampler = 500
     best_energy = jnp.inf
     best_params = None
     x = jnp.linspace(-PBC / 2, PBC / 2, 1000).reshape(-1, 1)
@@ -221,12 +222,19 @@ def train(n_steps, init_params, model_apply, optimizer, PBC=10):
 
 
 if __name__ == "__main__":
-    model = MLP(architecture=[1, 15, 1])
+    model = MLP(architecture=[1, 5, 1])
     rng = jax.random.PRNGKey(0)
-    input_shape = (1_000, 1)  # Batch size of 1000, input dimension
-    params = model.init(rng, jnp.ones(input_shape) * 0.01)  # Initialize parameters
+    input_shape = (5_000, 1)  # Batch size of 5000, input dimension
+    params = model.init(rng, jnp.ones(input_shape) * 0.1)  # Initialize parameters
+    PBC = 20.0
     params_fin, energy, wf_hist, best_params, best_energy = train(
-        50_000, params, model.apply, optax.adam(1e-3), PBC=10.0
+        50_000,
+        params,
+        input_shape,
+        model.apply,
+        optax.adam(1e-2),
+        PBC=PBC,
+        n_steps_sampler=500,
     )
     import matplotlib.pyplot as plt
 
@@ -235,7 +243,7 @@ if __name__ == "__main__":
     plt.show()
 
     # Reconstruct wavefunction
-    x = jnp.linspace(-5, 5, 1000).reshape(-1, 1)
+    x = jnp.linspace(-PBC / 2, PBC / 2, 1000).reshape(-1, 1)
     psi_approx = model.apply(params_fin, x)
     print(type(psi_approx))
     print(psi_approx.shape)
@@ -247,3 +255,4 @@ if __name__ == "__main__":
     )
     plt.plot(x, psi_approx**2)
     plt.plot(x, jnp.pi ** (-0.5) * jnp.exp(-(x**2)), linestyle="dashed")
+    plt.show()
