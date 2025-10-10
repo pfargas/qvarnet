@@ -37,38 +37,6 @@ class MLP(nn.Module):
         return x
 
 
-def local_energy_batch_old(params, xs, model_apply):
-    # get ψ(x) for the whole batch
-    psi = jax.vmap(lambda x: model_apply(params, x))(xs)
-
-    # first and second derivative wrt x for the whole batch
-    dpsi_dx = jnp.gradient(psi, xs.squeeze(), axis=0)
-    d2psi_dx2 = jnp.gradient(dpsi_dx, xs.squeeze(), axis=0)
-
-    # compute the laplacian with AD as the sum of the trace of the hessian
-
-    # HERE d2psi_dx2 = j
-
-    jax.lax.cond(
-        jnp.isnan(d2psi_dx2).any(),
-        lambda _: jax.debug.print(
-            "Nan detected in the second derivative {x}", x=d2psi_dx2
-        ),
-        lambda _: None,
-        operand=None,
-    )
-
-    kinetic = -0.5 * d2psi_dx2 / psi
-    jax.lax.cond(
-        jnp.isnan(kinetic).any(),
-        lambda _: jax.debug.print("Nan detected in the kinetic energy {x}", x=kinetic),
-        lambda _: None,
-        operand=None,
-    )
-    potential = (0.5 * xs**2).reshape(-1, 1)
-    return kinetic + potential
-
-
 # compute kinetic term with AD (correct)
 def local_energy_batch(params, xs, model_apply):
     # xs: (batch, 1) or (batch,)
@@ -107,13 +75,6 @@ grad_log_psi = jax.grad(
 def energy_fn(params, batch, model_apply):
     local_energy_per_point = local_energy_batch(params, batch, model_apply)
     E = jnp.mean(local_energy_per_point)
-    jax.lax.cond(
-        jnp.isnan(E),
-        lambda _: jax.debug.print("Nan detected {x}", x=E),
-        lambda _: None,
-        operand=None,
-    )
-
     return E
 
 
@@ -122,15 +83,9 @@ def energy_fn_trapezoidal(params, batch, model_apply):
     psi_squared = jnp.abs(psi) ** 2
     local_energy_per_point = local_energy_batch(params, batch, model_apply)
 
-    # print(f"Psi squared shape: {psi_squared.shape}")
-    # print(f"Local energy shape: {local_energy_per_point.shape}")
-
     energy_integrand = psi_squared * local_energy_per_point
-    # print(f"Energy integrand shape: {energy_integrand.shape}")
     norm = trapezoid(psi_squared.squeeze(), batch.squeeze())
-    # print(f"Norm shape: {norm.shape}, value: {norm}")
     integral = trapezoid(energy_integrand.squeeze(), batch.squeeze())
-    # print(f"Integral shape: {integral.shape}, value: {integral}")
     return integral / norm
 
 
@@ -148,16 +103,6 @@ def loss_and_grads(params, batch, model_apply):
 @jax.jit
 def train_step(state, batch):
     E, grads = loss_and_grads(state.params, batch, state.apply_fn)
-    # E_trapezoidal = energy_fn_trapezoidal(
-    #     state.params, jnp.linspace(-5, 5, 1000).reshape(-1, 1), state.apply_fn
-    # )
-    # jax.debug.print("....................")
-    # jax.debug.print(
-    #     "Energy (mean): {E}, Energy (trapezoidal): {E_trapezoidal}",
-    #     E=E,
-    #     E_trapezoidal=E_trapezoidal,
-    # )
-    # jax.debug.print("....................")
     new_state = state.apply_gradients(grads=grads)
     return new_state, E
 
@@ -228,7 +173,7 @@ def train(n_steps, init_params, model_apply, optimizer, PBC=10):
     best_energy = jnp.inf
     best_params = None
     x = jnp.linspace(-PBC / 2, PBC / 2, 1000).reshape(-1, 1)
-    debugSampling = True
+    debugSampling = False
 
     os.makedirs("results", exist_ok=True)
     if debugSampling:
