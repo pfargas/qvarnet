@@ -92,12 +92,33 @@ def energy_fn_trapezoidal(params, batch, model_apply):
 def loss_and_grads(params, batch, model_apply):
     local_energy_per_point = local_energy_batch(params, batch, model_apply)
     E = energy_fn(params, batch, model_apply)
+    E_trap = energy_fn_trapezoidal(
+        params, jnp.linspace(-5, 5, 1000).reshape(-1, 1), model_apply
+    )
     E_centered = local_energy_per_point - E
     log_psi_grads = jax.vmap(lambda x: grad_log_psi(params, x, model_apply))(batch)
     grad_E = jax.tree_util.tree_map(
         lambda g: 2 * jnp.mean(E_centered[:, None] * g), log_psi_grads
     )
-    return E, grad_E
+
+    grad_E_trapezoidal = jax.grad(energy_fn_trapezoidal, argnums=0)(
+        params, batch, model_apply
+    )
+
+    # jax.debug.print(
+    #     "Energy sampled: {E}, Energy trapezoidal: {E_trap}", E=E, E_trap=E_trap
+    # )
+
+    # compute the modulus of the gradient for logging
+    # grad_E_mod = jnp.sqrt(
+    #     sum([jnp.sum(jnp.abs(g) ** 2) for g in jax.tree_util.tree_leaves(grad_E)])
+    # )
+    # jax.debug.print("Energy: {E}, |grad_E|: {grad_E_mod}", E=E, grad_E_mod=grad_E_mod)
+    # jax.debug.print(
+    #     "Energy (trapezoidal): {E_trap}",
+    #     E_trap=E_trap,
+    # )
+    return E_trap, grad_E_trapezoidal
 
 
 @jax.jit
@@ -150,7 +171,7 @@ def nan_callback(x):
 
 
 def train(
-    n_steps, init_params, shape, model_apply, optimizer, PBC=10, n_steps_sampler=100
+    n_steps, init_params, shape, model_apply, optimizer, PBC=10, n_steps_sampler=500
 ):
 
     state = train_state.TrainState.create(
@@ -168,13 +189,13 @@ def train(
     # batch = jnp.linspace(-5,5,1000).reshape(-1,1)
     sampler = jax.vmap(mh_chain, in_axes=(0, None, None, None, None, 0), out_axes=0)
     n_chains = shape[0]
-    rng_keys = random.split(random.PRNGKey(42), n_chains)
+    rng_keys = random.split(random.PRNGKey(872643), n_chains)
     init_position = jax.random.normal(random.PRNGKey(0), (n_chains,)) * (PBC / 8)
     wf_hist = []
     best_energy = jnp.inf
     best_params = None
     x = jnp.linspace(-PBC / 2, PBC / 2, 1000).reshape(-1, 1)
-    debugSampling = False
+    debugSampling = True
 
     os.makedirs("results", exist_ok=True)
     if debugSampling:
@@ -223,10 +244,20 @@ def train(
 
 if __name__ == "__main__":
     model = MLP(architecture=[1, 5, 1])
+
+    class StupidModel(nn.Module):
+        alpha: jnp.ndarray
+
+        @nn.compact
+        def __call__(self, x):
+            return jnp.exp(-self.alpha * x**2)
+
+    model = StupidModel(alpha=jnp.array(1.0))
+
     rng = jax.random.PRNGKey(0)
     input_shape = (5_000, 1)  # Batch size of 5000, input dimension
     params = model.init(rng, jnp.ones(input_shape) * 0.1)  # Initialize parameters
-    PBC = 20.0
+    PBC = 10.0
     params_fin, energy, wf_hist, best_params, best_energy = train(
         50_000,
         params,
@@ -234,7 +265,7 @@ if __name__ == "__main__":
         model.apply,
         optax.adam(1e-2),
         PBC=PBC,
-        n_steps_sampler=500,
+        n_steps_sampler=100,
     )
     import matplotlib.pyplot as plt
 
