@@ -243,7 +243,8 @@ def train(
     return state.params, energy_history, wf_hist, best_params, best_energy
 
 
-if __name__ == "__main__":
+def run_experiment():
+
     model = MLP(architecture=[1, 5, 1])
 
     class StupidModel(nn.Module):
