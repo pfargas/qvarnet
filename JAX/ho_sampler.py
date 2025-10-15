@@ -105,9 +105,9 @@ def loss_and_grads(params, batch, model_apply):
         params, batch, model_apply
     )
 
-    jax.debug.print(
-        "Energy sampled: {E}, Energy trapezoidal: {E_trap}", E=E, E_trap=E_trap
-    )
+    # jax.debug.print(
+    #     "Energy sampled: {E}, Energy trapezoidal: {E_trap}", E=E, E_trap=E_trap
+    # )
 
     # compute the modulus of the gradient for logging
     # grad_E_mod = jnp.sqrt(
@@ -133,12 +133,12 @@ def mh_kernel(rng_key, prob_fn, prob_params, position, prob, PBC=None):
     key1, key2 = random.split(rng_key)
     proposal = position + random.normal(key1, shape=position.shape) * 0.5
     # ensure PBC
-    proposal = jax.lax.cond(
-        PBC is None,
-        lambda p: p,
-        lambda p: ((p + 0.5 * PBC) % PBC) - 0.5 * PBC,
-        proposal,
-    )
+    # proposal = jax.lax.cond(
+    #     PBC is None,
+    #     lambda p: p,
+    #     lambda p: ((p + 0.5 * PBC) % PBC) - 0.5 * PBC,
+    #     proposal,
+    # )
     proposal_prob = prob_fn(proposal, prob_params)
     accept_prob = jnp.minimum(1.0, proposal_prob / prob)
     accept = jax.random.uniform(key2) < accept_prob
@@ -260,13 +260,13 @@ if __name__ == "__main__":
     params = model.init(rng, jnp.ones(input_shape) * 0.1)  # Initialize parameters
     PBC = 10
     params_fin, energy, wf_hist, best_params, best_energy = train(
-        3,
+        1000,
         params,
         input_shape,
         model.apply,
         optax.adam(1e0),
         PBC=PBC,
-        n_steps_sampler=1_000,
+        n_steps_sampler=100,
     )
     import matplotlib.pyplot as plt
 
