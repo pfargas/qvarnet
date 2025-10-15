@@ -265,15 +265,6 @@ def run_experiment(args=None):
     params = model.init(rng, jnp.ones(input_shape) * 0.1)  # Initialize parameters
     PBC = 20
     params_fin, energy, wf_hist, best_params, best_energy = train(
-<<<<<<< HEAD:JAX/ho_sampler.py
-        20_000,
-        params,
-        input_shape,
-        model.apply,
-        optax.adam(1e-4),
-        PBC=PBC,
-        n_steps_sampler=500,
-=======
         trainingArguments["num_epochs"],
         params,
         input_shape,
@@ -281,7 +272,6 @@ def run_experiment(args=None):
         optax.adam(learning_rate=optimizerArguments["learning_rate"]),
         PBC=PBC,
         n_steps_sampler=samplerArguments["chain_length"],
->>>>>>> jax_refactor:src/qvarnet/ho_sampler.py
     )
     import matplotlib.pyplot as plt
 
