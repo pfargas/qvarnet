@@ -248,23 +248,24 @@ def train(
     return state.params, energy_history, wf_hist, best_params, best_energy
 
 
-if __name__ == "__main__":
-    model = MLP(architecture=[1, 5, 1])
+def run_experiment(args=None):
 
-    class StupidModel(nn.Module):
-        alpha: jnp.ndarray
+    if args is None:
+        raise ValueError("Arguments must be provided to run_experiment")
+    
 
-        @nn.compact
-        def __call__(self, x):
-            return jnp.exp(-self.alpha * x**2)
-
-    # model = StupidModel(alpha=jnp.array(1.0))
+    modelArguments = args.get_model_args
+    trainingArguments = args.get_training_args
+    samplerArguments = args.get_sampler_args
+    optimizerArguments = args.get_optimizer_args
+    model = MLP(architecture=modelArguments["architecture"])
 
     rng = jax.random.PRNGKey(0)
-    input_shape = (5_000, 1)  # Batch size of 5000, input dimension
+    input_shape = (trainingArguments["batch_size"], 1)  # Batch size of 5000, input dimension
     params = model.init(rng, jnp.ones(input_shape) * 0.1)  # Initialize parameters
     PBC = 20
     params_fin, energy, wf_hist, best_params, best_energy = train(
+<<<<<<< HEAD:JAX/ho_sampler.py
         20_000,
         params,
         input_shape,
@@ -272,6 +273,15 @@ if __name__ == "__main__":
         optax.adam(1e-4),
         PBC=PBC,
         n_steps_sampler=500,
+=======
+        trainingArguments["num_epochs"],
+        params,
+        input_shape,
+        model.apply,
+        optax.adam(learning_rate=optimizerArguments["learning_rate"]),
+        PBC=PBC,
+        n_steps_sampler=samplerArguments["chain_length"],
+>>>>>>> jax_refactor:src/qvarnet/ho_sampler.py
     )
     import matplotlib.pyplot as plt
 

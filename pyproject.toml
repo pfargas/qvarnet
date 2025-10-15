@@ -11,8 +11,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "numpy",
-    "matplotlib",
-    "torch"
+    "matplotlib"
 ]
 
 [tool.setuptools.packages.find]
