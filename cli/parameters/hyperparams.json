@@ -12,7 +12,6 @@
   },
   "sampler": {
     "step_size": 0.5,
-    "chain_length": 100,
-    "num_chains": 5000
+    "chain_length": 100
   }
 }

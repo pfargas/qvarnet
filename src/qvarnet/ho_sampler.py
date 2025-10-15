@@ -27,6 +27,7 @@ except ImportError:
 class MLP(nn.Module):
     architecture: list
     hidden_activation: callable = nn.tanh
+    alpha: float = 1.0  # parameter for the final wavefunction
 
     @nn.compact
     def __call__(self, x):
@@ -34,6 +35,7 @@ class MLP(nn.Module):
             x = nn.Dense(features=self.architecture[i + 1])(x)
             if i < len(self.architecture) - 2:
                 x = self.hidden_activation(x)
+        x = jnp.exp(-0.5 * (x**2))
         return x
 
 
@@ -105,9 +107,9 @@ def loss_and_grads(params, batch, model_apply):
         params, batch, model_apply
     )
 
-    jax.debug.print(
-        "Energy sampled: {E}, Energy trapezoidal: {E_trap}", E=E, E_trap=E_trap
-    )
+    # jax.debug.print(
+    #     "Energy sampled: {E}, Energy trapezoidal: {E_trap}", E=E, E_trap=E_trap
+    # )
 
     # compute the modulus of the gradient for logging
     # grad_E_mod = jnp.sqrt(
@@ -131,7 +133,10 @@ def train_step(state, batch):
 @partial(jax.jit, static_argnums=(1,))
 def mh_kernel(rng_key, prob_fn, prob_params, position, prob, PBC=None):
     key1, key2 = random.split(rng_key)
-    proposal = position + random.normal(key1, shape=position.shape) * 0.5
+    # proposal = position + random.normal(key1, shape=position.shape) * 0.5
+    proposal = position + random.uniform(
+        key1, shape=position.shape, minval=-0.5, maxval=0.5
+    )
     # ensure PBC
     proposal = jax.lax.cond(
         PBC is None,
@@ -243,31 +248,30 @@ def train(
     return state.params, energy_history, wf_hist, best_params, best_energy
 
 
-def run_experiment():
+def run_experiment(args=None):
 
-    model = MLP(architecture=[1, 5, 1])
+    if args is None:
+        raise ValueError("Arguments must be provided to run_experiment")
+    
 
-    class StupidModel(nn.Module):
-        alpha: jnp.ndarray
-
-        @nn.compact
-        def __call__(self, x):
-            return jnp.exp(-self.alpha * x**2)
-
-    # model = StupidModel(alpha=jnp.array(1.0))
+    modelArguments = args.get_model_args
+    trainingArguments = args.get_training_args
+    samplerArguments = args.get_sampler_args
+    optimizerArguments = args.get_optimizer_args
+    model = MLP(architecture=modelArguments["architecture"])
 
     rng = jax.random.PRNGKey(0)
-    input_shape = (5_000, 1)  # Batch size of 5000, input dimension
+    input_shape = (trainingArguments["batch_size"], 1)  # Batch size of 5000, input dimension
     params = model.init(rng, jnp.ones(input_shape) * 0.1)  # Initialize parameters
     PBC = 10
     params_fin, energy, wf_hist, best_params, best_energy = train(
-        3,
+        trainingArguments["num_epochs"],
         params,
         input_shape,
         model.apply,
-        optax.adam(1e0),
+        optax.adam(learning_rate=optimizerArguments["learning_rate"]),
         PBC=PBC,
-        n_steps_sampler=1_000,
+        n_steps_sampler=samplerArguments["chain_length"],
     )
     import matplotlib.pyplot as plt
 

@@ -40,4 +40,4 @@ if __name__ == "__main__":
     print(parser.get_training_args)
 
     from qvarnet.ho_sampler import run_experiment
-    run_experiment()
+    run_experiment(parser)
