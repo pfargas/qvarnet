@@ -105,9 +105,9 @@ def loss_and_grads(params, batch, model_apply):
         params, batch, model_apply
     )
 
-    # jax.debug.print(
-    #     "Energy sampled: {E}, Energy trapezoidal: {E_trap}", E=E, E_trap=E_trap
-    # )
+    jax.debug.print(
+        "Energy sampled: {E}, Energy trapezoidal: {E_trap}", E=E, E_trap=E_trap
+    )
 
     # compute the modulus of the gradient for logging
     # grad_E_mod = jnp.sqrt(
@@ -152,9 +152,9 @@ def mh_kernel(rng_key, prob_fn, prob_params, position, prob, PBC=None):
 def mh_chain(rng_key, n_steps, PBC, prob_fn, prob_params, init_position):
     def body_fn(i, val):
         key, position, prob = val
-        _, key = random.split(key)
+        key, subkey = random.split(key)
         new_position, new_prob = mh_kernel(
-            key, prob_fn, prob_params, position, prob, PBC=PBC
+            subkey, prob_fn, prob_params, position, prob, PBC=None
         )
         return key, new_position, new_prob
 
@@ -232,6 +232,7 @@ def train(
                 color="red",
             )
             plt.savefig(f"results/wavefunction_step_{step}.png")
+            plt.clf()
 
         if step % 100 == 0 and not tqdm_available:
             print(f"Step {step}, Energy: {energy}")
@@ -252,20 +253,20 @@ if __name__ == "__main__":
         def __call__(self, x):
             return jnp.exp(-self.alpha * x**2)
 
-    model = StupidModel(alpha=jnp.array(1.0))
+    # model = StupidModel(alpha=jnp.array(1.0))
 
     rng = jax.random.PRNGKey(0)
     input_shape = (5_000, 1)  # Batch size of 5000, input dimension
     params = model.init(rng, jnp.ones(input_shape) * 0.1)  # Initialize parameters
-    PBC = 10.0
+    PBC = 10
     params_fin, energy, wf_hist, best_params, best_energy = train(
-        50_000,
+        3,
         params,
         input_shape,
         model.apply,
-        optax.adam(1e-2),
+        optax.adam(1e0),
         PBC=PBC,
-        n_steps_sampler=100,
+        n_steps_sampler=1_000,
     )
     import matplotlib.pyplot as plt
 
