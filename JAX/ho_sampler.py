@@ -154,7 +154,7 @@ def mh_chain(rng_key, n_steps, PBC, prob_fn, prob_params, init_position):
         key, position, prob = val
         key, subkey = random.split(key)
         new_position, new_prob = mh_kernel(
-            subkey, prob_fn, prob_params, position, prob, PBC=None
+            subkey, prob_fn, prob_params, position, prob, PBC=PBC
         )
         return key, new_position, new_prob
 
