@@ -27,6 +27,7 @@ except ImportError:
 class MLP(nn.Module):
     architecture: list
     hidden_activation: callable = nn.tanh
+    alpha: float = 1.0  # parameter for the final wavefunction
 
     @nn.compact
     def __call__(self, x):
@@ -34,6 +35,7 @@ class MLP(nn.Module):
             x = nn.Dense(features=self.architecture[i + 1])(x)
             if i < len(self.architecture) - 2:
                 x = self.hidden_activation(x)
+        x = jnp.exp(-0.5 * (x**2))
         return x
 
 
@@ -131,14 +133,17 @@ def train_step(state, batch):
 @partial(jax.jit, static_argnums=(1,))
 def mh_kernel(rng_key, prob_fn, prob_params, position, prob, PBC=None):
     key1, key2 = random.split(rng_key)
-    proposal = position + random.normal(key1, shape=position.shape) * 0.5
+    # proposal = position + random.normal(key1, shape=position.shape) * 0.5
+    proposal = position + random.uniform(
+        key1, shape=position.shape, minval=-0.5, maxval=0.5
+    )
     # ensure PBC
-    # proposal = jax.lax.cond(
-    #     PBC is None,
-    #     lambda p: p,
-    #     lambda p: ((p + 0.5 * PBC) % PBC) - 0.5 * PBC,
-    #     proposal,
-    # )
+    proposal = jax.lax.cond(
+        PBC is None,
+        lambda p: p,
+        lambda p: ((p + 0.5 * PBC) % PBC) - 0.5 * PBC,
+        proposal,
+    )
     proposal_prob = prob_fn(proposal, prob_params)
     accept_prob = jnp.minimum(1.0, proposal_prob / prob)
     accept = jax.random.uniform(key2) < accept_prob
@@ -258,15 +263,15 @@ if __name__ == "__main__":
     rng = jax.random.PRNGKey(0)
     input_shape = (5_000, 1)  # Batch size of 5000, input dimension
     params = model.init(rng, jnp.ones(input_shape) * 0.1)  # Initialize parameters
-    PBC = 10
+    PBC = 20
     params_fin, energy, wf_hist, best_params, best_energy = train(
-        1000,
+        20_000,
         params,
         input_shape,
         model.apply,
-        optax.adam(1e0),
+        optax.adam(1e-4),
         PBC=PBC,
-        n_steps_sampler=100,
+        n_steps_sampler=500,
     )
     import matplotlib.pyplot as plt
 
