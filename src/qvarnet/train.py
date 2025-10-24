@@ -71,6 +71,7 @@ def energy_fn_trapezoidal(params, batch, model_apply):
     integral = trapezoid(energy_integrand.squeeze(), batch.squeeze())
     return integral / norm
 
+
 def loss_and_grads(params, batch, model_apply):
     local_energy_per_point = local_energy_batch(params, batch, model_apply)
     E = energy_fn(params, batch, model_apply)
@@ -116,12 +117,15 @@ def train(
     sampler = jax.vmap(mh_chain, in_axes=(0, None, None, None, None, 0), out_axes=0)
     n_chains = shape[0]
     rng_keys = random.split(random.PRNGKey(872643), n_chains)
-    init_position = jax.random.normal(random.PRNGKey(0), (n_chains,)) * (PBC / 8) # TODO: This is susceptible to change
+    init_position = jax.random.normal(random.PRNGKey(0), (n_chains,)) * (
+        PBC / 8
+    )  # TODO: This is susceptible to change
+    init_position = jnp.zeros((n_chains,))  # start all chains at 0
     wf_hist = []
     best_energy = jnp.inf
     best_params = None
     x = jnp.linspace(-PBC / 2, PBC / 2, 1000).reshape(-1, 1)
-    debugSampling = True # TODO: change this to argument
+    debugSampling = True  # TODO: change this to argument
 
     os.makedirs("results", exist_ok=True)
     if debugSampling:
@@ -146,6 +150,7 @@ def train(
         if nan_callback(energy):
             print("NaN detected in energy, stopping training.")
             break
+        init_position = batch
 
         if step % 1000 == 0 and debugSampling:
             plt.clf()
@@ -167,4 +172,3 @@ def train(
             print("==============================")
 
     return state.params, energy_history, wf_hist, best_params, best_energy
-

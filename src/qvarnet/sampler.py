@@ -9,7 +9,7 @@ def mh_kernel(rng_key, prob_fn, prob_params, position, prob, PBC=None):
     key1, key2 = random.split(rng_key)
     # proposal = position + random.normal(key1, shape=position.shape) * 0.5
     proposal = position + random.uniform(
-        key1, shape=position.shape, minval=-0.5, maxval=0.5
+        key1, shape=position.shape, minval=-1, maxval=1
     )
     # ensure PBC
     proposal = jax.lax.cond(
