@@ -154,6 +154,17 @@ def train(
 
         if step % 1000 == 0 and debugSampling:
             plt.clf()
+            grad_norm = jnp.sqrt(
+                sum(
+                    [
+                        jnp.sum(jnp.square(p))
+                        for p in jax.tree_util.tree_leaves(state.params)
+                    ]
+                )
+            )
+            grad_norm = np.array(grad_norm)
+            with open("results/grad_norms.txt", "a") as f:
+                f.write(f"{step}\t{grad_norm}\n")
             plt.title(f"Batch size: {batch.shape[0]}")
             plt.hist(batch, bins=int(np.ceil(np.sqrt(batch.size))), density=True)
             plt.plot(

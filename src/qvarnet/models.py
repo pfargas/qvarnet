@@ -16,3 +16,11 @@ class MLP(nn.Module):
             x = self.hidden_activation(x)
 
         return x
+
+
+class WavefunctionOneParameter(nn.Module):
+
+    @nn.compact
+    def __call__(self, x):
+        alpha = self.param("alpha", nn.initializers.constant(1.0), ())
+        return 1 / (alpha**2 + x**2)

@@ -1,30 +1,36 @@
-from .models import MLP
+from .models import MLP, WavefunctionOneParameter
 from .train import train
 import jax
 import jax.numpy as jnp
 import optax
 from jax.scipy.integrate import trapezoid
 
+
 def run_experiment(args=None):
 
     if args is None:
         raise ValueError("Arguments must be provided to run_experiment")
-    
 
     modelArguments = args.get_model_args
     trainingArguments = args.get_training_args
     samplerArguments = args.get_sampler_args
     optimizerArguments = args.get_optimizer_args
-    model = MLP(architecture=modelArguments["architecture"])
+    # model = MLP(architecture=modelArguments["architecture"])
+    model = WavefunctionOneParameter()
 
     if optimizerArguments["optimizer_type"] == "adam":
         optimizer = optax.adam(learning_rate=optimizerArguments["learning_rate"])
     else:
-        raise ValueError(f"Unsupported optimizer type: {optimizerArguments['optimizer_type']}")
+        raise ValueError(
+            f"Unsupported optimizer type: {optimizerArguments['optimizer_type']}"
+        )
 
     rng = jax.random.PRNGKey(0)
-    input_shape = (trainingArguments["batch_size"], 1)  # Batch size of 5000, input dimension
-    params = model.init(rng, jnp.ones(input_shape) * 0.1)  # Initialize parameters
+    input_shape = (
+        trainingArguments["batch_size"],
+        1,
+    )  # Batch size of 5000, input dimension
+    params = model.init(rng, jnp.ones(input_shape))  # Initialize parameters
     PBC = 20
     params_fin, energy, wf_hist, best_params, best_energy = train(
         trainingArguments["num_epochs"],
@@ -35,6 +41,8 @@ def run_experiment(args=None):
         PBC=PBC,
         n_steps_sampler=samplerArguments["chain_length"],
     )
+    print(f"Best energy: {best_energy}")
+    print(f"Best params: {best_params}")
     import matplotlib.pyplot as plt
 
     print(f"last energy: {energy[-1]}, before: {energy[-2]}")
