@@ -30,8 +30,8 @@ def run_experiment(args=None):
         trainingArguments["batch_size"],
         1,
     )  # Batch size of 5000, input dimension
-    params = model.init(rng, jnp.ones(input_shape))  # Initialize parameters
-    PBC = 20
+    params = model.init(rng, jnp.ones(input_shape)*0.1)  # Initialize parameters
+    PBC = 30
     params_fin, energy, wf_hist, best_params, best_energy = train(
         trainingArguments["num_epochs"],
         params,

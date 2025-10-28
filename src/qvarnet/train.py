@@ -31,7 +31,7 @@ def local_energy_batch(params, xs, model_apply):
         return model_apply(params, x.reshape(1, 1)).squeeze()
 
     # second derivative per sample via AD
-    d2psi_fn = jax.vmap(jax.grad(jax.grad(psi_fn)))
+    d2psi_fn = jax.vmap(jax.jacfwd(jax.grad(psi_fn)))
     d2psi = d2psi_fn(xs_flat)  # shape (batch,)
     psi_vals = jax.vmap(lambda x: psi_fn(x))(xs_flat)  # shape (batch,)
 
@@ -77,17 +77,28 @@ def loss_and_grads(params, batch, model_apply):
     E = energy_fn(params, batch, model_apply)
     E_centered = local_energy_per_point - E
     log_psi_grads = jax.vmap(lambda x: grad_log_psi(params, x, model_apply))(batch)
-    grad_E = jax.tree_util.tree_map(
+    grad_E_short = jax.tree_util.tree_map(
         lambda g: 2 * jnp.mean(E_centered[:, None] * g), log_psi_grads
+    )
+    
+    mean_grad_log_psi = jax.tree.map(lambda g: jnp.mean(g), log_psi_grads)
+    mean_loc_ener_grad_log_psi = jax.tree.map(lambda g: jnp.mean(local_energy_per_point * g), log_psi_grads)
+    grad_E = jax.tree.map(
+        lambda f, s: 2 * (s - (E * f)), mean_grad_log_psi, mean_loc_ener_grad_log_psi
     )
 
     E_trap = energy_fn_trapezoidal(
         params, jnp.linspace(-5, 5, 1000).reshape(-1, 1), model_apply
     )
     grad_E_trapezoidal = jax.grad(energy_fn_trapezoidal, argnums=0)(
-        params, batch, model_apply
+        params, jnp.linspace(-5, 5, 1000).reshape(-1, 1), model_apply
     )
-    return E, grad_E
+    jax.debug.print("---- Automatic Differentiation ----")
+    jax.debug.print("E: {}, grad_E: {}, grad_E_explicit: {}", E, grad_E_short, grad_E)
+    jax.debug.print("---- Trapezoidal Rule ----")
+    jax.debug.print("E_trap: {}, grad_E_trapezoidal: {}", E_trap, grad_E_trapezoidal)
+    jax.debug.print("-----------------------------")
+    return E_trap, grad_E_trapezoidal
 
 
 @jax.jit
@@ -131,7 +142,7 @@ def train(
     if debugSampling:
         # remove all images in results
         for f in os.listdir("results"):
-            if f.endswith(".png"):
+            if f.endswith(".png") or f.endswith(".txt"):
                 os.remove(os.path.join("results", f))
 
     for step in tqdm(range(n_steps)) if tqdm_available else range(n_steps):
@@ -157,7 +168,7 @@ def train(
             grad_norm = jnp.sqrt(
                 sum(
                     [
-                        jnp.sum(jnp.square(p))
+                        p
                         for p in jax.tree_util.tree_leaves(state.params)
                     ]
                 )
