@@ -5,7 +5,7 @@
   },
   "training" :{
     "batch_size": 10000,
-    "num_epochs": 100000
+    "num_epochs": 1000
   },
   "model": {
     "architecture": [1,5,1],

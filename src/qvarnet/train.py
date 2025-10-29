@@ -80,18 +80,20 @@ def loss_and_grads(params, batch, model_apply):
     grad_E_short = jax.tree_util.tree_map(
         lambda g: 2 * jnp.mean(E_centered[:, None] * g), log_psi_grads
     )
-    
+
     mean_grad_log_psi = jax.tree.map(lambda g: jnp.mean(g), log_psi_grads)
-    mean_loc_ener_grad_log_psi = jax.tree.map(lambda g: jnp.mean(local_energy_per_point * g), log_psi_grads)
+    mean_loc_ener_grad_log_psi = jax.tree.map(
+        lambda g: jnp.mean(local_energy_per_point * g), log_psi_grads
+    )
     grad_E = jax.tree.map(
         lambda f, s: 2 * (s - (E * f)), mean_grad_log_psi, mean_loc_ener_grad_log_psi
     )
 
     E_trap = energy_fn_trapezoidal(
-        params, jnp.linspace(-5, 5, 1000).reshape(-1, 1), model_apply
+        params, jnp.linspace(-100, 100, 10_000).reshape(-1, 1), model_apply
     )
     grad_E_trapezoidal = jax.grad(energy_fn_trapezoidal, argnums=0)(
-        params, jnp.linspace(-5, 5, 1000).reshape(-1, 1), model_apply
+        params, jnp.linspace(-100, 100, 10_000).reshape(-1, 1), model_apply
     )
     jax.debug.print("---- Automatic Differentiation ----")
     jax.debug.print("E: {}, grad_E: {}, grad_E_explicit: {}", E, grad_E_short, grad_E)
@@ -145,11 +147,13 @@ def train(
             if f.endswith(".png") or f.endswith(".txt"):
                 os.remove(os.path.join("results", f))
 
+    batch = jnp.zeros((n_chains,))  # initial dummy batch
+
     for step in tqdm(range(n_steps)) if tqdm_available else range(n_steps):
         rng_keys = random.split(random.PRNGKey(step), n_chains)
-        batch = sampler(
-            rng_keys, n_steps_sampler, PBC, prob_fn, state.params, init_position
-        )
+        # batch = sampler(
+        #     rng_keys, n_steps_sampler, PBC, prob_fn, state.params, init_position
+        # )
         batch = batch.reshape(-1, 1)  # Flatten the chains into a single batch
 
         state, energy = train_step(state, batch)
@@ -166,12 +170,7 @@ def train(
         if step % 1000 == 0 and debugSampling:
             plt.clf()
             grad_norm = jnp.sqrt(
-                sum(
-                    [
-                        p
-                        for p in jax.tree_util.tree_leaves(state.params)
-                    ]
-                )
+                sum([p for p in jax.tree_util.tree_leaves(state.params)])
             )
             grad_norm = np.array(grad_norm)
             with open("results/grad_norms.txt", "a") as f:
