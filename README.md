@@ -14,12 +14,20 @@ and activate with
 conda activate jax
 ```
 
+Finally, from the root directory of the project, the package must be installed in edit mode:
+
+```bash
+pip install -e .
+```
+
 ### Execution
 
 From the root folder, run
 
 ```bash
-qvarnet run
+qvarnet run [>output.txt]
 ```
 
 The parameters are found inside `./src/qvarnet/cli/parameters`
+
+The [] option is recommended if there are prints in the code. The progressbar is still displayed in the terminal
