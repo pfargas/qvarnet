@@ -148,6 +148,7 @@ def train(
                 os.remove(os.path.join("results", f))
 
     batch = jnp.zeros((n_chains,))  # initial dummy batch
+    jax.debug.print("WARNING: no sampling being done in training loop! Everything is trapezoidal integration.")
 
     for step in tqdm(range(n_steps)) if tqdm_available else range(n_steps):
         rng_keys = random.split(random.PRNGKey(step), n_chains)
