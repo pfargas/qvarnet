@@ -15,8 +15,8 @@ def run_experiment(args=None):
     trainingArguments = args.get_training_args
     samplerArguments = args.get_sampler_args
     optimizerArguments = args.get_optimizer_args
-    # model = MLP(architecture=modelArguments["architecture"])
-    model = WavefunctionOneParameter()
+    model = MLP(architecture=modelArguments["architecture"])
+    # model = WavefunctionOneParameter()
 
     if optimizerArguments["optimizer_type"] == "adam":
         optimizer = optax.adam(learning_rate=optimizerArguments["learning_rate"])
