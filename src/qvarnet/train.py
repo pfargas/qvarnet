@@ -11,6 +11,8 @@ import matplotlib.pyplot as plt
 import os
 from .sampler import mh_chain
 
+import signal
+
 try:
     from tqdm import tqdm
 
@@ -18,6 +20,18 @@ try:
 except ImportError:
     tqdm_available = False
     print("tqdm not found, progress bars will not be displayed.")
+
+
+stop_requested = False
+
+
+def signal_handler(signum, frame):
+    global stop_requested
+    stop_requested = True
+    print("Signal received, will stop after current training step.")
+
+
+signal.signal(signal.SIGINT, signal_handler)
 
 
 # compute kinetic term with AD (correct)
@@ -102,6 +116,7 @@ def loss_and_grads_old(params, batch, model_apply):
     jax.debug.print("-----------------------------")
     return E_trap, grad_E_trapezoidal
 
+
 def tree_grad_log_psi(x, local_energy, mean_energy, params, model_apply):
 
     E_centered = (local_energy - mean_energy).squeeze()  # -> (N,)
@@ -111,8 +126,15 @@ def tree_grad_log_psi(x, local_energy, mean_energy, params, model_apply):
 
     # Debug prints (optional, remove when fixed)
     jax.debug.print("**************TREE DEBUG******************")
-    jax.debug.print("E shape: {}, local_energy shape: {}, E_centered shape: {}", mean_energy.shape, local_energy.shape, E_centered.shape)
-    jax.debug.print("log_psi_grads leaf shapes: {}", jax.tree.map(lambda g: g.shape, log_psi_grads))
+    jax.debug.print(
+        "E shape: {}, local_energy shape: {}, E_centered shape: {}",
+        mean_energy.shape,
+        local_energy.shape,
+        E_centered.shape,
+    )
+    jax.debug.print(
+        "log_psi_grads leaf shapes: {}", jax.tree.map(lambda g: g.shape, log_psi_grads)
+    )
     # wait until the prints are done
     jax.debug.print("******************************************")
 
@@ -124,12 +146,13 @@ def tree_grad_log_psi(x, local_energy, mean_energy, params, model_apply):
         # build E_centered shaped (N, 1, 1, ..., 1) to broadcast safely
         trailing_singletons = (1,) * (g.ndim - 1)  # if g.ndim == 1, this is ()
         e_shape = (N,) + trailing_singletons
-        e = E_centered.reshape(e_shape)            # (N, 1, 1, ...)
+        e = E_centered.reshape(e_shape)  # (N, 1, 1, ...)
         # elementwise multiply then mean over batch axis=0
         return 2.0 * jnp.mean(e * g, axis=0)
 
     grad_tree = jax.tree.map(multiply_and_mean, log_psi_grads)
     return grad_tree
+
 
 def loss_and_grads(params, batch, model_apply):
     E, local_energy_per_point = energy_fn(params, batch, model_apply)
@@ -184,8 +207,10 @@ def train(
             if f.endswith(".png") or f.endswith(".txt"):
                 os.remove(os.path.join("results", f))
 
-
     for step in tqdm(range(n_steps)) if tqdm_available else range(n_steps):
+        if stop_requested:
+            break
+
         rng_keys = random.split(random.PRNGKey(step), n_chains)
         batch = sampler(
             rng_keys, n_steps_sampler, PBC, prob_fn, state.params, init_position
