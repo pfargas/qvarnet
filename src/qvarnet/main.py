@@ -7,7 +7,7 @@ from jax.scipy.integrate import trapezoid
 
 
 def run_experiment(args=None):
-
+    print(jax.devices())
     if args is None:
         raise ValueError("Arguments must be provided to run_experiment")
 
@@ -30,7 +30,7 @@ def run_experiment(args=None):
         trainingArguments["batch_size"],
         1,
     )  # Batch size of 5000, input dimension
-    params = model.init(rng, jnp.ones(input_shape)*0.1)  # Initialize parameters
+    params = model.init(rng, jnp.ones(input_shape) * 0.1)  # Initialize parameters
     PBC = 30
     params_fin, energy, wf_hist, best_params, best_energy = train(
         trainingArguments["num_epochs"],
