@@ -47,7 +47,10 @@ def run_experiment(args=None):
 
     print(f"last energy: {energy[-1]}, before: {energy[-2]}")
     plt.plot(energy)
+    plt.xlabel("Training Step")
+    plt.ylabel("Energy")
     plt.show()
+    plt.savefig("energy_history.png")
 
     # Reconstruct wavefunction
     x = jnp.linspace(-PBC / 2, PBC / 2, 1000).reshape(-1, 1)
@@ -62,4 +65,8 @@ def run_experiment(args=None):
     )
     plt.plot(x, psi_approx**2)
     plt.plot(x, jnp.pi ** (-0.5) * jnp.exp(-(x**2)), linestyle="dashed")
+    plt.xlabel("x")
+    plt.ylabel(r"$|\psi(x)|^2$")
+    plt.legend(["VMC Approximation", "Exact Solution"])
     plt.show()
+    plt.savefig("final_wavefunction.png")

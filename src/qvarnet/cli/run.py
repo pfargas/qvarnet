@@ -39,6 +39,7 @@ class ArgumentParser:
 def main():
     command = sys.argv[1]
     arg = sys.argv[2] if len(sys.argv) > 2 else None
+    print(arg)
     if command == "run":
         run(arg)
 
@@ -47,7 +48,7 @@ def run(arg):
     if arg is not None:
         print(f"Using argument file: {arg}")
     os.environ["CUDA_VISIBLE_DEVICES"] = (
-        "0"
+        f"{arg}"
         if "CUDA_VISIBLE_DEVICES" not in os.environ
         else os.environ["CUDA_VISIBLE_DEVICES"]
     )
