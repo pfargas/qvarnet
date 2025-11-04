@@ -7,7 +7,7 @@ from jax.scipy.integrate import trapezoid
 
 
 def run_experiment(args=None):
-    print(jax.devices())
+    print(f"Available devices: {jax.devices()}")
     if args is None:
         raise ValueError("Arguments must be provided to run_experiment")
 
@@ -28,7 +28,7 @@ def run_experiment(args=None):
     rng = jax.random.PRNGKey(0)
     input_shape = (
         trainingArguments["batch_size"],
-        1,
+        modelArguments["architecture"][0],
     )  # Batch size of 5000, input dimension
     params = model.init(rng, jnp.ones(input_shape) * 0.1)  # Initialize parameters
     PBC = 30

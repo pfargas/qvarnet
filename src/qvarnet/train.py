@@ -34,6 +34,15 @@ def signal_handler(signum, frame):
 signal.signal(signal.SIGINT, signal_handler)
 
 
+def laplace(func, x):
+    """Compute the Laplace operator of the model output with respect to inputs."""
+    grad_fn = jax.grad(func)
+    d2_dx2 = 0
+    for i in range(x.shape[1]):
+        d2_dx2 += jax.vmap(jax.grad(lambda xi: grad_fn(xi)[i]))(x)[:, i]
+    return d2_dx2
+
+
 # compute kinetic term with AD (correct)
 def local_energy_batch(params, xs, model_apply):
     # xs: (batch, 1) or (batch,)
@@ -45,15 +54,18 @@ def local_energy_batch(params, xs, model_apply):
         return model_apply(params, x.reshape(1, 1)).squeeze()
 
     # second derivative per sample via AD
-    d2psi_fn = jax.vmap(jax.jacfwd(jax.grad(psi_fn)))
-    d2psi = d2psi_fn(xs_flat)  # shape (batch,)
-    psi_vals = jax.vmap(lambda x: psi_fn(x))(xs_flat)  # shape (batch,)
+    # d2psi_fn = jax.vmap(jax.jacfwd(jax.grad(psi_fn)))
+    # d2psi = d2psi_fn(xs_flat)  # shape (batch,)
+    d2psi = laplace(psi_fn, xs)
+
+    psi_vals = jax.vmap(lambda x: psi_fn(x))(xs)  # shape (batch,)
 
     # avoid division by zero / small psi
     psi_safe = psi_vals + 1e-12
 
     kinetic = -0.5 * (d2psi / psi_safe)  # shape (batch,)
-    potential = 0.5 * (xs_flat**2)  # shape (batch,)
+    # potential = 0.5 * (xs_flat**2)  # shape (batch,)
+    potential = 0.5 * jnp.sum(xs**2, axis=1)
     return (kinetic + potential).reshape(-1, 1)  # keep your (batch,1) convention
 
 
@@ -86,57 +98,12 @@ def energy_fn_trapezoidal(params, batch, model_apply):
     return integral / norm
 
 
-def loss_and_grads_old(params, batch, model_apply):
-    local_energy_per_point = local_energy_batch(params, batch, model_apply)
-    E = energy_fn(params, batch, model_apply)
-    E_centered = local_energy_per_point - E
-    log_psi_grads = jax.vmap(lambda x: grad_log_psi(params, x, model_apply))(batch)
-    grad_E_short = jax.tree_util.tree_map(
-        lambda g: 2 * jnp.mean(E_centered[:, None] * g), log_psi_grads
-    )
-
-    mean_grad_log_psi = jax.tree.map(lambda g: jnp.mean(g), log_psi_grads)
-    mean_loc_ener_grad_log_psi = jax.tree.map(
-        lambda g: jnp.mean(local_energy_per_point * g), log_psi_grads
-    )
-    grad_E = jax.tree.map(
-        lambda f, s: 2 * (s - (E * f)), mean_grad_log_psi, mean_loc_ener_grad_log_psi
-    )
-
-    E_trap = energy_fn_trapezoidal(
-        params, jnp.linspace(-100, 100, 10_000).reshape(-1, 1), model_apply
-    )
-    grad_E_trapezoidal = jax.grad(energy_fn_trapezoidal, argnums=0)(
-        params, jnp.linspace(-100, 100, 10_000).reshape(-1, 1), model_apply
-    )
-    # jax.debug.print("---- Automatic Differentiation ----")
-    # jax.debug.print("E: {}, grad_E: {}, grad_E_explicit: {}", E, grad_E_short, grad_E)
-    # jax.debug.print("---- Trapezoidal Rule ----")
-    # jax.debug.print("E_trap: {}, grad_E_trapezoidal: {}", E_trap, grad_E_trapezoidal)
-    # jax.debug.print("-----------------------------")
-    return E_trap, grad_E_trapezoidal
-
-
 def tree_grad_log_psi(x, local_energy, mean_energy, params, model_apply):
 
     E_centered = (local_energy - mean_energy).squeeze()  # -> (N,)
 
     # per-sample grads: pytree where each leaf has leading batch dim N
     log_psi_grads = jax.vmap(lambda xx: grad_log_psi(params, xx, model_apply))(x)
-
-    # # Debug prints (optional, remove when fixed)
-    # jax.debug.print("**************TREE DEBUG******************")
-    # jax.debug.print(
-    #     "E shape: {}, local_energy shape: {}, E_centered shape: {}",
-    #     mean_energy.shape,
-    #     local_energy.shape,
-    #     E_centered.shape,
-    # )
-    # jax.debug.print(
-    #     "log_psi_grads leaf shapes: {}", jax.tree.map(lambda g: g.shape, log_psi_grads)
-    # )
-    # # wait until the prints are done
-    # jax.debug.print("******************************************")
 
     N = E_centered.shape[0]
     assert N == x.shape[0], "Batch size mismatch between E_centered and x"
@@ -157,9 +124,6 @@ def tree_grad_log_psi(x, local_energy, mean_energy, params, model_apply):
 def loss_and_grads(params, batch, model_apply):
     E, local_energy_per_point = energy_fn(params, batch, model_apply)
     grad_E = tree_grad_log_psi(batch, local_energy_per_point, E, params, model_apply)
-    # jax.debug.print("---- Final Loss and Grads ----")
-    # jax.debug.print("E: {}, grad_E: {}", E, grad_E)
-    # jax.debug.print("-*-*-*-*--*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*")
     return E, grad_E
 
 
@@ -189,15 +153,16 @@ def train(
     # batch = jnp.linspace(-5,5,1000).reshape(-1,1)
     sampler = jax.vmap(mh_chain, in_axes=(0, None, None, None, None, 0), out_axes=0)
     n_chains = shape[0]
+    DoF = shape[1] if len(shape) > 1 else 1
     rng_keys = random.split(random.PRNGKey(872643), n_chains)
-    init_position = jax.random.normal(random.PRNGKey(0), (n_chains,)) * (
-        PBC / 8
-    )  # TODO: This is susceptible to change
-    init_position = jnp.zeros((n_chains,))  # start all chains at 0
+    # init_position = jax.random.normal(random.PRNGKey(0), (n_chains,)) * (
+    #     PBC / 8
+    # )  # TODO: This is susceptible to change
+    init_position = jnp.zeros(shape)  # start all chains at 0
+    print(f"Initial positions shape: {init_position.shape}\n====================\n\n")
     wf_hist = []
     best_energy = jnp.inf
     best_params = None
-    x = jnp.linspace(-PBC / 2, PBC / 2, 1000).reshape(-1, 1)
     debugSampling = False  # TODO: change this to argument
 
     os.makedirs("results", exist_ok=True)
@@ -230,6 +195,7 @@ def train(
         # jax.debug.print("==============================\n\n")
 
         if step % 1000 == 0 and debugSampling:
+            x = jnp.linspace(-PBC / 2, PBC / 2, 1000).reshape(-1, 1)
             plt.clf()
             grad_norm = jnp.sqrt(
                 sum([p for p in jax.tree_util.tree_leaves(state.params)])
