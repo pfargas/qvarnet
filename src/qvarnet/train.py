@@ -46,12 +46,13 @@ def laplace(func, x):
 # compute kinetic term with AD (correct)
 def local_energy_batch(params, xs, model_apply):
     # xs: (batch, 1) or (batch,)
-    xs_flat = xs.squeeze()  # shape (batch,)
+    print("In local_energy_batch:")
+    print(params)
 
     # psi(x) -> scalar
     def psi_fn(x):
         # ensure input has shape (1,) as model expects last-dim features
-        return model_apply(params, x.reshape(1, 1)).squeeze()
+        return model_apply(params, x).squeeze()
 
     # second derivative per sample via AD
     # d2psi_fn = jax.vmap(jax.jacfwd(jax.grad(psi_fn)))
@@ -144,11 +145,24 @@ def train(
 
     def prob_fn(x, params):
         # Ensure x has a batch dimension, run the MLP, and return non-negative per-input values.
-        x = jnp.atleast_1d(x).reshape(-1, 1)  # (batch, 1)
+        # x = jnp.atleast_1d(x).reshape(-1, 1)  # (batch, 1)
+        print("In prob_fn:")
+        print("x shape:", x.shape)
+        print("params:", params)
         forward = model_apply(params, x).flatten()  # (batch,)
         out = jnp.square(forward)  # non-negative density probability
         return jnp.squeeze(out)  # scalar for scalar input, (batch,) for batch
 
+    print("SHAPE:", shape)
+
+    print("instantiate prob_fn")
+    probability_fn = prob_fn
+    print("applying prob_fn to test input")
+    test_x = jnp.zeros((shape[0], shape[1]))
+    print("test_x shape:", test_x.shape)
+    test_out = probability_fn(test_x, state.params)
+    print("test_out shape:", test_out.shape)
+    print("====================\n\n")
     energy_history = []
     # batch = jnp.linspace(-5,5,1000).reshape(-1,1)
     sampler = jax.vmap(mh_chain, in_axes=(0, None, None, None, None, 0), out_axes=0)

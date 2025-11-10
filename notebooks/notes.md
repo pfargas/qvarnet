@@ -68,3 +68,37 @@ def train(n_steps, init_params, model, training_set, optimizer):
 ## Fun stuff with JAX
 
 - If we want to do a sum of 2 arrays, we have to be careful: shapes (a,)+(a,1) = (a,a)...
+
+# JAX Dense layer computation and sizes
+
+Suppose that we have an input batch shape `(batch_size, number_input_neurons)`. Now suppose we want to do the linear transformation with a Dense layer with `number_output_neurons` neurons. Then, the computation is as follows:
+
+- The weight matrix `W` has shape `(number_input_neurons, number_output_neurons)`
+- The bias vector `b` has shape `(number_output_neurons,)`
+- The output is computed as `output = jnp.dot(input, W) + b`, which results in an output shape of `(batch_size, number_output_neurons)`.
+
+In math terms, if `input` is denoted as `X`, then the output `Y` is computed as:
+
+$$ Y = \underbrace{\sum_{in} X_{batch, in} \cdot W_{in, out}}_{(batch, out)} + b_{out} $$
+
+where the summation is over the input neurons.
+
+If one array has "less" dimensions than another (case of $(batch, out)$ and $(out,)$), JAX will automatically broadcast the smaller array to match the shape of the larger one during operations like addition, always following NumPy broadcasting rules:
+
+- The smaller array is virtually expanded to match the shape of the larger array without actually copying data.
+- The smaller array's dimensions are **aligned to the right**, and dimensions of size 1 are "stretched" to match the corresponding dimension of the larger array.
+
+Example:
+
+>Let's take the operation between the output of the sum and the bias vector `b`:
+
+$$ Y = (batch, out) + (out,) $$
+
+>This is virtually expanded to:
+$$ Y = (batch, out) + (1, out) $$
+
+>Then, JAX broadcasts the bias vector across the batch dimension, effectively treating it as if it had shape `(batch, out)` during the addition operation, repeating the bias for each item in the batch.
+
+##### Conclusion
+
+When working with NumPy/JAX, dimensions added manually to the right are important, while dimensions of size 1 added to the left are not necessary.
