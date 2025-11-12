@@ -52,11 +52,12 @@ def local_energy_batch(params, xs, model_apply):
     # psi(x) -> scalar
     def psi_fn(x):
         # ensure input has shape (1,) as model expects last-dim features
+        x = jnp.atleast_1d(x).reshape(1, -1)  # (1, DoF)
+        print("x shape in psi_fn:", x.shape)
         return model_apply(params, x).squeeze()
 
     # second derivative per sample via AD
-    # d2psi_fn = jax.vmap(jax.jacfwd(jax.grad(psi_fn)))
-    # d2psi = d2psi_fn(xs_flat)  # shape (batch,)
+    print("x shape before laplace:", xs.shape)
     d2psi = laplace(psi_fn, xs)
 
     psi_vals = jax.vmap(lambda x: psi_fn(x))(xs)  # shape (batch,)
@@ -144,27 +145,11 @@ def train(
     )
 
     def prob_fn(x, params):
-        # Ensure x has a batch dimension, run the MLP, and return non-negative per-input values.
-        # x = jnp.atleast_1d(x).reshape(-1, 1)  # (batch, 1)
-        print("In prob_fn:")
-        print("x shape:", x.shape)
-        print("params:", params)
         forward = model_apply(params, x).flatten()  # (batch,)
         out = jnp.square(forward)  # non-negative density probability
         return jnp.squeeze(out)  # scalar for scalar input, (batch,) for batch
 
-    print("SHAPE:", shape)
-
-    print("instantiate prob_fn")
-    probability_fn = prob_fn
-    print("applying prob_fn to test input")
-    test_x = jnp.zeros((shape[0], shape[1]))
-    print("test_x shape:", test_x.shape)
-    test_out = probability_fn(test_x, state.params)
-    print("test_out shape:", test_out.shape)
-    print("====================\n\n")
     energy_history = []
-    # batch = jnp.linspace(-5,5,1000).reshape(-1,1)
     sampler = jax.vmap(mh_chain, in_axes=(0, None, None, None, None, 0), out_axes=0)
     n_chains = shape[0]
     DoF = shape[1] if len(shape) > 1 else 1
@@ -194,8 +179,7 @@ def train(
         batch = sampler(
             rng_keys, n_steps_sampler, PBC, prob_fn, state.params, init_position
         )
-        batch = batch.reshape(-1, 1)  # Flatten the chains into a single batch
-
+        # batch = batch.reshape(-1, 1)  # Flatten the chains into a single batch
         state, energy = train_step(state, batch)
         energy_history.append(energy)
         wf_hist.append(state.params)
@@ -206,7 +190,6 @@ def train(
             print("NaN detected in energy, stopping training.")
             break
         init_position = batch
-        # jax.debug.print("==============================\n\n")
 
         if step % 1000 == 0 and debugSampling:
             x = jnp.linspace(-PBC / 2, PBC / 2, 1000).reshape(-1, 1)
