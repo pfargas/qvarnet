@@ -46,18 +46,13 @@ def laplace(func, x):
 # compute kinetic term with AD (correct)
 def local_energy_batch(params, xs, model_apply):
     # xs: (batch, 1) or (batch,)
-    print("In local_energy_batch:")
-    print(params)
-
     # psi(x) -> scalar
     def psi_fn(x):
         # ensure input has shape (1,) as model expects last-dim features
         x = jnp.atleast_1d(x).reshape(1, -1)  # (1, DoF)
-        print("x shape in psi_fn:", x.shape)
         return model_apply(params, x).squeeze()
 
     # second derivative per sample via AD
-    print("x shape before laplace:", xs.shape)
     d2psi = laplace(psi_fn, xs)
 
     psi_vals = jax.vmap(lambda x: psi_fn(x))(xs)  # shape (batch,)
@@ -213,8 +208,6 @@ def train(
 
         if step % 100 == 0 and not tqdm_available:
             print(f"Step {step}, Energy: {energy}")
-            # print("Current parameters:")
-            # print(state.params)
             print("==============================")
 
     return state.params, energy_history, wf_hist, best_params, best_energy
