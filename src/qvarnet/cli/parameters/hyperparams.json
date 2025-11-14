@@ -4,7 +4,7 @@
     "learning_rate": 1e-3
   },
   "training" :{
-    "batch_size": 1000,
+    "batch_size": 10000,
     "num_epochs": 1000
   },
   "model": {
@@ -13,6 +13,6 @@
   },
   "sampler": {
     "step_size": 0.5,
-    "chain_length": 10
+    "chain_length": 100
   }
 }

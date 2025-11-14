@@ -60,10 +60,8 @@ def run(arg):
     parser.parse()
 
     from qvarnet.main import run_experiment
-    import jax
-
-    with jax.profiler.trace("/tmp/jax-trace", create_perfetto_link=True):
-        run_experiment(parser)
+    
+    run_experiment(parser)
 
 
 if __name__ == "__main__":

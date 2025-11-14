@@ -32,41 +32,45 @@ def run_experiment(args=None):
     )  # Batch size of 5000, input dimension
     params = model.init(rng, jnp.ones(input_shape) * 0.1)  # Initialize parameters
     PBC = 30
-    params_fin, energy, wf_hist, best_params, best_energy = train(
-        trainingArguments["num_epochs"],
-        params,
-        input_shape,
-        model.apply,
-        optimizer,
-        PBC=PBC,
-        n_steps_sampler=samplerArguments["chain_length"],
-    )
-    print(f"Best energy: {best_energy}")
-    print(f"Best params: {best_params}")
-    import matplotlib.pyplot as plt
 
-    print(f"last energy: {energy[-1]}, before: {energy[-2]}")
-    plt.plot(energy)
-    plt.xlabel("Training Step")
-    plt.ylabel("Energy")
-    plt.show()
-    plt.savefig("energy_history.png")
+    with jax.profiler.trace("/tmp/profile-data"):    
+        params_fin, energy, wf_hist, best_params, best_energy = train(
+            trainingArguments["num_epochs"],
+            params,
+            input_shape,
+            model.apply,
+            optimizer,
+            PBC=PBC,
+            n_steps_sampler=samplerArguments["chain_length"],
+        )
+    
+    if False:
+        print(f"Best energy: {best_energy}")
+        print(f"Best params: {best_params}")
+        import matplotlib.pyplot as plt
 
-    # Reconstruct wavefunction
-    x = jnp.linspace(-PBC / 2, PBC / 2, 1000).reshape(-1, 1)
-    psi_approx = model.apply(params_fin, x)
-    print(type(psi_approx))
-    print(psi_approx.shape)
-    norm = jnp.sqrt(trapezoid((psi_approx**2).squeeze(), x.squeeze()))
-    print(f"Norm: {norm}")
-    psi_approx = psi_approx / norm
-    print(
-        f"Norm after normalization: {jnp.sqrt(trapezoid((psi_approx**2).squeeze(), x.squeeze()))}"
-    )
-    plt.plot(x, psi_approx**2)
-    plt.plot(x, jnp.pi ** (-0.5) * jnp.exp(-(x**2)), linestyle="dashed")
-    plt.xlabel("x")
-    plt.ylabel(r"$|\psi(x)|^2$")
-    plt.legend(["VMC Approximation", "Exact Solution"])
-    plt.show()
-    plt.savefig("final_wavefunction.png")
+        print(f"last energy: {energy[-1]}, before: {energy[-2]}")
+        plt.plot(energy)
+        plt.xlabel("Training Step")
+        plt.ylabel("Energy")
+        plt.show()
+        plt.savefig("energy_history.png")
+
+        # Reconstruct wavefunction
+        x = jnp.linspace(-PBC / 2, PBC / 2, 1000).reshape(-1, 1)
+        psi_approx = model.apply(params_fin, x)
+        print(type(psi_approx))
+        print(psi_approx.shape)
+        norm = jnp.sqrt(trapezoid((psi_approx**2).squeeze(), x.squeeze()))
+        print(f"Norm: {norm}")
+        psi_approx = psi_approx / norm
+        print(
+            f"Norm after normalization: {jnp.sqrt(trapezoid((psi_approx**2).squeeze(), x.squeeze()))}"
+        )
+        plt.plot(x, psi_approx**2)
+        plt.plot(x, jnp.pi ** (-0.5) * jnp.exp(-(x**2)), linestyle="dashed")
+        plt.xlabel("x")
+        plt.ylabel(r"$|\psi(x)|^2$")
+        plt.legend(["VMC Approximation", "Exact Solution"])
+        plt.show()
+        plt.savefig("final_wavefunction.png")
