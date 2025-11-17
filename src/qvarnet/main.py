@@ -29,11 +29,11 @@ def run_experiment(args=None):
     input_shape = (
         trainingArguments["batch_size"],
         modelArguments["architecture"][0],
-    )  # Batch size of 5000, input dimension
+    )
     params = model.init(rng, jnp.ones(input_shape) * 0.1)  # Initialize parameters
-    PBC = 30
+    PBC = 40.0  # Periodic Boundary Conditions
 
-    with jax.profiler.trace("/tmp/profile-data"):    
+    with jax.profiler.trace("/tmp/profile-data"):
         params_fin, energy, wf_hist, best_params, best_energy = train(
             trainingArguments["num_epochs"],
             params,
@@ -43,20 +43,25 @@ def run_experiment(args=None):
             PBC=PBC,
             n_steps_sampler=samplerArguments["chain_length"],
         )
-    
-    if False:
-        print(f"Best energy: {best_energy}")
-        print(f"Best params: {best_params}")
-        import matplotlib.pyplot as plt
 
-        print(f"last energy: {energy[-1]}, before: {energy[-2]}")
-        plt.plot(energy)
-        plt.xlabel("Training Step")
-        plt.ylabel("Energy")
-        plt.show()
-        plt.savefig("energy_history.png")
+    print(f"Best energy: {best_energy}")
+    print(f"Best params: {best_params}")
+    import matplotlib.pyplot as plt
 
-        # Reconstruct wavefunction
+    print(f"last energy: {energy[-1]}, before: {energy[-2]}")
+    plt.plot(energy)
+    plt.xlabel("Training Step")
+    plt.ylabel("Energy")
+    plt.show()
+    plt.savefig("energy_history.png")
+
+    # Reconstruct wavefunction
+    if modelArguments["architecture"][0] != 1:
+        print(
+            "Cannot plot wavefunction: input dimension is not 1. Skipping wavefunction plot."
+        )
+        return
+    else:
         x = jnp.linspace(-PBC / 2, PBC / 2, 1000).reshape(-1, 1)
         psi_approx = model.apply(params_fin, x)
         print(type(psi_approx))

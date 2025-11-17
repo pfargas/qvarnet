@@ -167,47 +167,31 @@ def train(
                 os.remove(os.path.join("results", f))
 
     for step in tqdm(range(n_steps)) if tqdm_available else range(n_steps):
-        if stop_requested:
-            break
+        with jax.profiler.TraceAnnotation("Step"):
+            if stop_requested:
+                break
 
-        rng_keys = random.split(random.PRNGKey(step), n_chains)
-        batch = sampler(
-            rng_keys, n_steps_sampler, PBC, prob_fn, state.params, init_position
-        )
-        # batch = batch.reshape(-1, 1)  # Flatten the chains into a single batch
-        state, energy = train_step(state, batch)
-        energy_history.append(energy)
-        wf_hist.append(state.params)
-        if energy < best_energy:
-            best_energy = energy
-            best_params = state.params
-        if nan_callback(energy):
-            print("NaN detected in energy, stopping training.")
-            break
-        init_position = batch
+            with jax.profiler.TraceAnnotation("Sampling"):
+                rng_keys = random.split(random.PRNGKey(step), n_chains)
+                batch = sampler(
+                    rng_keys, n_steps_sampler, PBC, prob_fn, state.params, init_position
+                )
 
-        if step % 1000 == 0 and debugSampling:
-            x = jnp.linspace(-PBC / 2, PBC / 2, 1000).reshape(-1, 1)
-            plt.clf()
-            grad_norm = jnp.sqrt(
-                sum([p for p in jax.tree_util.tree_leaves(state.params)])
-            )
-            grad_norm = np.array(grad_norm)
-            with open("results/grad_norms.txt", "a") as f:
-                f.write(f"{step}\t{grad_norm}\n")
-            plt.title(f"Batch size: {batch.shape[0]}")
-            plt.hist(batch, bins=int(np.ceil(np.sqrt(batch.size))), density=True)
-            plt.plot(
-                x,
-                prob_fn(x, state.params)
-                / trapezoid(prob_fn(x, state.params), x.flatten()),
-                color="red",
-            )
-            plt.savefig(f"results/wavefunction_step_{step}.png")
-            plt.clf()
+            with jax.profiler.TraceAnnotation("Training"):
+                state, energy = train_step(state, batch)
+            with jax.profiler.TraceAnnotation("Logging"):
+                energy_history.append(energy)
+                wf_hist.append(state.params)
+                if energy < best_energy:
+                    best_energy = energy
+                    best_params = state.params
+                if nan_callback(energy):
+                    print("NaN detected in energy, stopping training.")
+                    break
+                init_position = batch
 
-        if step % 100 == 0 and not tqdm_available:
-            print(f"Step {step}, Energy: {energy}")
-            print("==============================")
+                # if step % 100 == 0 and not tqdm_available:
+                #     print(f"Step {step}, Energy: {energy}")
+                #     print("==============================")
 
     return state.params, energy_history, wf_hist, best_params, best_energy

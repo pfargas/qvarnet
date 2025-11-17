@@ -5,10 +5,10 @@
   },
   "training" :{
     "batch_size": 10000,
-    "num_epochs": 1000
+    "num_epochs": 10000
   },
   "model": {
-    "architecture": [1,10,1],
+    "architecture": [2,10,1],
     "activation": "tanh"
   },
   "sampler": {

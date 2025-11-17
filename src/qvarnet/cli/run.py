@@ -60,12 +60,12 @@ def run(arg):
     parser.parse()
 
     from qvarnet.main import run_experiment
-    
+
     run_experiment(parser)
 
 
 if __name__ == "__main__":
-    parser = ArgumentParser("./cli/parameters/hyperparams.json")
+    parser = ArgumentParser("./src/qvarnet/cli/parameters/hyperparams.json")
     parser.parse()
     optimizer_args = parser.get_optimizer_args
     print(optimizer_args)

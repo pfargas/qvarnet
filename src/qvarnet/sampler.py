@@ -60,7 +60,8 @@ def mh_chain(rng_key, n_steps, PBC, prob_fn, prob_params, init_position):
 
     init_prob = prob_fn(init_position, prob_params)
     init_val = (rng_key, init_position, init_prob)
-    _, positions, _ = jax.lax.fori_loop(0, n_steps, body_fn, init_val)
+    with jax.profiler.TraceAnnotation("MH Chain"):
+        _, positions, _ = jax.lax.fori_loop(0, n_steps, body_fn, init_val)
     return positions
 
 
