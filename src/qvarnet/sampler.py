@@ -50,18 +50,34 @@ def mh_chain(rng_key, n_steps, PBC, prob_fn, prob_params, init_position):
 
     """
 
-    def body_fn(i, val):
+    def body_fn(val, _):
         key, position, prob = val
         key, subkey = random.split(key)
         new_position, new_prob = mh_kernel(
             subkey, prob_fn, prob_params, position, prob, PBC=PBC
         )
-        return key, new_position, new_prob
+        _carry = (key, new_position, new_prob)
+        return _carry, new_position
+
+    def old_body_fn(step, val):
+        key, position, prob = val
+        key, subkey = random.split(key)
+        new_position, new_prob = mh_kernel(
+            subkey, prob_fn, prob_params, position, prob, PBC=PBC
+        )
+        _carry = (key, new_position, new_prob)
+        return _carry
 
     init_prob = prob_fn(init_position, prob_params)
     init_val = (rng_key, init_position, init_prob)
     with jax.profiler.TraceAnnotation("MH Chain"):
-        _, positions, _ = jax.lax.fori_loop(0, n_steps, body_fn, init_val)
+        # change to lax.scan for better performance?
+        # _, positions = jax.lax.scan(body_fn, init_val, None, length=n_steps) # This is so slow...
+        _, positions, _ = jax.lax.fori_loop(0, n_steps, old_body_fn, init_val)
+    # only pick some positions to reduce memory
+    # positions = positions[-1]  # Same as fori_loop
+    # positions = positions[::10]  # pick every 10th sample after skipping first 5
+    # positions = positions  # return all samples
     return positions
 
 

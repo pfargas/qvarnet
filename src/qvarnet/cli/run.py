@@ -58,6 +58,7 @@ def run(arg):
     path = os.path.dirname(qvarnet.__file__) + "/cli/parameters/hyperparams.json"
     parser = ArgumentParser(path)
     parser.parse()
+    jax.config.update("jax_enable_x64", True)
 
     from qvarnet.main import run_experiment
 

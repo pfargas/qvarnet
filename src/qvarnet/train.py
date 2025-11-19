@@ -95,32 +95,37 @@ def energy_fn_trapezoidal(params, batch, model_apply):
     return integral / norm
 
 
-def tree_grad_log_psi(x, local_energy, mean_energy, params, model_apply):
+# def tree_grad_log_psi(x, local_energy, mean_energy, params, model_apply):
 
-    E_centered = (local_energy - mean_energy).squeeze()  # -> (N,)
+#     E_centered = (local_energy - mean_energy).squeeze()  # -> (N,)
 
-    # per-sample grads: pytree where each leaf has leading batch dim N
-    log_psi_grads = jax.vmap(lambda xx: grad_log_psi(params, xx, model_apply))(x)
+#     # per-sample grads: pytree where each leaf has leading batch dim N
+#     log_psi_grads = jax.vmap(lambda xx: grad_log_psi(params, xx, model_apply))(x)
 
-    N = E_centered.shape[0]
-    assert N == x.shape[0], "Batch size mismatch between E_centered and x"
+#     N = E_centered.shape[0]
+#     assert N == x.shape[0], "Batch size mismatch between E_centered and x"
 
-    def multiply_and_mean(g):
-        # g has shape (N, *leaf_shape)
-        # build E_centered shaped (N, 1, 1, ..., 1) to broadcast safely
-        trailing_singletons = (1,) * (g.ndim - 1)  # if g.ndim == 1, this is ()
-        e_shape = (N,) + trailing_singletons
-        e = E_centered.reshape(e_shape)  # (N, 1, 1, ...)
-        # elementwise multiply then mean over batch axis=0
-        return 2.0 * jnp.mean(e * g, axis=0)
+#     def multiply_and_mean(g):
+#         # g has shape (N, *leaf_shape)
+#         # build E_centered shaped (N, 1, 1, ..., 1) to broadcast safely
+#         trailing_singletons = (1,) * (g.ndim - 1)  # if g.ndim == 1, this is ()
+#         e_shape = (N,) + trailing_singletons
+#         e = E_centered.reshape(e_shape)  # (N, 1, 1, ...)
+#         # elementwise multiply then mean over batch axis=0
+#         return 2.0 * jnp.mean(e * g, axis=0)
 
-    grad_tree = jax.tree.map(multiply_and_mean, log_psi_grads)
-    return grad_tree
+#     grad_tree = jax.tree.map(multiply_and_mean, log_psi_grads)
+#     return grad_tree
 
 
 def loss_and_grads(params, batch, model_apply):
     E, local_energy_per_point = energy_fn(params, batch, model_apply)
-    grad_E = tree_grad_log_psi(batch, local_energy_per_point, E, params, model_apply)
+    loss = lambda p: 2 * jnp.mean(
+        jax.lax.stop_gradient(local_energy_per_point - E)
+        * log_psi(batch, p, model_apply).reshape(-1, 1)
+    )
+    # grad_E = tree_grad_log_psi(batch, local_energy_per_point, E, params, model_apply)
+    grad_E = jax.grad(loss)(params)
     return E, grad_E
 
 
@@ -175,20 +180,23 @@ def train(
                 rng_keys = random.split(random.PRNGKey(step), n_chains)
                 batch = sampler(
                     rng_keys, n_steps_sampler, PBC, prob_fn, state.params, init_position
-                )
+                ).reshape(
+                    -1, DoF
+                )  # (n_chains, DoF)
 
             with jax.profiler.TraceAnnotation("Training"):
                 state, energy = train_step(state, batch)
             with jax.profiler.TraceAnnotation("Logging"):
-                energy_history.append(energy)
-                wf_hist.append(state.params)
-                if energy < best_energy:
-                    best_energy = energy
-                    best_params = state.params
-                if nan_callback(energy):
-                    print("NaN detected in energy, stopping training.")
-                    break
-                init_position = batch
+                pass
+                # energy_history.append(energy)
+                # wf_hist.append(state.params)
+                # if energy < best_energy:
+                #     best_energy = energy
+                #     best_params = state.params
+                # if nan_callback(energy):
+                #     print("NaN detected in energy, stopping training.")
+                #     break
+                # init_position = batch[:n_chains, :]  # warm start next sampling
 
                 # if step % 100 == 0 and not tqdm_available:
                 #     print(f"Step {step}, Energy: {energy}")
