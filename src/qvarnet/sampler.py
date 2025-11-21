@@ -6,20 +6,11 @@ from matplotlib.pyplot import hist
 
 
 @partial(jax.jit, static_argnums=(1,))
-def mh_kernel(rng_key, prob_fn, prob_params, position, prob, PBC=None):
+def mh_kernel(rng_key, prob_fn, prob_params, position, prob, PBC=10.0):
     key1, key2 = random.split(rng_key)
     proposal = position + random.uniform(
         key1, shape=position.shape, minval=-1, maxval=1
     )
-    if PBC is None:
-        raise ValueError("PBC must be provided for periodic boundary conditions")
-    # ensure PBC
-    # proposal = jax.lax.cond(
-    #     PBC is None,
-    #     lambda p: p,
-    #     lambda p: ((p + 0.5 * PBC) % PBC) - 0.5 * PBC,
-    #     proposal,
-    # )
     proposal = ((proposal + 0.5 * PBC) % PBC) - 0.5 * PBC
     proposal_prob = prob_fn(proposal, prob_params)
     accept_prob = jnp.minimum(1.0, proposal_prob / prob)
@@ -65,15 +56,13 @@ def mh_chain(rng_key, n_steps, PBC, prob_fn, prob_params, init_position):
         new_position, new_prob = mh_kernel(
             subkey, prob_fn, prob_params, position, prob, PBC=PBC
         )
-        _carry = (key, new_position, new_prob)
-        return _carry
+        return key, new_position, new_prob
 
     init_prob = prob_fn(init_position, prob_params)
     init_val = (rng_key, init_position, init_prob)
-    with jax.profiler.TraceAnnotation("MH Chain"):
-        # change to lax.scan for better performance?
-        # _, positions = jax.lax.scan(body_fn, init_val, None, length=n_steps) # This is so slow...
-        _, positions, _ = jax.lax.fori_loop(0, n_steps, old_body_fn, init_val)
+    # change to lax.scan for better performance?
+    # _, positions = jax.lax.scan(body_fn, init_val, None, length=n_steps) # This is so slow...
+    _, positions, _ = jax.lax.fori_loop(0, n_steps, old_body_fn, init_val)
     # only pick some positions to reduce memory
     # positions = positions[-1]  # Same as fori_loop
     # positions = positions[::10]  # pick every 10th sample after skipping first 5
@@ -101,6 +90,14 @@ if __name__ == "__main__":
     init_positions = jax.random.normal(random.PRNGKey(0), (n_chains, DoF)) * 2.0
     samples = sampler(rng_keys, n_steps, PBC, test_2d_prob_fn, None, init_positions)
     print("Samples shape:", samples.shape)  # (n_chains, DoF)
+    average_position = jnp.mean(samples.reshape(-1, DoF), axis=0)
+    print("Average position over all samples:", average_position)
+    std_position = jnp.std(samples.reshape(-1, DoF), axis=0)
+    print("Std position over all samples:", std_position)
+
+    print("THEORETICAL VALUES:")
+    print("Average position: 0.0, 0.0")
+    print("Std position: 1.0, 1.0")
 
     import matplotlib.pyplot as plt
 

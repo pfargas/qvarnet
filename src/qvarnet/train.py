@@ -84,47 +84,12 @@ def energy_fn(params, batch, model_apply):
     return E, local_energy_per_point
 
 
-def energy_fn_trapezoidal(params, batch, model_apply):
-    psi = jax.vmap(lambda x: model_apply(params, x))(batch)
-    psi_squared = jnp.abs(psi) ** 2
-    local_energy_per_point = local_energy_batch(params, batch, model_apply)
-
-    energy_integrand = psi_squared * local_energy_per_point
-    norm = trapezoid(psi_squared.squeeze(), batch.squeeze())
-    integral = trapezoid(energy_integrand.squeeze(), batch.squeeze())
-    return integral / norm
-
-
-# def tree_grad_log_psi(x, local_energy, mean_energy, params, model_apply):
-
-#     E_centered = (local_energy - mean_energy).squeeze()  # -> (N,)
-
-#     # per-sample grads: pytree where each leaf has leading batch dim N
-#     log_psi_grads = jax.vmap(lambda xx: grad_log_psi(params, xx, model_apply))(x)
-
-#     N = E_centered.shape[0]
-#     assert N == x.shape[0], "Batch size mismatch between E_centered and x"
-
-#     def multiply_and_mean(g):
-#         # g has shape (N, *leaf_shape)
-#         # build E_centered shaped (N, 1, 1, ..., 1) to broadcast safely
-#         trailing_singletons = (1,) * (g.ndim - 1)  # if g.ndim == 1, this is ()
-#         e_shape = (N,) + trailing_singletons
-#         e = E_centered.reshape(e_shape)  # (N, 1, 1, ...)
-#         # elementwise multiply then mean over batch axis=0
-#         return 2.0 * jnp.mean(e * g, axis=0)
-
-#     grad_tree = jax.tree.map(multiply_and_mean, log_psi_grads)
-#     return grad_tree
-
-
 def loss_and_grads(params, batch, model_apply):
     E, local_energy_per_point = energy_fn(params, batch, model_apply)
     loss = lambda p: 2 * jnp.mean(
         jax.lax.stop_gradient(local_energy_per_point - E)
         * log_psi(batch, p, model_apply).reshape(-1, 1)
     )
-    # grad_E = tree_grad_log_psi(batch, local_energy_per_point, E, params, model_apply)
     grad_E = jax.grad(loss)(params)
     return E, grad_E
 
@@ -154,22 +119,11 @@ def train(
     n_chains = shape[0]
     DoF = shape[1] if len(shape) > 1 else 1
     rng_keys = random.split(random.PRNGKey(872643), n_chains)
-    # init_position = jax.random.normal(random.PRNGKey(0), (n_chains,)) * (
-    #     PBC / 8
-    # )  # TODO: This is susceptible to change
     init_position = jnp.zeros(shape)  # start all chains at 0
     print(f"Initial positions shape: {init_position.shape}\n====================\n\n")
     wf_hist = []
     best_energy = jnp.inf
     best_params = None
-    debugSampling = False  # TODO: change this to argument
-
-    os.makedirs("results", exist_ok=True)
-    if debugSampling:
-        # remove all images in results
-        for f in os.listdir("results"):
-            if f.endswith(".png") or f.endswith(".txt"):
-                os.remove(os.path.join("results", f))
 
     for step in tqdm(range(n_steps)) if tqdm_available else range(n_steps):
         with jax.profiler.TraceAnnotation("Step"):
@@ -180,26 +134,17 @@ def train(
                 rng_keys = random.split(random.PRNGKey(step), n_chains)
                 batch = sampler(
                     rng_keys, n_steps_sampler, PBC, prob_fn, state.params, init_position
-                ).reshape(
-                    -1, DoF
-                )  # (n_chains, DoF)
+                )
 
             with jax.profiler.TraceAnnotation("Training"):
                 state, energy = train_step(state, batch)
             with jax.profiler.TraceAnnotation("Logging"):
                 pass
-                # energy_history.append(energy)
-                # wf_hist.append(state.params)
-                # if energy < best_energy:
-                #     best_energy = energy
-                #     best_params = state.params
-                # if nan_callback(energy):
-                #     print("NaN detected in energy, stopping training.")
-                #     break
-                # init_position = batch[:n_chains, :]  # warm start next sampling
-
-                # if step % 100 == 0 and not tqdm_available:
-                #     print(f"Step {step}, Energy: {energy}")
-                #     print("==============================")
+                energy_history.append(energy)
+                wf_hist.append(state.params)
+                if energy < best_energy:
+                    best_energy = energy
+                    best_params = state.params
+                init_position = batch  # warm start next sampling
 
     return state.params, energy_history, wf_hist, best_params, best_energy
