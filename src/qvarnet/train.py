@@ -102,7 +102,14 @@ def train_step(state, batch):
 
 
 def train(
-    n_steps, init_params, shape, model_apply, optimizer, PBC=10, n_steps_sampler=500
+    n_steps,
+    init_params,
+    shape,
+    model_apply,
+    optimizer,
+    sampler_params,
+    PBC=10,
+    n_steps_sampler=500,
 ):
 
     state = train_state.TrainState.create(
@@ -115,7 +122,9 @@ def train(
         return jnp.squeeze(out)  # scalar for scalar input, (batch,) for batch
 
     energy_history = []
-    sampler = jax.vmap(mh_chain, in_axes=(0, None, None, None, None, 0), out_axes=0)
+    sampler = jax.vmap(
+        mh_chain, in_axes=(0, None, None, None, None, 0, None), out_axes=0
+    )
     n_chains = shape[0]
     DoF = shape[1] if len(shape) > 1 else 1
     rng_keys = random.split(random.PRNGKey(872643), n_chains)
@@ -124,27 +133,29 @@ def train(
     wf_hist = []
     best_energy = jnp.inf
     best_params = None
+    step_size = sampler_params.get("step_size", 1.0)
 
     for step in tqdm(range(n_steps)) if tqdm_available else range(n_steps):
-        with jax.profiler.TraceAnnotation("Step"):
-            if stop_requested:
-                break
+        if stop_requested:
+            break
 
-            with jax.profiler.TraceAnnotation("Sampling"):
-                rng_keys = random.split(random.PRNGKey(step), n_chains)
-                batch = sampler(
-                    rng_keys, n_steps_sampler, PBC, prob_fn, state.params, init_position
-                )
+        rng_keys = random.split(random.PRNGKey(step), n_chains)
+        batch = sampler(
+            rng_keys,
+            n_steps_sampler,
+            PBC,
+            prob_fn,
+            state.params,
+            init_position,
+            step_size,
+        )
 
-            with jax.profiler.TraceAnnotation("Training"):
-                state, energy = train_step(state, batch)
-            with jax.profiler.TraceAnnotation("Logging"):
-                pass
-                energy_history.append(energy)
-                wf_hist.append(state.params)
-                if energy < best_energy:
-                    best_energy = energy
-                    best_params = state.params
-                init_position = batch  # warm start next sampling
+        state, energy = train_step(state, batch)
+        energy_history.append(energy)
+        # wf_hist.append(state.params)
+        if energy < best_energy:
+            best_energy = energy
+            best_params = state.params
+        init_position = batch  # warm start next sampling
 
     return state.params, energy_history, wf_hist, best_params, best_energy

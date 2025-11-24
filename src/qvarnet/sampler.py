@@ -6,10 +6,10 @@ from matplotlib.pyplot import hist
 
 
 @partial(jax.jit, static_argnums=(1,))
-def mh_kernel(rng_key, prob_fn, prob_params, position, prob, PBC=10.0):
+def mh_kernel(rng_key, prob_fn, prob_params, position, prob, step_size, PBC=10.0):
     key1, key2 = random.split(rng_key)
     proposal = position + random.uniform(
-        key1, shape=position.shape, minval=-1, maxval=1
+        key1, shape=position.shape, minval=-step_size, maxval=step_size
     )
     proposal = ((proposal + 0.5 * PBC) % PBC) - 0.5 * PBC
     proposal_prob = prob_fn(proposal, prob_params)
@@ -17,11 +17,19 @@ def mh_kernel(rng_key, prob_fn, prob_params, position, prob, PBC=10.0):
     accept = jax.random.uniform(key2) < accept_prob
     new_position = jnp.where(accept, proposal, position)
     new_prob = jnp.where(accept, proposal_prob, prob)
-    return new_position, new_prob
+    acceptance_rate = jnp.mean(accept.astype(jnp.float32))
+    return new_position, new_prob, acceptance_rate
+
+
+@jax.jit
+def adapt_step_size(step_size, accept, target=0.5, lr=0.01):
+    # accept is a float 0.0 or 1.0
+    return step_size * jnp.exp(lr * (accept - target))
+    # return step_size
 
 
 @partial(jax.jit, static_argnums=(1, 2, 3))
-def mh_chain(rng_key, n_steps, PBC, prob_fn, prob_params, init_position):
+def mh_chain(rng_key, n_steps, PBC, prob_fn, prob_params, init_position, step_size=1.0):
     """MH single chain.
 
     If this chain is executed alone, then you obtain 1 single sample taken after n_steps.
@@ -38,31 +46,33 @@ def mh_chain(rng_key, n_steps, PBC, prob_fn, prob_params, init_position):
         - None: same prob_fn for all chains
         - None: same prob_params per chain
         - 0: different init_position per chain
+        - None: same step_size per chain
 
     """
 
     def body_fn(val, _):
         key, position, prob = val
         key, subkey = random.split(key)
-        new_position, new_prob = mh_kernel(
-            subkey, prob_fn, prob_params, position, prob, PBC=PBC
+        new_position, new_prob, acceptance_rate = mh_kernel(
+            subkey, prob_fn, prob_params, position, prob, step_size=step_size, PBC=PBC
         )
         _carry = (key, new_position, new_prob)
         return _carry, new_position
 
     def old_body_fn(step, val):
-        key, position, prob = val
+        key, position, prob, step_size = val
         key, subkey = random.split(key)
-        new_position, new_prob = mh_kernel(
-            subkey, prob_fn, prob_params, position, prob, PBC=PBC
+        new_position, new_prob, acceptance_rate = mh_kernel(
+            subkey, prob_fn, prob_params, position, prob, step_size=step_size, PBC=PBC
         )
-        return key, new_position, new_prob
+        step_size = adapt_step_size(step_size, acceptance_rate)
+        return key, new_position, new_prob, step_size
 
     init_prob = prob_fn(init_position, prob_params)
-    init_val = (rng_key, init_position, init_prob)
+    init_val = (rng_key, init_position, init_prob, step_size)
     # change to lax.scan for better performance?
     # _, positions = jax.lax.scan(body_fn, init_val, None, length=n_steps) # This is so slow...
-    _, positions, _ = jax.lax.fori_loop(0, n_steps, old_body_fn, init_val)
+    _, positions, _, _ = jax.lax.fori_loop(0, n_steps, old_body_fn, init_val)
     # only pick some positions to reduce memory
     # positions = positions[-1]  # Same as fori_loop
     # positions = positions[::10]  # pick every 10th sample after skipping first 5

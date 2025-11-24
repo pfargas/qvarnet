@@ -24,3 +24,11 @@ class WavefunctionOneParameter(nn.Module):
     def __call__(self, x):
         alpha = self.param("alpha", nn.initializers.constant(0.5), ())
         return 1 / (alpha**2 + x**2)
+
+
+class ExponentialWavefunction(nn.Module):
+
+    @nn.compact
+    def __call__(self, x):
+        alpha = self.param("alpha", nn.initializers.constant(1.0), ())
+        return jnp.exp(-alpha * jnp.sum(x**2, axis=-1))

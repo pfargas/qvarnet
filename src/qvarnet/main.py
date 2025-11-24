@@ -1,4 +1,4 @@
-from .models import MLP, WavefunctionOneParameter
+from .models import MLP, WavefunctionOneParameter, ExponentialWavefunction
 from .train import train
 import jax
 import jax.numpy as jnp
@@ -16,6 +16,7 @@ def run_experiment(args=None):
     samplerArguments = args.get_sampler_args
     optimizerArguments = args.get_optimizer_args
     model = MLP(architecture=modelArguments["architecture"])
+    # model = ExponentialWavefunction()
     # model = WavefunctionOneParameter()
 
     if optimizerArguments["optimizer_type"] == "adam":
@@ -33,16 +34,17 @@ def run_experiment(args=None):
     params = model.init(rng, jnp.ones(input_shape) * 0.1)  # Initialize parameters
     PBC = 40.0  # Periodic Boundary Conditions
 
-    with jax.profiler.trace("/tmp/profile-data"):
-        params_fin, energy, wf_hist, best_params, best_energy = train(
-            trainingArguments["num_epochs"],
-            params,
-            input_shape,
-            model.apply,
-            optimizer,
-            PBC=PBC,
-            n_steps_sampler=samplerArguments["chain_length"],
-        )
+    # with jax.profiler.trace("/tmp/profile-data"):
+    params_fin, energy, wf_hist, best_params, best_energy = train(
+        trainingArguments["num_epochs"],
+        params,
+        input_shape,
+        model.apply,
+        optimizer,
+        sampler_params=samplerArguments,
+        PBC=PBC,
+        n_steps_sampler=samplerArguments["chain_length"],
+    )
 
     print(f"Best energy: {best_energy}")
     print(f"Best params: {best_params}")
