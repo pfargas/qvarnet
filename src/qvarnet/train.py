@@ -140,6 +140,7 @@ def train(
             break
 
         rng_keys = random.split(random.PRNGKey(step), n_chains)
+        # with jax.profiler.TraceAnnotation("Sampling"):
         batch = sampler(
             rng_keys,
             n_steps_sampler,
@@ -149,13 +150,17 @@ def train(
             init_position,
             step_size,
         )
+        # combine n_chains and n_steps_sampler into one big batch
+        batch = batch.reshape(-1, DoF)  # (n_chains * n_steps_sampler, DoF)
 
         state, energy = train_step(state, batch)
         energy_history.append(energy)
         # wf_hist.append(state.params)
-        if energy < best_energy:
-            best_energy = energy
-            best_params = state.params
-        init_position = batch  # warm start next sampling
+        # if energy < best_energy:
+        #     best_energy = energy
+        #     best_params = state.params
+        # init_position = batch.reshape(
+        #     n_chains, n_steps_sampler, DoF
+        # )  # warm start next sampling
 
     return state.params, energy_history, wf_hist, best_params, best_energy

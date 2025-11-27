@@ -24,8 +24,8 @@ def mh_kernel(rng_key, prob_fn, prob_params, position, prob, step_size, PBC=10.0
 @jax.jit
 def adapt_step_size(step_size, accept, target=0.5, lr=0.01):
     # accept is a float 0.0 or 1.0
-    return step_size * jnp.exp(lr * (accept - target))
-    # return step_size
+    # return step_size * jnp.exp(lr * (accept - target))
+    return step_size
 
 
 @partial(jax.jit, static_argnums=(1, 2, 3))
@@ -51,12 +51,13 @@ def mh_chain(rng_key, n_steps, PBC, prob_fn, prob_params, init_position, step_si
     """
 
     def body_fn(val, _):
-        key, position, prob = val
+        key, position, prob, step_size = val
         key, subkey = random.split(key)
         new_position, new_prob, acceptance_rate = mh_kernel(
             subkey, prob_fn, prob_params, position, prob, step_size=step_size, PBC=PBC
         )
-        _carry = (key, new_position, new_prob)
+        step_size = adapt_step_size(step_size, acceptance_rate)
+        _carry = (key, new_position, new_prob, step_size)
         return _carry, new_position
 
     def old_body_fn(step, val):
@@ -71,8 +72,8 @@ def mh_chain(rng_key, n_steps, PBC, prob_fn, prob_params, init_position, step_si
     init_prob = prob_fn(init_position, prob_params)
     init_val = (rng_key, init_position, init_prob, step_size)
     # change to lax.scan for better performance?
-    # _, positions = jax.lax.scan(body_fn, init_val, None, length=n_steps) # This is so slow...
-    _, positions, _, _ = jax.lax.fori_loop(0, n_steps, old_body_fn, init_val)
+    _, positions = jax.lax.scan(body_fn, init_val, None, length=n_steps)
+    # _, positions, _, _ = jax.lax.fori_loop(0, n_steps, old_body_fn, init_val)
     # only pick some positions to reduce memory
     # positions = positions[-1]  # Same as fori_loop
     # positions = positions[::10]  # pick every 10th sample after skipping first 5
