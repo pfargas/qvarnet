@@ -33,6 +33,9 @@ def run_experiment(args=None):
     )
     params = model.init(rng, jnp.ones(input_shape) * 0.1)  # Initialize parameters
     PBC = 40.0  # Periodic Boundary Conditions
+    print(
+        f"number of samples total: {trainingArguments['batch_size']*samplerArguments['chain_length']}"
+    )
 
     # with jax.profiler.trace("/tmp/profile-data"):
     params_fin, energy, wf_hist, best_params, best_energy = train(
