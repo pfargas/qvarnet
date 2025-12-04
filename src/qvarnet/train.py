@@ -86,11 +86,19 @@ def energy_fn(params, batch, model_apply):
 
 def loss_and_grads(params, batch, model_apply):
     E, local_energy_per_point = energy_fn(params, batch, model_apply)
-    loss = lambda p: 2 * jnp.mean(
+    centered_local_energy = jax.lax.stop_gradient(local_energy_per_point - E)
+
+    oi = lambda p: 2 * jnp.mean(
         jax.lax.stop_gradient(local_energy_per_point - E)
         * log_psi(batch, p, model_apply).reshape(-1, 1)
     )
-    grad_E = jax.grad(loss)(params)
+
+    def grad_log_psi_fn(x, params):
+        pass
+
+    # o_i = jax.vmap(lambda x: O_i_fn(x, params))(batch)  # (batch, n_params)
+
+    grad_E = 2 * jnp.mean(centered_local_energy * o_i, axis=0)
     return E, grad_E
 
 
