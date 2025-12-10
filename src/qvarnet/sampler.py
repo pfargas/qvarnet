@@ -9,9 +9,7 @@ from matplotlib.pyplot import hist
 def mh_kernel(
     key_prop, key_acc, prob_fn, prob_params, position, prob, step_size, PBC=10.0
 ):
-    # proposal = position + random.uniform(
-    #     key1, shape=position.shape, minval=-step_size, maxval=step_size
-    # )
+
     proposal = position + random.uniform(key_prop, shape=position.shape, minval=-step_size, maxval=step_size)
     proposal = ((proposal + 0.5 * PBC) % PBC) - 0.5 * PBC
     proposal_prob = prob_fn(proposal, prob_params)
