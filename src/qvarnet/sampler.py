@@ -6,15 +6,17 @@ from matplotlib.pyplot import hist
 
 
 @jax.jit
-def mh_kernel(rng_key, prob_fn, prob_params, position, prob, step_size, PBC=10.0):
-    key1, key2 = random.split(rng_key)
-    proposal = position + random.uniform(
-        key1, shape=position.shape, minval=-step_size, maxval=step_size
-    )
+def mh_kernel(
+    rn_proposal, rn_accept, prob_fn, prob_params, position, prob, step_size, PBC=10.0
+):
+    # proposal = position + random.uniform(
+    #     key1, shape=position.shape, minval=-step_size, maxval=step_size
+    # )
+    proposal = position + rn_proposal
     proposal = ((proposal + 0.5 * PBC) % PBC) - 0.5 * PBC
     proposal_prob = prob_fn(proposal, prob_params)
     accept_prob = jnp.minimum(1.0, proposal_prob / prob)
-    accept = jax.random.uniform(key2) < accept_prob
+    accept = rn_accept < accept_prob
     new_position = jnp.where(accept, proposal, position)
     new_prob = jnp.where(accept, proposal_prob, prob)
     acceptance_rate = jnp.mean(accept.astype(jnp.float32))
@@ -49,19 +51,41 @@ def mh_chain(rng_key, n_steps, PBC, prob_fn, prob_params, init_position, step_si
         - None: same step_size per chain
 
     """
+    uniform_nums_sampler = jax.random.uniform(rng_key, shape=(n_steps,))
+    uniform_nums_acceptor = jax.random.uniform(rng_key, shape=(n_steps,))
 
-    def body_fn(val, _):
-        key, position, prob, step_size = val
-        key, subkey = random.split(key)
+    def body_fn(val, idx):
+        uniform_nums_sampler, uniform_nums_acceptor, position, prob, step_size = val
+        rn_proposal = uniform_nums_sampler[idx]
+        rn_accept = uniform_nums_acceptor[idx]
         new_position, new_prob, _ = mh_kernel(
-            subkey, prob_fn, prob_params, position, prob, step_size=step_size, PBC=PBC
+            rn_proposal,
+            rn_accept,
+            prob_fn,
+            prob_params,
+            position,
+            prob,
+            step_size=step_size,
+            PBC=PBC,
         )
         # step_size = adapt_step_size(step_size, acceptance_rate)
-        _carry = (key, new_position, new_prob, step_size)
+        _carry = (
+            uniform_nums_sampler,
+            uniform_nums_acceptor,
+            new_position,
+            new_prob,
+            step_size,
+        )
         return _carry, new_position
 
     init_prob = prob_fn(init_position, prob_params)
-    init_val = (rng_key, init_position, init_prob, step_size)
+    init_val = (
+        uniform_nums_sampler,
+        uniform_nums_acceptor,
+        init_position,
+        init_prob,
+        step_size,
+    )
     # change to lax.scan for better performance?
     _, positions = jax.lax.scan(body_fn, init_val, None, length=n_steps)
     return positions
