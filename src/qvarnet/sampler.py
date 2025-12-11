@@ -10,7 +10,9 @@ def mh_kernel(
     key_prop, key_acc, prob_fn, prob_params, position, prob, step_size, PBC=10.0
 ):
 
-    proposal = position + random.uniform(key_prop, shape=position.shape, minval=-step_size, maxval=step_size)
+    proposal = position + random.uniform(
+        key_prop, shape=position.shape, minval=-step_size, maxval=step_size
+    )
     proposal = ((proposal + 0.5 * PBC) % PBC) - 0.5 * PBC
     proposal_prob = prob_fn(proposal, prob_params)
     accept_prob = jnp.minimum(1.0, proposal_prob / prob)
@@ -29,7 +31,9 @@ def adapt_step_size(step_size, accept, target=0.5, lr=0.01):
 
 
 @partial(jax.jit, static_argnames=("prob_fn"))
-def mh_chain(keys_prop, keys_acc, PBC, prob_fn, prob_params, init_position, step_size=1.0):
+def mh_chain(
+    keys_prop, keys_acc, PBC, prob_fn, prob_params, init_position, step_size=1.0
+):
     """
     Single MH chain using pre-generated step keys.
     keys_prop, keys_acc: shape (n_steps, 2)
@@ -60,34 +64,47 @@ if __name__ == "__main__":
 
     @jax.jit
     def test_2d_prob_fn(x, params):
-        return jnp.exp(-0.5 * jnp.sum((x) ** 2, axis=-1))
+        # return jnp.exp(-0.5 * jnp.sum((x) ** 2, axis=-1))
+        return jnp.exp(-0.5 * x**2)
 
     sampler = jax.vmap(
-                        mh_chain,
-                        in_axes=(0, 0, None, None, None, 0),  # keys_prop, keys_acc, PBC, prob_fn, prob_params, init_position
-                        out_axes=0
-                    )
-    
-    n_chains = 20
-    DoF = 2
-    n_steps = 500_000
+        mh_chain,
+        in_axes=(
+            0,
+            0,
+            None,
+            None,
+            None,
+            0,
+        ),  # keys_prop, keys_acc, PBC, prob_fn, prob_params, init_position
+        out_axes=0,
+    )
+
+    n_chains = 1
+    DoF = 1
+    n_steps = 10_000_000
     PBC = 5
     key_prop, key_acc = random.split(master_key)
-    
+
     keys_prop = random.split(key_prop, n_chains * n_steps).reshape(n_chains, n_steps, 2)
     keys_acc = random.split(key_acc, n_chains * n_steps).reshape(n_chains, n_steps, 2)
-    
+
     print("CONFIG USED:")
     print(f"n_chains: {n_chains}, DoF: {DoF}, n_steps: {n_steps}")
 
     init_positions = jax.random.normal(random.PRNGKey(0), (n_chains, DoF)) * 2.0
 
     import time
+
     start_time = time.perf_counter()
     samples = sampler(keys_prop, keys_acc, PBC, test_2d_prob_fn, None, init_positions)
     end_time = time.perf_counter()
     print(f"Sampling completed in {end_time - start_time:.2f} seconds.")
-    
+    start_time = time.perf_counter()
+    samples = sampler(keys_prop, keys_acc, PBC, test_2d_prob_fn, None, init_positions)
+    end_time = time.perf_counter()
+    print(f"Sampling completed in {end_time - start_time:.2f} seconds.")
+
     print("Samples shape:", samples.shape)  # (n_chains, DoF)
     average_position = jnp.mean(samples.reshape(-1, DoF), axis=0)
     print("Shape after reshaping:", samples.reshape(-1, DoF).shape)
@@ -100,11 +117,22 @@ if __name__ == "__main__":
     print("Std position: 1.0, 1.0")
 
     import matplotlib.pyplot as plt
-    
+
     plt.figure(figsize=(8, 6))
-    plt.hist(samples.reshape(-1, DoF)[:, 0], bins=100, density=True, alpha=0.7, label="Sampled")
+    plt.hist(
+        samples.reshape(-1, DoF)[:, 0],
+        bins=100,
+        density=True,
+        alpha=0.7,
+        label="Sampled",
+    )
     x = jnp.linspace(-PBC / 2, PBC / 2, 1000)
-    plt.plot(x, (1 / jnp.sqrt(2 * jnp.pi)) * jnp.exp(-0.5 * x**2), label="Theoretical", color="red")
+    plt.plot(
+        x,
+        (1 / jnp.sqrt(2 * jnp.pi)) * jnp.exp(-0.5 * x**2),
+        label="Theoretical",
+        color="red",
+    )
     plt.title("1D Marginal Distribution")
     plt.xlabel("x")
     plt.ylabel("Density")
