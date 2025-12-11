@@ -7,16 +7,13 @@ from matplotlib.pyplot import hist
 
 @partial(jax.jit, static_argnames=("prob_fn"))
 def mh_kernel(
-    key_prop, key_acc, prob_fn, prob_params, position, prob, step_size, PBC=10.0
+    uniform_random_numbers, prob_fn, prob_params, position, prob, step_size, PBC=10.0
 ):
-
-    proposal = position + random.uniform(
-        key_prop, shape=position.shape, minval=-step_size, maxval=step_size
-    )
+    proposal = position + step_size * (2 * uniform_random_numbers[:position.shape[0]] - 1)
     proposal = ((proposal + 0.5 * PBC) % PBC) - 0.5 * PBC
     proposal_prob = prob_fn(proposal, prob_params)
     accept_prob = jnp.minimum(1.0, proposal_prob / prob)
-    accept = random.uniform(key_acc) < accept_prob
+    accept = uniform_random_numbers[-1] < accept_prob
     new_position = jnp.where(accept, proposal, position)
     new_prob = jnp.where(accept, proposal_prob, prob)
     acceptance_rate = jnp.mean(accept.astype(jnp.float32))
@@ -32,27 +29,25 @@ def adapt_step_size(step_size, accept, target=0.5, lr=0.01):
 
 @partial(jax.jit, static_argnames=("prob_fn"))
 def mh_chain(
-    keys_prop, keys_acc, PBC, prob_fn, prob_params, init_position, step_size=1.0
+    random_values, PBC, prob_fn, prob_params, init_position, step_size=1.0
 ):
     """
     Single MH chain using pre-generated step keys.
-    keys_prop, keys_acc: shape (n_steps, 2)
+    random_values: shape (n_steps, DoF + 1)
     init_position: shape (DoF,)
     """
 
     init_prob = prob_fn(init_position, prob_params)
     carry0 = (init_position, init_prob, step_size)
 
-    def body_fn(carry, keys):
-        key_prop, key_acc = keys
+    def body_fn(carry, random_values):
         position, prob, step = carry
         new_position, new_prob, _ = mh_kernel(
-            key_prop, key_acc, prob_fn, prob_params, position, prob, step, PBC
+            random_values, prob_fn, prob_params, position, prob, step, PBC
         )
         return (new_position, new_prob, step), new_position
 
-    xs = (keys_prop, keys_acc)
-    (_, _, _), positions = jax.lax.scan(body_fn, carry0, xs)
+    (_, _, _), positions = jax.lax.scan(body_fn, carry0, random_values)
     return positions
 
 
@@ -61,6 +56,11 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
     import numpy as np
     import time
+    
+    # set CPU as device
+    jax.config.update("jax_platform_name", "cuda")
+    
+    print(jax.devices())
     print("This is the qvarnet.sampler module.")
     print("TESTING PLAYGROUND FOR THE SAMPLER MODULE")
 
@@ -68,30 +68,22 @@ if __name__ == "__main__":
 
     @jax.jit
     def test_2d_prob_fn(x, params):
-        # return jnp.exp(-0.5 * jnp.sum((x) ** 2, axis=-1))
-        return jnp.exp(-0.5 * x**2)
+        return jnp.exp(-0.5 * jnp.sum((x) ** 2, axis=-1))
+        # return jnp.exp(-0.5 * x**2)
 
     sampler = jax.vmap(
         mh_chain,
         in_axes=(
             0,
-            0,
             None,
             None,
             None,
             0,
-        ),  # keys_prop, keys_acc, PBC, prob_fn, prob_params, init_position
+        ),  # random_values, PBC, prob_fn, prob_params, init_position
         out_axes=0,
     )
 
-    n_chains = 1
-    DoF = 1
-    n_steps = 10_000_000
-    PBC = 5
-                        mh_chain,
-                        in_axes=(0, 0, None, None, None, 0),  # keys_prop, keys_acc, PBC, prob_fn, prob_params, init_position
-                        out_axes=0
-                    )
+
     
     def sampler_timer(n_steps):
         n_chains = 1
@@ -114,30 +106,28 @@ if __name__ == "__main__":
     # Actual test
     times = []
     print("Starting actual test...")
-    for n_steps in np.logspace(3, 6, num=30, dtype=int):
-        sampler_timer(n_steps)  # Warm-up for this step count
-        start = time.perf_counter()
-        sampler_timer(n_steps)
-        end = time.perf_counter()
-        times.append(end - start)
+    # for n_steps in np.logspace(3, 6, num=30, dtype=int):
+        # sampler_timer(n_steps)  # Warm-up for this step count
+        # start = time.perf_counter()
+        # sampler_timer(n_steps)
+        # end = time.perf_counter()
+        # times.append(end - start)
     
-    plt.plot(np.log10(np.logspace(3, 6, num=30)), times, marker='o', label='Sampling Time')
-    plt.xlabel('log10(Number of Steps)')
-    plt.ylabel('Time (seconds)')
-    plt.title('Sampling Time vs Number of Steps')
-    plt.legend()
-    plt.grid()
-    plt.show()
+    # plt.plot(np.log10(np.logspace(3, 6, num=30)), times, marker='o', label='Sampling Time')
+    # plt.xlabel('log10(Number of Steps)')
+    # plt.ylabel('Time (seconds)')
+    # plt.title('Sampling Time vs Number of Steps')
+    # plt.legend()
+    # plt.grid()
+    # plt.show()
     
     
     n_chains = 1
     DoF = 1
-    n_steps = 10_000
-    PBC = 20.0
-    key_prop, key_acc = random.split(master_key)
-
-    keys_prop = random.split(key_prop, n_chains * n_steps).reshape(n_chains, n_steps, 2)
-    keys_acc = random.split(key_acc, n_chains * n_steps).reshape(n_chains, n_steps, 2)
+    n_steps = 10_000_000
+    PBC = 5.0
+    
+    rand_nums = jax.random.uniform(random.PRNGKey(42), (n_chains, n_steps, DoF + 1))
 
     print("CONFIG USED:")
     print(f"n_chains: {n_chains}, DoF: {DoF}, n_steps: {n_steps}")
@@ -147,13 +137,13 @@ if __name__ == "__main__":
     import time
 
     start_time = time.perf_counter()
-    samples = sampler(keys_prop, keys_acc, PBC, test_2d_prob_fn, None, init_positions)
+    samples = sampler(rand_nums, PBC, test_2d_prob_fn, None, init_positions)
     end_time = time.perf_counter()
     print(f"Sampling completed in {end_time - start_time:.2f} seconds.")
     start_time = time.perf_counter()
-    samples = sampler(keys_prop, keys_acc, PBC, test_2d_prob_fn, None, init_positions)
+    samples = sampler(rand_nums, PBC, test_2d_prob_fn, None, init_positions)
     end_time = time.perf_counter()
-    print(f"Sampling completed in {end_time - start_time:.2f} seconds.")
+    print(f"Sampling completed in {end_time - start_time:.2e} seconds.")
 
     print("Samples shape:", samples.shape)  # (n_chains, DoF)
     average_position = jnp.mean(samples.reshape(-1, DoF), axis=0)
