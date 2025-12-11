@@ -110,6 +110,7 @@ def train(
     sampler_params,
     PBC=10,
     n_steps_sampler=500,
+    rng_seed=0,
 ):
 
     state = train_state.TrainState.create(
@@ -123,11 +124,17 @@ def train(
 
     energy_history = []
     sampler = jax.vmap(
-        mh_chain, in_axes=(0, None, None, None, None, 0, None), out_axes=0
-    )
+                        mh_chain,
+                        in_axes=(0, 0, None, None, None, 0, None),  # keys_prop, keys_acc, PBC, prob_fn, prob_params, init_position, step_size
+                        out_axes=0
+                    )
+    
     n_chains = shape[0]
     DoF = shape[1] if len(shape) > 1 else 1
-    rng_keys = random.split(random.PRNGKey(872643), n_chains)
+    
+    jax.debug.print("Starting training with {n_steps} steps, {n_chains} chains, {DoF} DoF.", n_steps=n_steps, n_chains=n_chains, DoF=DoF)
+    
+    master_key = random.PRNGKey(rng_seed)
     init_position = jnp.zeros(shape)  # start all chains at 0
     print(f"Initial positions shape: {init_position.shape}\n====================\n\n")
     wf_hist = []
@@ -139,11 +146,14 @@ def train(
         if stop_requested:
             break
 
-        rng_keys = random.split(random.PRNGKey(step), n_chains)
+        key_prop, key_acc = random.split(master_key)
+        
+        keys_prop = random.split(key_prop, n_chains * n_steps_sampler).reshape(n_chains, n_steps_sampler, 2)
+        keys_acc = random.split(key_acc, n_chains * n_steps_sampler).reshape(n_chains, n_steps_sampler, 2)
         # with jax.profiler.TraceAnnotation("Sampling"):
         batch = sampler(
-            rng_keys,
-            n_steps_sampler,
+            keys_prop,
+            keys_acc,
             PBC,
             prob_fn,
             state.params,

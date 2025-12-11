@@ -53,6 +53,10 @@ def mh_chain(keys_prop, keys_acc, PBC, prob_fn, prob_params, init_position, step
 
 
 if __name__ == "__main__":
+    jax.config.update("jax_enable_x64", True)
+    import matplotlib.pyplot as plt
+    import numpy as np
+    import time
     print("This is the qvarnet.sampler module.")
     print("TESTING PLAYGROUND FOR THE SAMPLER MODULE")
 
@@ -68,10 +72,47 @@ if __name__ == "__main__":
                         out_axes=0
                     )
     
-    n_chains = 20
-    DoF = 2
-    n_steps = 500_000
-    PBC = 5
+    def sampler_timer(n_steps):
+        n_chains = 1
+        DoF = 1
+        PBC = 20.0
+        key_prop, key_acc = random.split(master_key)
+        
+        keys_prop = random.split(key_prop, n_chains * n_steps).reshape(n_chains, n_steps, 2)
+        keys_acc = random.split(key_acc, n_chains * n_steps).reshape(n_chains, n_steps, 2)
+        
+        init_positions = jax.random.normal(random.PRNGKey(0), (n_chains, DoF))
+
+        import time
+        start_time = time.perf_counter()
+        samples = sampler(keys_prop, keys_acc, PBC, test_2d_prob_fn, None, init_positions)
+        end_time = time.perf_counter()
+        print(f"Sampling with {n_steps} steps completed in {end_time - start_time:.2f} seconds.")
+        return samples
+    
+    # Actual test
+    times = []
+    print("Starting actual test...")
+    for n_steps in np.logspace(3, 6, num=30, dtype=int):
+        sampler_timer(n_steps)  # Warm-up for this step count
+        start = time.perf_counter()
+        sampler_timer(n_steps)
+        end = time.perf_counter()
+        times.append(end - start)
+    
+    plt.plot(np.log10(np.logspace(3, 6, num=30)), times, marker='o', label='Sampling Time')
+    plt.xlabel('log10(Number of Steps)')
+    plt.ylabel('Time (seconds)')
+    plt.title('Sampling Time vs Number of Steps')
+    plt.legend()
+    plt.grid()
+    plt.show()
+    
+    
+    n_chains = 1
+    DoF = 1
+    n_steps = 10_000
+    PBC = 20.0
     key_prop, key_acc = random.split(master_key)
     
     keys_prop = random.split(key_prop, n_chains * n_steps).reshape(n_chains, n_steps, 2)
@@ -98,8 +139,6 @@ if __name__ == "__main__":
     print("THEORETICAL VALUES:")
     print("Average position: 0.0, 0.0")
     print("Std position: 1.0, 1.0")
-
-    import matplotlib.pyplot as plt
     
     plt.figure(figsize=(8, 6))
     plt.hist(samples.reshape(-1, DoF)[:, 0], bins=100, density=True, alpha=0.7, label="Sampled")
