@@ -18,7 +18,7 @@ parser.add_argument(
     "--n-trials", type=int, default=2, help="Number of trials for statistics in timing"
 )
 parser.add_argument(
-    "--n-steps", type=int, default=10_000, help="Number of steps per chain"
+    "--n-steps-max", type=int, default=10_000, help="Number of steps per chain"
 )
 
 args = parser.parse_args()
