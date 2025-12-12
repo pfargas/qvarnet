@@ -9,14 +9,18 @@ from matplotlib.pyplot import hist
 def mh_kernel(
     uniform_random_numbers, prob_fn, prob_params, position, prob, step_size, PBC=10.0
 ):
-    proposal = position + step_size * (2 * uniform_random_numbers[:position.shape[0]] - 1)
+    proposal = position + step_size * (
+        2 * uniform_random_numbers[: position.shape[0]] - 1
+    )
     proposal = ((proposal + 0.5 * PBC) % PBC) - 0.5 * PBC
     proposal_prob = prob_fn(proposal, prob_params)
     accept_prob = jnp.minimum(1.0, proposal_prob / prob)
     accept = uniform_random_numbers[-1] < accept_prob
     new_position = jnp.where(accept, proposal, position)
     new_prob = jnp.where(accept, proposal_prob, prob)
-    acceptance_rate = jnp.mean(accept.astype(jnp.float32))
+    # acceptance_rate = jnp.mean(accept.astype(jnp.float32))
+    # acceptance_rate = accept.astype(jnp.float32)
+    acceptance_rate = 0.0
     return new_position, new_prob, acceptance_rate
 
 
@@ -28,9 +32,7 @@ def adapt_step_size(step_size, accept, target=0.5, lr=0.01):
 
 
 @partial(jax.jit, static_argnames=("prob_fn"))
-def mh_chain(
-    random_values, PBC, prob_fn, prob_params, init_position, step_size=1.0
-):
+def mh_chain(random_values, PBC, prob_fn, prob_params, init_position, step_size=1.0):
     """
     Single MH chain using pre-generated step keys.
     random_values: shape (n_steps, DoF + 1)
@@ -56,10 +58,10 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
     import numpy as np
     import time
-    
+
     # set CPU as device
     jax.config.update("jax_platform_name", "cuda")
-    
+
     print(jax.devices())
     print("This is the qvarnet.sampler module.")
     print("TESTING PLAYGROUND FOR THE SAMPLER MODULE")
@@ -83,36 +85,43 @@ if __name__ == "__main__":
         out_axes=0,
     )
 
-
-    
     def sampler_timer(n_steps):
         n_chains = 1
         DoF = 1
         PBC = 20.0
         key_prop, key_acc = random.split(master_key)
-        
-        keys_prop = random.split(key_prop, n_chains * n_steps).reshape(n_chains, n_steps, 2)
-        keys_acc = random.split(key_acc, n_chains * n_steps).reshape(n_chains, n_steps, 2)
-        
+
+        keys_prop = random.split(key_prop, n_chains * n_steps).reshape(
+            n_chains, n_steps, 2
+        )
+        keys_acc = random.split(key_acc, n_chains * n_steps).reshape(
+            n_chains, n_steps, 2
+        )
+
         init_positions = jax.random.normal(random.PRNGKey(0), (n_chains, DoF))
 
         import time
+
         start_time = time.perf_counter()
-        samples = sampler(keys_prop, keys_acc, PBC, test_2d_prob_fn, None, init_positions)
+        samples = sampler(
+            keys_prop, keys_acc, PBC, test_2d_prob_fn, None, init_positions
+        )
         end_time = time.perf_counter()
-        print(f"Sampling with {n_steps} steps completed in {end_time - start_time:.2f} seconds.")
+        print(
+            f"Sampling with {n_steps} steps completed in {end_time - start_time:.2f} seconds."
+        )
         return samples
-    
+
     # Actual test
     times = []
     print("Starting actual test...")
     # for n_steps in np.logspace(3, 6, num=30, dtype=int):
-        # sampler_timer(n_steps)  # Warm-up for this step count
-        # start = time.perf_counter()
-        # sampler_timer(n_steps)
-        # end = time.perf_counter()
-        # times.append(end - start)
-    
+    # sampler_timer(n_steps)  # Warm-up for this step count
+    # start = time.perf_counter()
+    # sampler_timer(n_steps)
+    # end = time.perf_counter()
+    # times.append(end - start)
+
     # plt.plot(np.log10(np.logspace(3, 6, num=30)), times, marker='o', label='Sampling Time')
     # plt.xlabel('log10(Number of Steps)')
     # plt.ylabel('Time (seconds)')
@@ -120,13 +129,12 @@ if __name__ == "__main__":
     # plt.legend()
     # plt.grid()
     # plt.show()
-    
-    
+
     n_chains = 1
     DoF = 1
     n_steps = 10_000_000
     PBC = 5.0
-    
+
     rand_nums = jax.random.uniform(random.PRNGKey(42), (n_chains, n_steps, DoF + 1))
 
     print("CONFIG USED:")
