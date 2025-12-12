@@ -9,16 +9,16 @@ parser.add_argument(
 )
 parser.add_argument("--split", action="store_true", help="Use split RNG")
 parser.add_argument(
-    "--n-chains", type=int, default=1000, help="Number of max chains to run"
+    "--n-chains", type=int, default=1000, help="Number of chains to run"
 )
 parser.add_argument(
-    "--step-spacing", type=int, default=200, help="Step in steps per chain"
+    "--loop-step", type=int, default=200, help="Step in steps per chain"
 )
 parser.add_argument(
     "--n-trials", type=int, default=2, help="Number of trials for statistics in timing"
 )
 parser.add_argument(
-    "--n-steps-max", type=int, default=10_000, help="Number of steps per chain"
+    "--n-steps", type=int, default=10_000, help="Number of max steps per chain"
 )
 
 args = parser.parse_args()
@@ -28,8 +28,8 @@ split = args.split if args.split else False
 jax.config.update("jax_platform_name", device)
 print("Default device:", jax.devices())
 N_CHAINS = args.n_chains
-SPACING = args.step_spacing
-N_STEPS = args.n_steps_max
+SPACING = args.loop_step
+N_STEPS = args.n_steps
 N_TRIALS = args.n_trials
 
 if SPACING > N_STEPS:

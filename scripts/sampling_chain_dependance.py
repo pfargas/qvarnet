@@ -12,13 +12,13 @@ parser.add_argument(
     "--n-chains", type=int, default=1000, help="Number of max chains to run"
 )
 parser.add_argument(
-    "--step-chains", type=int, default=200, help="Step in number of chains"
+    "--loop-step", type=int, default=200, help="Step in number of chains"
 )
 parser.add_argument(
     "--n-trials", type=int, default=2, help="Number of trials for statistics in timing"
 )
 parser.add_argument(
-    "--n-steps-max", type=int, default=10_000, help="Number of steps per chain"
+    "--n-steps", type=int, default=10_000, help="Number of steps per chain"
 )
 
 args = parser.parse_args()
@@ -28,7 +28,7 @@ split = args.split if args.split else False
 jax.config.update("jax_platform_name", device)
 print("Default device:", jax.devices())
 N_MAX = args.n_chains
-N_STEP = args.step_chains
+N_STEP = args.loop_step
 number_of_steps_per_chain = args.n_steps
 N_TRIALS = args.n_trials
 
