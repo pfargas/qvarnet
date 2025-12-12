@@ -73,7 +73,7 @@ def mh_chain_with_all_random_nums(random_values, prob_fn, init_pos):
     positions, _ = jax.lax.scan(mh_kernel, carry, random_values)
     return positions
 
-
+@partial(jax.jit, static_argnames=("n_steps", "prob_fn"))
 def mh_chain_with_split(init_key, n_steps, prob_fn, init_pos):
     # Placeholder implementation of mh_chain
 
