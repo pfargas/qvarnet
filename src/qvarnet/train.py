@@ -4,7 +4,7 @@ from jax import random
 
 from flax.training import train_state
 from jax.scipy.integrate import trapezoid
-from .callback import nan_callback
+from .callback import nan_callback, update_best_params
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -152,7 +152,7 @@ def train(
     init_position = jnp.zeros(shape)  # start all chains at 0
     wf_hist = []
     best_energy = jnp.inf
-    best_params = None
+    best_params = init_params
     step_size = sampler_params.get("step_size", 1.0)
 
     for step in tqdm(range(n_steps)) if tqdm_available else range(n_steps):
@@ -181,10 +181,16 @@ def train(
         state, energy = train_step(state, batch)
 
         energy_history.append(energy)
+        print(energy.device)
         # wf_hist.append(state.params)
-        # if energy < best_energy:
-        #     best_energy = energy
-        #     best_params = state.params
+        if energy < best_energy:
+            best_energy = energy
+            best_params = state.params
+
+        best_energy, best_params = update_best_params(
+            energy, best_energy, state.params, best_params
+        )
+
         # init_position = batch.reshape(
         #     n_chains, n_steps_sampler, DoF
         # )  # warm start next sampling
