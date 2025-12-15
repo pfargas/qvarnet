@@ -4,9 +4,10 @@ import jax
 import qvarnet
 import sys
 import os
+import argparse
 
 
-class ArgumentParser:
+class FileParser:
     def __init__(self, filename):
         self.filename = filename
         self.args = None
@@ -39,39 +40,48 @@ class ArgumentParser:
 
 
 def main():
-    command = sys.argv[1]
-    arg = sys.argv[2] if len(sys.argv) > 2 else None
-    print(arg)
-    print("starting main")
-    if command == "run":
-        run(arg)
+    argument_parser = argparse.ArgumentParser("QVarNet CLI")
+    argument_parser.add_argument(
+        "command", type=str, help="Command to execute", choices=["run"], default="run"
+    )
+    argument_parser.add_argument(
+        "--device",
+        "-d",
+        type=str,
+        default="cuda",
+        choices=["cpu", "cuda"],
+        help="Device to use",
+    )
+    argument_parser.add_argument(
+        "--filepath",
+        "-f",
+        type=str,
+        default=f"{os.path.dirname(qvarnet.__file__)}/cli/parameters/hyperparams.json",
+    )
+    argument_parser.add_argument("--profile", "-p", action="store_true")
+    args = argument_parser.parse_args()
+
+    if args.command == "run":
+        run(args)
+    else:
+        raise ValueError(f"Unknown command: {args.command}")
 
 
-def run(arg):
-    if arg is not None:
-        print(f"Using argument file: {arg}")
-        os.environ["CUDA_VISIBLE_DEVICES"] = (
-            f"{arg}"
-            if "CUDA_VISIBLE_DEVICES" not in os.environ
-            else os.environ["CUDA_VISIBLE_DEVICES"]
-        )
-    path = os.path.dirname(qvarnet.__file__) + "/cli/parameters/hyperparams.json"
-    parser = ArgumentParser(path)
-    parser.parse()
-    jax.config.update("jax_enable_x64", True)
+def run(args):
+    jax.config.update("jax_platform_name", args.device)
+    print("Starting QVarNet...")
+    print("*" * 20)
+    print("Using device:", jax.devices())
+    print("*" * 20)
+    print("Loading parameters from:", args.filepath)
+
+    path = args.filepath
+    file_parser = FileParser(path)
+    file_parser.parse()
+    print("Parameters loaded")
+
+    print("Running experiment...")
 
     from qvarnet.main import run_experiment
 
-    run_experiment(parser)
-
-
-if __name__ == "__main__":
-    parser = ArgumentParser("./src/qvarnet/cli/parameters/hyperparams.json")
-    parser.parse()
-    optimizer_args = parser.get_optimizer_args
-    print(optimizer_args)
-    print(parser.get_training_args)
-
-    from qvarnet.train import run_experiment
-
-    run_experiment(parser)
+    run_experiment(file_parser, profile=args.profile)

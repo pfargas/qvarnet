@@ -6,8 +6,7 @@ import optax
 from jax.scipy.integrate import trapezoid
 
 
-def run_experiment(args=None):
-    print(f"Available devices: {jax.devices()}")
+def run_experiment(args=None, profile=False):
     if args is None:
         raise ValueError("Arguments must be provided to run_experiment")
 
@@ -15,30 +14,35 @@ def run_experiment(args=None):
     trainingArguments = args.get_training_args
     samplerArguments = args.get_sampler_args
     optimizerArguments = args.get_optimizer_args
+
+    # **************************************************
+    # ****                Choose model              ****
+    # **************************************************
     model = MLP(architecture=modelArguments["architecture"])
     # model = ExponentialWavefunction()
     # model = WavefunctionOneParameter()
+    # **************************************************
 
     if optimizerArguments["optimizer_type"] == "adam":
         optimizer = optax.adam(learning_rate=optimizerArguments["learning_rate"])
+    elif optimizerArguments["optimizer_type"] == "sgd":
+        optimizer = optax.sgd(learning_rate=optimizerArguments["learning_rate"])
     else:
         raise ValueError(
             f"Unsupported optimizer type: {optimizerArguments['optimizer_type']}"
         )
 
-    rng = jax.random.PRNGKey(0)
+    rng = jax.random.PRNGKey(0)  # Random key for parameter initialization
     input_shape = (
         trainingArguments["batch_size"],
         modelArguments["architecture"][0],
     )
     params = model.init(rng, jnp.ones(input_shape) * 0.1)  # Initialize parameters
     PBC = 40.0  # Periodic Boundary Conditions
-    print(
-        f"number of samples total: {trainingArguments['batch_size']*samplerArguments['chain_length']}"
-    )
 
-    # with jax.profiler.trace("/tmp/profile-data"):
-    params_fin, energy, wf_hist, best_params, best_energy = train(
+    if profile:
+        jax.profiler.start_trace("/tmp/profile-data")
+    params_fin, energy, _, best_params, best_energy = train(
         trainingArguments["num_epochs"],
         params,
         input_shape,
@@ -48,6 +52,9 @@ def run_experiment(args=None):
         PBC=PBC,
         n_steps_sampler=samplerArguments["chain_length"],
     )
+
+    if profile:
+        jax.profiler.stop_trace()
 
     print(f"Best energy: {best_energy}")
     print(f"Best params: {best_params}")

@@ -13,6 +13,8 @@ from .sampler import mh_chain
 
 import signal
 
+from functools import partial
+
 try:
     from tqdm import tqdm
 
@@ -34,6 +36,7 @@ def signal_handler(signum, frame):
 signal.signal(signal.SIGINT, signal_handler)
 
 
+# @partial(jax.jit, static_argnames=["func"])
 def laplace(func, x):
     """Compute the Laplace operator of the model output with respect to inputs."""
     grad_fn = jax.grad(func)
@@ -43,29 +46,31 @@ def laplace(func, x):
     return d2_dx2
 
 
-# compute kinetic term with AD (correct)
+# @jax.jit
+def V(x):
+    """Harmonic oscillator potential."""
+    return 0.5 * jnp.sum(x**2, axis=1)  # sum over dimensions
+
+
+# @partial(jax.jit, static_argnames=["model_apply"])
 def local_energy_batch(params, xs, model_apply):
-    # xs: (batch, 1) or (batch,)
-    # psi(x) -> scalar
     def psi_fn(x):
         # ensure input has shape (1,) as model expects last-dim features
         x = jnp.atleast_1d(x).reshape(1, -1)  # (1, DoF)
         return model_apply(params, x).squeeze()
 
-    # second derivative per sample via AD
     d2psi = laplace(psi_fn, xs)
 
     psi_vals = jax.vmap(lambda x: psi_fn(x))(xs)  # shape (batch,)
 
-    # avoid division by zero / small psi
     psi_safe = psi_vals + 1e-12
 
     kinetic = -0.5 * (d2psi / psi_safe)  # shape (batch,)
-    # potential = 0.5 * (xs_flat**2)  # shape (batch,)
-    potential = 0.5 * jnp.sum(xs**2, axis=1)
+    potential = V(xs)  # shape (batch,)
     return (kinetic + potential).reshape(-1, 1)  # keep your (batch,1) convention
 
 
+# @partial(jax.jit, static_argnames=["model_apply"])
 def log_psi(x, params, model_apply):
     psi = model_apply(params, x)
     return jnp.log(jnp.abs(psi) + 1e-8).squeeze()  # Add small constant to avoid log(0)
@@ -78,12 +83,14 @@ grad_log_psi = jax.grad(
 # now grad_log_psi is a function that takes (params, x, model_apply) and returns the gradient of log_psi wrt params
 
 
+# @partial(jax.jit, static_argnames=["model_apply"])
 def energy_fn(params, batch, model_apply):
     local_energy_per_point = local_energy_batch(params, batch, model_apply)
     E = jnp.mean(local_energy_per_point)
     return E, local_energy_per_point
 
 
+# @partial(jax.jit, static_argnames=["model_apply"])
 def loss_and_grads(params, batch, model_apply):
     E, local_energy_per_point = energy_fn(params, batch, model_apply)
     loss = lambda p: 2 * jnp.mean(
@@ -113,6 +120,8 @@ def train(
     rng_seed=0,
 ):
 
+    # model_apply = jax.jit(model_apply)
+
     state = train_state.TrainState.create(
         apply_fn=model_apply, params=init_params, tx=optimizer
     )
@@ -124,19 +133,23 @@ def train(
 
     energy_history = []
     sampler = jax.vmap(
-                        mh_chain,
-                        in_axes=(0, None, None, None, 0, None),  # random_values, PBC, prob_fn, prob_params, init_position, step_size
-                        out_axes=0
-                    )
-    
+        mh_chain,
+        in_axes=(
+            0,
+            None,
+            None,
+            None,
+            0,
+            None,
+        ),  # random_values, PBC, prob_fn, prob_params, init_position, step_size
+        out_axes=0,
+    )
+
     n_chains = shape[0]
     DoF = shape[1] if len(shape) > 1 else 1
-    
-    jax.debug.print("Starting training with {n_steps} steps, {n_chains} chains, {DoF} DoF.", n_steps=n_steps, n_chains=n_chains, DoF=DoF)
-    
+
     key = random.key(rng_seed)
     init_position = jnp.zeros(shape)  # start all chains at 0
-    print(f"Initial positions shape: {init_position.shape}\n====================\n\n")
     wf_hist = []
     best_energy = jnp.inf
     best_params = None
@@ -146,10 +159,11 @@ def train(
         if stop_requested:
             break
 
-        
         key, subkey = random.split(key)
         rand_nums = random.uniform(subkey, (n_chains, n_steps_sampler, DoF + 1))
-        # with jax.profiler.TraceAnnotation("Sampling"):
+        # --------------------------------------------
+        # ---            SAMPLING STEP             ---
+        # --------------------------------------------
         batch = sampler(
             rand_nums,
             PBC,
@@ -161,7 +175,11 @@ def train(
         # combine n_chains and n_steps_sampler into one big batch
         batch = batch.reshape(-1, DoF)  # (n_chains * n_steps_sampler, DoF)
 
+        # --------------------------------------------
+        # ---          TRAINING STEP              ---
+        # --------------------------------------------
         state, energy = train_step(state, batch)
+
         energy_history.append(energy)
         # wf_hist.append(state.params)
         # if energy < best_energy:
