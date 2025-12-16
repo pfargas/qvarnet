@@ -6,15 +6,13 @@
 qvarnet: Artificial Networks for Quantum Variational Monte Carlo
 ===========================================================================
 
-This documentation provides a user guide and an automatic API reference for the `qvarnet` library.x
+This documentation provides a user guide and an automatic API reference for the `qvarnet` library.
 
 .. toctree::
    :maxdepth: 3
    :caption: Quick Links
 
    introduction
-   installation
-   api_reference/index
 
 Indices and tables
 ====================

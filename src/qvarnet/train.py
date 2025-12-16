@@ -76,11 +76,9 @@ def log_psi(x, params, model_apply):
     return jnp.log(jnp.abs(psi) + 1e-8).squeeze()  # Add small constant to avoid log(0)
 
 
-grad_log_psi = jax.grad(
-    lambda params, x, model_apply: log_psi(x, params, model_apply), argnums=0
-)  # CAREFUL WITH THE DERIVATIVES: WE WANT THE GRADIENT WRT THE PARAMETERS, so we turn the order of the p and x
-
-# now grad_log_psi is a function that takes (params, x, model_apply) and returns the gradient of log_psi wrt params
+def grad_log_psi(params, x, model_apply):
+    """Compute the gradient of log(psi) with respect to parameters."""
+    return jax.grad(lambda p: log_psi(x, p, model_apply), argnums=0)(params)
 
 
 # @partial(jax.jit, static_argnames=["model_apply"])
@@ -131,7 +129,6 @@ def train(
         out = jnp.square(forward)  # non-negative density probability
         return jnp.squeeze(out)  # scalar for scalar input, (batch,) for batch
 
-    energy_history = []
     sampler = jax.vmap(
         mh_chain,
         in_axes=(
@@ -149,6 +146,7 @@ def train(
     DoF = shape[1] if len(shape) > 1 else 1
 
     key = random.key(rng_seed)
+    energy_history = jnp.zeros(n_steps)
     init_position = jnp.zeros(shape)  # start all chains at 0
     wf_hist = []
     best_energy = jnp.inf
@@ -180,19 +178,17 @@ def train(
         # --------------------------------------------
         state, energy = train_step(state, batch)
 
-        energy_history.append(energy)
-        print(energy.device)
+        energy_history = energy_history.at[step].set(energy)
+        # if one wants to monitor the device in which energy is stored
+        # print(energy.device)
         # wf_hist.append(state.params)
         if energy < best_energy:
             best_energy = energy
             best_params = state.params
 
-        best_energy, best_params = update_best_params(
-            energy, best_energy, state.params, best_params
-        )
-
-        # init_position = batch.reshape(
-        #     n_chains, n_steps_sampler, DoF
-        # )  # warm start next sampling
+        # this is slower than the above approach
+        # best_energy, best_params = update_best_params(
+        #     energy, best_energy, state.params, best_params
+        # )
 
     return state.params, energy_history, wf_hist, best_params, best_energy

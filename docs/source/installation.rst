@@ -5,6 +5,25 @@ To install the `qvarnet` library, one has to clone the repository and install th
 
 Installation Steps
 -----------------
+
+Conda Environment Setup
+***********************
+
+To install the conda environment, from the root directory of the project run:
+
+```bash
+conda env create -f environment_config.yaml
+```
+
+and activate with
+
+```bash
+conda activate jax
+```
+
+Package Installation
+************************
+
 1. Go to the `GitHub repository <https://github.com/pfargas/qvarnet>`_
 2. In the green "Code" button, copy the URL of the repository.
 3. Open a terminal and navigate to the directory where you want to clone the repository.
@@ -34,3 +53,11 @@ Installation Steps
     git pull
 
 The package is now installed in the editable mode, meaning that any changes made to the source code will be reflected immediately without needing to reinstall the package.
+
+To use the package as a CLI tool, one can run the following command:
+
+.. code-block:: bash
+
+    qvarnet --help
+
+This will display the help message and available options for the CLI tool.
