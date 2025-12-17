@@ -117,8 +117,32 @@ def train(
     n_steps_sampler=500,
     rng_seed=0,
 ):
+    r"""Main function to optimize the wavefunction parameters using Variational Monte Carlo.
 
-    # model_apply = jax.jit(model_apply)
+    The optimizer approach is based on gradient descent:
+
+    .. math::
+
+        \theta_{t+1} = \theta_t - \eta \nabla_\theta \mathcal{L}(\theta_t)
+
+    Where $\mathcal{L}$ is the loss function defined as:
+
+    .. math::
+
+        \Psi
+
+    .. math::
+
+        \mathcal{L}(\theta) = 2
+        E_{x \sim |\psi_\theta(x)|^2}\Big[
+            (E_{\rm loc}(x) - \langle E \rangle)
+            \log |\psi_\theta(x)|
+        \Big]
+
+
+
+    Args:
+        n_steps: Number of training steps."""
 
     state = train_state.TrainState.create(
         apply_fn=model_apply, params=init_params, tx=optimizer

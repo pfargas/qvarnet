@@ -7,6 +7,13 @@ from jax.scipy.integrate import trapezoid
 
 
 def run_experiment(args=None, profile=False):
+    """Run a quantum variational Monte Carlo experiment.
+    Args:
+
+        args: An object containing model, training, sampler, and optimizer arguments.
+        profile: Boolean flag to enable JAX profiling.
+    Returns:
+        None"""
     if args is None:
         raise ValueError("Arguments must be provided to run_experiment")
 

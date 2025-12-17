@@ -26,16 +26,16 @@ templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 # -- Options for HTML output -------------------------------------------------
-# html_theme = 'sphinx_rtd_theme'
+html_theme = "alabaster"
 # html_static_path = ['_static']
 
-html_theme_options = {
-    "collapse_navigation": False,
-    "navigation_depth": 4,
-    "sticky_navigation": True,
-    "titles_only": False,
-    "includehidden": True,
-}
+# html_theme_options = {
+#     "collapse_navigation": False,
+#     "navigation_depth": 4,
+#     "sticky_navigation": True,
+#     "titles_only": False,
+#     "includehidden": True,
+# }
 
 # -- Extension configuration -------------------------------------------------
 

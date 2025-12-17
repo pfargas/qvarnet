@@ -4,7 +4,7 @@ Installation
 To install the `qvarnet` library, one has to clone the repository and install the package.
 
 Installation Steps
------------------
+-------------------
 
 Conda Environment Setup
 ***********************
