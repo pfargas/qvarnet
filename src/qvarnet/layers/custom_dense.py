@@ -1,11 +1,12 @@
 from flax import linen as nn
 import jax.numpy as jnp
+from typing import Callable
 
 
 class CustomDense(nn.Module):
     features: int
-    kernel_init: callable = nn.initializers.lecun_normal()
-    bias_init: callable = nn.initializers.zeros
+    kernel_init: Callable = nn.initializers.lecun_normal()
+    bias_init: Callable = nn.initializers.zeros_init()
     beta: float = 1.0  # scale factor for kernel
 
     @nn.compact

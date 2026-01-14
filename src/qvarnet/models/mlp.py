@@ -1,12 +1,13 @@
 from qvarnet.layers import CustomDense
 from flax import linen as nn
+from typing import Callable
 
 
 class MLP(nn.Module):
     architecture: list
-    hidden_activation: callable = nn.tanh
-    kernel_init: callable = nn.initializers.constant(0.5)
-    bias_init: callable = nn.initializers.zeros
+    hidden_activation: Callable = nn.tanh
+    kernel_init: Callable = nn.initializers.lecun_normal()
+    bias_init: Callable = nn.initializers.zeros_init()
     beta: float = 1.0  # scale factor for kernel
 
     @nn.compact
