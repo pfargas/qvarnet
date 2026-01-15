@@ -98,6 +98,32 @@ def loss_and_grads(params, batch, model_apply):
     grad_E = jax.grad(loss)(params)
     return E, grad_E
 
+# ============================================================================
+# QGT INTEGRATION POINTS - ADD QGT-BASED TRAINING METHODS HERE
+# ============================================================================
+
+# TODO: Add QGT-based training step function:
+# def train_step_qgt(state, batch, qgt_config):
+#     """Training step using Quantum Geometric Tensor preconditioning."""
+#     # Import QGT functions: from .qgt import train_step_qgt, compute_qgt_statistics
+#     E, grads = loss_and_grads(state.params, batch, state.apply_fn)
+#     
+#     # Use train_step_qgt from qgt.py:
+#     # new_state, energy = train_step_qgt(state, batch, qgt_config)
+#     return new_state, E
+
+# TODO: Extend main train() function to support QGT optimizer:
+# - Add parameter: qgt_config=None
+# - Add optimizer check: if optimizer == 'qgt':
+# - Call qgt training step instead of standard train_step
+# - Import: from .qgt import QGTConfig, DEFAULT_QGT_CONFIG
+
+# TODO: Add QGT configuration parsing in CLI:
+# - File: src/qvarnet/cli/run.py
+# - Add --optimizer qgt option
+# - Parse qgt_config from parameters file
+# - Handle QGT-specific hyperparameters
+
 
 @jax.jit
 def train_step(state, batch):
