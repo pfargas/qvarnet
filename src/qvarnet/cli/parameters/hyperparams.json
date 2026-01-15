@@ -1,32 +1,43 @@
 {
-  "_notes": "This file is maintained for backward compatibility. Use --preset or --config options instead.",
-  "_recommended_usage": "qvarnet run --preset harmonic_oscillator_standard",
-  "_available_presets": ["harmonic_oscillator_standard", "ising_1d_benchmark", "qgt_comparison_test"],
-  
-  "legacy_optimizer": {
-    "optimizer_type": "adam",
-    "learning_rate": 1e-3
-  },
-  "legacy_training": {
-    "batch_size": 1000,
-    "num_epochs": 3000
-  },
-  "legacy_model": {
-    "architecture": [2,10,1],
+"experiment": {
+    "name": "qvarnet_experiment",
+    "description": "VMC optimization with neural quantum states",
+    "tags": ["vmc", "quantum", "optimization"],
+    "seed": null
+},
+"model": {
+    "type": "mlp",
+    "architecture": [2, 10, 1],
     "activation": "tanh"
-  },
-  "legacy_sampler": {
-    "step_size": 0.5,
-    "chain_length": 100
-  }
-}
-      }
-    },
-    "available_solvers": ["direct", "cholesky", "gmres", "diagonal"],
-    "solver_recommendations": {
-      "small_systems": "cholesky",
-      "large_systems": "gmres", 
-      "memory_efficient": "diagonal"
+},
+"training": {
+    "batch_size": 1000,
+    "num_epochs": 3000,
+    "early_stopping": {
+        "patience": 100,
+        "min_delta": 1e-6
     }
-  }
+},
+"optimizer": {
+    "type": "adam",
+    "learning_rate": 1e-3
+},
+"sampler": {
+    "type": "metropolis_hastings",
+    "step_size": 0.5,
+    "chain_length": 100,
+    "thermalization_steps": 50
+},
+"hamiltonian": {
+    "type": "harmonic_oscillator",
+    "params": {
+        "omega": 1.0,
+        "dimensions": 2
+    }
+},
+"output": {
+    "save_dir": "./results",
+    "save_frequency": 100,
+    "save_best_only": false
+}
 }

@@ -10,45 +10,64 @@ from .parameters import load_config, create_preset, list_presets, validate_confi
 
 class EnhancedCLI:
     """Enhanced CLI with configuration system support."""
-    
+
     def __init__(self):
         self.parser = self._setup_parser()
         self.args = None
         self.config = None
-    
+
     def _setup_parser(self):
         """Setup enhanced argument parser."""
         parser = argparse.ArgumentParser(
             "QVarNet Enhanced CLI",
-            description="Quantum Variational Monte Carlo with advanced configuration management"
+            description="Quantum Variational Monte Carlo with advanced configuration management",
         )
-        
+
         # Commands
-        parser.add_argument("command", choices=["run", "list-presets"], 
-                          help="Command to execute")
-        
+        parser.add_argument(
+            "command", choices=["run", "list-presets"], help="Command to execute"
+        )
+
         # Configuration options
-        parser.add_argument("--config", "-c", type=str,
-                          help="Path to configuration file")
-        parser.add_argument("--preset", "-p", type=str,
-                          help="Use preset configuration")
-        parser.add_argument("--preset-list", action="store_true",
-                          help="List all available preset configurations")
-        
+        parser.add_argument(
+            "--config", "-c", type=str, help="Path to configuration file"
+        )
+        parser.add_argument("--preset", "-p", type=str, help="Use preset configuration")
+        parser.add_argument(
+            "--preset-list",
+            action="store_true",
+            help="List all available preset configurations",
+        )
+
         # Configuration overrides
-        parser.add_argument("--override", "-o", type=str, action='append',
-                          help="Override configuration values (key=value)")
-        
+        parser.add_argument(
+            "--override",
+            "-o",
+            type=str,
+            action="append",
+            help="Override configuration values (key=value)",
+        )
+
         # Output options
-        parser.add_argument("--config-dump", action="store_true",
-                          help="Print loaded configuration and exit")
-        
+        parser.add_argument(
+            "--config-dump",
+            action="store_true",
+            help="Print loaded configuration and exit",
+        )
+
         return parser
-    
+
     def parse_args(self, argv=None):
         """Parse command line arguments."""
         self.args = self.parser.parse_args(argv)
-        
+
+        # self.args is a dictionary with the following possible attributes:
+        # - command: "run" or "list-presets"
+        # - config: path to config file (str) or None
+        # - preset: name of preset configuration (str) or None
+        # - override: list of override strings (key=value) or None
+        # - config_dump: bool, whether to print config and exit
+
         # Load configuration based on arguments
         if self.args.command == "list-presets":
             self._list_presets_and_exit()
@@ -60,31 +79,33 @@ class EnhancedCLI:
         else:
             # Default configuration
             from .parameters import get_default_config
+
             self.config = get_default_config()
-        
+
         # Apply any additional overrides
         if self.args.override:
             overrides = self._parse_overrides()
             self.config.data = self.config.merge_with(overrides)
-        
+
         # Validate configuration
         if not validate_config(self.config.data):
             raise ValueError("Configuration validation failed")
-        
+
         # Print configuration if requested
         if self.args.config_dump:
             import json
+
             print(json.dumps(self.config.data, indent=2))
             sys.exit(0)
-        
+
         return self.args
-    
+
     def _parse_overrides(self):
         """Parse override arguments into dictionary."""
         overrides = {}
         for override in self.args.override:
-            if '=' in override:
-                key, value = override.split('=', 1)
+            if "=" in override:
+                key, value = override.split("=", 1)
                 # Try to parse as JSON, fallback to string
                 try:
                     overrides[key] = json.loads(value)
@@ -93,45 +114,45 @@ class EnhancedCLI:
             else:
                 raise ValueError(f"Invalid override format: {override}")
         return overrides
-    
+
     def _list_presets_and_exit(self):
         """List available presets and exit."""
         presets = list_presets()
         print("Available preset configurations:")
         for preset in presets:
             print(f"  {preset['name']}: {preset['description']}")
-            if preset['tags']:
+            if preset["tags"]:
                 print(f"    Tags: {', '.join(preset['tags'])}")
         sys.exit(0)
-    
+
     def get_args(self):
         """Get all arguments as dictionary."""
         return self.args.__dict__ if self.args else {}
-    
+
     def get_config(self):
         """Get loaded configuration."""
         return self.config
-    
+
     def get_optimizer_args(self):
         """Get optimizer configuration."""
         return self.config.get("optimizer", {}) if self.config else {}
-    
+
     def get_training_args(self):
         """Get training configuration."""
         return self.config.get("training", {}) if self.config else {}
-    
+
     def get_model_args(self):
         """Get model configuration."""
         return self.config.get("model", {}) if self.config else {}
-    
+
     def get_sampler_args(self):
         """Get sampler configuration."""
         return self.config.get("sampler", {}) if self.config else {}
-    
+
     def get_hamiltonian_args(self):
         """Get hamiltonian configuration."""
         return self.config.get("hamiltonian", {}) if self.config else {}
-    
+
     def get_output_args(self):
         """Get output configuration."""
         return self.config.get("output", {}) if self.config else {}
@@ -140,7 +161,7 @@ class EnhancedCLI:
 # Backward compatibility
 class FileParser:
     """Legacy FileParser for backward compatibility."""
-    
+
     def __init__(self, filename):
         self.filename = filename
         self.args = None
@@ -168,23 +189,24 @@ class FileParser:
     @property
     def get_sampler_args(self):
         return self.args.get("sampler", {})
-    
+
     @property
     def get_qgt_args(self):
         """
         QGT-specific arguments for natural gradient optimization.
-        
+
         Returns:
             dict: QGT configuration dictionary
         """
         optimizer_config = self.get_optimizer_args()
-        qgt_config = optimizer_config.get('qgt_config', {})
-        
+        qgt_config = optimizer_config.get("qgt_config", {})
+
         # Set defaults if not specified
         if not qgt_config:
             from ..qgt import DEFAULT_QGT_CONFIG
+
             return DEFAULT_QGT_CONFIG.to_dict()
-        
+
         return qgt_config
 
 
@@ -192,13 +214,13 @@ def main():
     """Main entry point with enhanced CLI support."""
     # Use new enhanced CLI by default
     cli = EnhancedCLI()
-    
+
     try:
         args = cli.parse_args()
     except Exception as e:
         print(f"Error parsing arguments: {e}")
         sys.exit(1)
-    
+
     if args.command == "run":
         run_experiment(args)
     elif args.command == "list-presets":
@@ -211,53 +233,59 @@ def main():
 
 def run_experiment(args):
     """Run experiment using enhanced configuration system."""
-    if not hasattr(args, 'config') or args.config is None:
+    if not hasattr(args, "config") or args.config is None:
         print("Error: No configuration loaded")
         sys.exit(1)
-    
+
     # Setup device
-    device = getattr(args, 'device', 'cpu')
+    device = getattr(args, "device", "cpu")
     import jax
+
     jax.config.update("jax_platform_name", device)
-    
+
     print("Starting QVarNet...")
     print("*" * 20)
     print("Using device:", jax.devices())
     print("*" * 20)
-    
+
     # Print configuration info
-    config = args.get_config()
+    print("args", args)
+    file_parser = FileParser(args.config)
+    file_parser.parse()
+    config = file_parser.get_args
+    print("Config type:", type(config))
+    print("CONFIG:", config)
     print(f"Experiment: {config.get('experiment', {}).get('name', 'unnamed')}")
     print(f"Model: {config.get('model', {}).get('type', 'unknown')}")
     print(f"Optimizer: {config.get('optimizer', {}).get('type', 'unknown')}")
     print(f"Training epochs: {config.get('training', {}).get('num_epochs', 'unknown')}")
     print("*" * 20)
-    
+
     # Import here to avoid circular dependency
     from qvarnet.main import run_experiment as run_experiment_main
-    
+
     # Use the old FileParser interface for compatibility with existing main.py
     class LegacyFileParser:
         def __init__(self, config_data):
             self.args = config_data
-        
+
         def get_args(self):
             return self.args
-        
+
         def get_optimizer_args(self):
             return self.args.get("optimizer", {})
-        
+
         def get_training_args(self):
             return self.args.get("training", {})
-        
+
         def get_model_args(self):
             return self.args.get("model", {})
-        
+
         def get_sampler_args(self):
             return self.args.get("sampler", {})
-    
+
     # Create legacy file parser for compatibility
-    legacy_parser = LegacyFileParser(config.data)
-    
+    # legacy_parser = LegacyFileParser(config.data)
+
     print("Running experiment...")
-    run_experiment_main(legacy_parser, profile=getattr(args, 'profile', False))
+    run_experiment_main(file_parser, profile=getattr(args, "profile", False))

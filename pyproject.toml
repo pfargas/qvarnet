@@ -21,4 +21,4 @@ where = ["src"]
 docs = ["sphinx", "sphinx-rtd-theme"]
 
 [project.scripts]
-qvarnet = "qvarnet.cli.run:main"
+qvarnet = "qvarnet.cli:main"

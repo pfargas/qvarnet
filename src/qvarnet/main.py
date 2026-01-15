@@ -30,14 +30,12 @@ def run_experiment(args=None, profile=False):
     # model = WavefunctionOneParameter()
     # **************************************************
 
-    if optimizerArguments["optimizer_type"] == "adam":
+    if optimizerArguments["type"] == "adam":
         optimizer = optax.adam(learning_rate=optimizerArguments["learning_rate"])
-    elif optimizerArguments["optimizer_type"] == "sgd":
+    elif optimizerArguments["type"] == "sgd":
         optimizer = optax.sgd(learning_rate=optimizerArguments["learning_rate"])
     else:
-        raise ValueError(
-            f"Unsupported optimizer type: {optimizerArguments['optimizer_type']}"
-        )
+        raise ValueError(f"Unsupported optimizer type: {optimizerArguments['type']}")
 
     rng = jax.random.PRNGKey(0)  # Random key for parameter initialization
     input_shape = (
