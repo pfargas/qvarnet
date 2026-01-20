@@ -19,7 +19,7 @@ class EnhancedCLI:
     def _setup_parser(self):
         """Setup enhanced argument parser."""
         parser = argparse.ArgumentParser(
-            "QVarNet Enhanced CLI",
+            "QVarNet CLI",
             description="Quantum Variational Monte Carlo with advanced configuration management",
         )
 
@@ -33,6 +33,7 @@ class EnhancedCLI:
             "--config", "-c", type=str, help="Path to configuration file"
         )
         parser.add_argument("--preset", "-p", type=str, help="Use preset configuration")
+
         parser.add_argument(
             "--preset-list",
             action="store_true",
@@ -97,6 +98,9 @@ class EnhancedCLI:
 
             print(json.dumps(self.config.data, indent=2))
             sys.exit(0)
+        print("Configuration loaded successfully.")
+        print(self.config.data)
+        print("*" * 20)
 
         return self.args
 
@@ -157,57 +161,12 @@ class EnhancedCLI:
         """Get output configuration."""
         return self.config.get("output", {}) if self.config else {}
 
+    def get_seed(self):
+        """Get experiment seed."""
+        experiment_config = self.config.get("experiment", {}) if self.config else {}
+        seed = experiment_config.get("seed", None)
 
-# Backward compatibility
-class FileParser:
-    """Legacy FileParser for backward compatibility."""
-
-    def __init__(self, filename):
-        self.filename = filename
-        self.args = None
-
-    def parse(self):
-        with open(self.filename, "r") as file:
-            self.args = json.load(file)
-
-    @property
-    def get_args(self):
-        return self.args
-
-    @property
-    def get_optimizer_args(self):
-        return self.args.get("optimizer", {})
-
-    @property
-    def get_training_args(self):
-        return self.args.get("training", {})
-
-    @property
-    def get_model_args(self):
-        return self.args.get("model", {})
-
-    @property
-    def get_sampler_args(self):
-        return self.args.get("sampler", {})
-
-    @property
-    def get_qgt_args(self):
-        """
-        QGT-specific arguments for natural gradient optimization.
-
-        Returns:
-            dict: QGT configuration dictionary
-        """
-        optimizer_config = self.get_optimizer_args()
-        qgt_config = optimizer_config.get("qgt_config", {})
-
-        # Set defaults if not specified
-        if not qgt_config:
-            from ..qgt import DEFAULT_QGT_CONFIG
-
-            return DEFAULT_QGT_CONFIG.to_dict()
-
-        return qgt_config
+        return seed if seed is not None else 42  # Default seed
 
 
 def main():
@@ -222,7 +181,7 @@ def main():
         sys.exit(1)
 
     if args.command == "run":
-        run_experiment(args)
+        run_experiment(cli)
     elif args.command == "list-presets":
         # Already handled in parse_args()
         pass
@@ -231,14 +190,21 @@ def main():
         sys.exit(1)
 
 
-def run_experiment(args):
+def run_experiment(cli):
     """Run experiment using enhanced configuration system."""
-    if not hasattr(args, "config") or args.config is None:
+    if not hasattr(cli, "config") or cli.config is None:
         print("Error: No configuration loaded")
         sys.exit(1)
 
     # Setup device
-    device = getattr(args, "device", "cpu")
+    print("Printing all arguments provided:")
+    for key, value in cli.get_args().items():
+        print(f"  {key}: {value}")
+    print("\tConfig data:")
+    for key, value in cli.get_config().data.items():
+        print(f"\t- {key}: {value}")
+
+    device = cli.config.data.get("device", "cpu")
     import jax
 
     jax.config.update("jax_platform_name", device)
@@ -248,44 +214,10 @@ def run_experiment(args):
     print("Using device:", jax.devices())
     print("*" * 20)
 
-    # Print configuration info
-    print("args", args)
-    file_parser = FileParser(args.config)
-    file_parser.parse()
-    config = file_parser.get_args
-    print("Config type:", type(config))
-    print("CONFIG:", config)
-    print(f"Experiment: {config.get('experiment', {}).get('name', 'unnamed')}")
-    print(f"Model: {config.get('model', {}).get('type', 'unknown')}")
-    print(f"Optimizer: {config.get('optimizer', {}).get('type', 'unknown')}")
-    print(f"Training epochs: {config.get('training', {}).get('num_epochs', 'unknown')}")
-    print("*" * 20)
-
     # Import here to avoid circular dependency
     from qvarnet.main import run_experiment as run_experiment_main
 
     # Use the old FileParser interface for compatibility with existing main.py
-    class LegacyFileParser:
-        def __init__(self, config_data):
-            self.args = config_data
-
-        def get_args(self):
-            return self.args
-
-        def get_optimizer_args(self):
-            return self.args.get("optimizer", {})
-
-        def get_training_args(self):
-            return self.args.get("training", {})
-
-        def get_model_args(self):
-            return self.args.get("model", {})
-
-        def get_sampler_args(self):
-            return self.args.get("sampler", {})
-
-    # Create legacy file parser for compatibility
-    # legacy_parser = LegacyFileParser(config.data)
 
     print("Running experiment...")
-    run_experiment_main(file_parser, profile=getattr(args, "profile", False))
+    run_experiment_main(cli, profile=cli.config.data.get("profile", False))

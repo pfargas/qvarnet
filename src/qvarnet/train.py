@@ -5,10 +5,6 @@ from jax import random
 from flax.training import train_state
 from jax.scipy.integrate import trapezoid
 from .callback import nan_callback, update_best_params
-
-import numpy as np
-import matplotlib.pyplot as plt
-import os
 from .sampler import mh_chain
 
 import signal
@@ -98,6 +94,7 @@ def loss_and_grads(params, batch, model_apply):
     grad_E = jax.grad(loss)(params)
     return E, grad_E
 
+
 # ============================================================================
 # QGT INTEGRATION POINTS - ADD QGT-BASED TRAINING METHODS HERE
 # ============================================================================
@@ -107,7 +104,7 @@ def loss_and_grads(params, batch, model_apply):
 #     """Training step using Quantum Geometric Tensor preconditioning."""
 #     # Import QGT functions: from .qgt import train_step_qgt, compute_qgt_statistics
 #     E, grads = loss_and_grads(state.params, batch, state.apply_fn)
-#     
+#
 #     # Use train_step_qgt from qgt.py:
 #     # new_state, energy = train_step_qgt(state, batch, qgt_config)
 #     return new_state, E
@@ -133,14 +130,12 @@ def train_step(state, batch):
 
 
 def train(
-    n_steps,
+    n_epochs,
     init_params,
     shape,
     model_apply,
     optimizer,
     sampler_params,
-    PBC=10,
-    n_steps_sampler=500,
     rng_seed=0,
 ):
     r"""Main function to optimize the wavefunction parameters using Variational Monte Carlo.
@@ -168,7 +163,10 @@ def train(
 
 
     Args:
-        n_steps: Number of training steps."""
+        n_epochs: Number of training epochs.
+        init_params: Initial parameters of the wavefunction model.
+        shape: Shape of the input data (batch_size, DoF).
+    """
 
     state = train_state.TrainState.create(
         apply_fn=model_apply, params=init_params, tx=optimizer
@@ -196,14 +194,20 @@ def train(
     DoF = shape[1] if len(shape) > 1 else 1
 
     key = random.key(rng_seed)
-    energy_history = jnp.zeros(n_steps)
+    energy_history = jnp.zeros(n_epochs)
     init_position = jnp.zeros(shape)  # start all chains at 0
-    wf_hist = []
     best_energy = jnp.inf
     best_params = init_params
     step_size = sampler_params.get("step_size", 1.0)
+    n_steps_sampler = sampler_params.get("chain_length", 500)
+    PBC = sampler_params.get("PBC", 40.0)
 
-    for step in tqdm(range(n_steps)) if tqdm_available else range(n_steps):
+    print("SANITY CHECK: parameters used in train()")
+    print("step_size: ", step_size)
+    print("n_steps_sampler: ", n_steps_sampler)
+    print("PBC: ", PBC)
+
+    for step in tqdm(range(n_epochs)) if tqdm_available else range(n_epochs):
         if stop_requested:
             break
 
@@ -229,16 +233,9 @@ def train(
         state, energy = train_step(state, batch)
 
         energy_history = energy_history.at[step].set(energy)
-        # if one wants to monitor the device in which energy is stored
-        # print(energy.device)
-        # wf_hist.append(state.params)
+
         if energy < best_energy:
             best_energy = energy
             best_params = state.params
 
-        # this is slower than the above approach
-        # best_energy, best_params = update_best_params(
-        #     energy, best_energy, state.params, best_params
-        # )
-
-    return state.params, energy_history, wf_hist, best_params, best_energy
+    return state.params, energy_history, best_params, best_energy

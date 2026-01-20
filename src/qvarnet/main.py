@@ -1,3 +1,4 @@
+import os
 from .models import MLP, WavefunctionOneParameter, ExponentialWavefunction
 from .train import train
 import jax
@@ -17,11 +18,21 @@ def run_experiment(args=None, profile=False):
     if args is None:
         raise ValueError("Arguments must be provided to run_experiment")
 
-    modelArguments = args.get_model_args
-    trainingArguments = args.get_training_args
-    samplerArguments = args.get_sampler_args
-    optimizerArguments = args.get_optimizer_args
+    modelArguments = args.get_model_args()
+    trainingArguments = args.get_training_args()
+    samplerArguments = args.get_sampler_args()
+    optimizerArguments = args.get_optimizer_args()
+    outputArguments = args.get_output_args()
+    master_seed = args.get_seed()
 
+    output_base_path = outputArguments.get("save_dir", "tmp/qvarnet/results")
+    os.makedirs(output_base_path, exist_ok=True)
+    directories_in_base = os.listdir(output_base_path)
+    run_id = 0
+    while f"run_{run_id:03d}" in directories_in_base:
+        run_id += 1
+    base_path = os.path.join(output_base_path, f"run_{run_id:03d}")
+    os.makedirs(base_path, exist_ok=True)
     # **************************************************
     # ****                Choose model              ****
     # **************************************************
@@ -43,56 +54,57 @@ def run_experiment(args=None, profile=False):
         modelArguments["architecture"][0],
     )
     params = model.init(rng, jnp.ones(input_shape) * 0.1)  # Initialize parameters
-    PBC = 40.0  # Periodic Boundary Conditions
+    PBC = samplerArguments.get("PBC", 40.0)  # Periodic Boundary Conditions
 
     if profile:
         jax.profiler.start_trace("/tmp/profile-data")
-    params_fin, energy, _, best_params, best_energy = train(
-        trainingArguments["num_epochs"],
-        params,
-        input_shape,
-        model.apply,
-        optimizer,
+
+    print("SANITY CHECK: PARAMS USED")
+    print("params: ", params)
+    print("input_shape: ", input_shape)
+    print("optimizer: ", optimizer)
+    print("samplerArguments: ", samplerArguments)
+    print("seed: ", master_seed)
+
+    params_fin, energy_hist, _, _ = train(
+        n_epochs=trainingArguments["num_epochs"],
+        init_params=params,
+        shape=input_shape,
+        model_apply=model.apply,
+        optimizer=optimizer,
         sampler_params=samplerArguments,
-        PBC=PBC,
-        n_steps_sampler=samplerArguments["chain_length"],
+        rng_seed=master_seed,
     )
 
     if profile:
         jax.profiler.stop_trace()
 
-    print(f"Best energy: {best_energy}")
-    print(f"Best params: {best_params}")
+    # print(f"Best energy: {best_energy}")
+    # print(f"Best params: {best_params}")
     import matplotlib.pyplot as plt
 
-    print(f"last energy: {energy[-1]}, before: {energy[-2]}")
-    plt.plot(energy)
+    print(f"last energy: {energy_hist[-1]}, before: {energy_hist[-2]}")
+    plt.plot(energy_hist)
     plt.xlabel("Training Step")
     plt.ylabel("Energy")
-    plt.show()
-    plt.savefig("energy_history.png")
+    plt.savefig(f"{base_path}/energy_history.png")
+    if not save_results(base_path, energy_hist=energy_hist, params_fin=params_fin):
+        print("Error saving results.")
 
-    # Reconstruct wavefunction
-    if modelArguments["architecture"][0] != 1:
-        print(
-            "Cannot plot wavefunction: input dimension is not 1. Skipping wavefunction plot."
-        )
-        return
-    else:
-        x = jnp.linspace(-PBC / 2, PBC / 2, 1000).reshape(-1, 1)
-        psi_approx = model.apply(params_fin, x)
-        print(type(psi_approx))
-        print(psi_approx.shape)
-        norm = jnp.sqrt(trapezoid((psi_approx**2).squeeze(), x.squeeze()))
-        print(f"Norm: {norm}")
-        psi_approx = psi_approx / norm
-        print(
-            f"Norm after normalization: {jnp.sqrt(trapezoid((psi_approx**2).squeeze(), x.squeeze()))}"
-        )
-        plt.plot(x, psi_approx**2)
-        plt.plot(x, jnp.pi ** (-0.5) * jnp.exp(-(x**2)), linestyle="dashed")
-        plt.xlabel("x")
-        plt.ylabel(r"$|\psi(x)|^2$")
-        plt.legend(["VMC Approximation", "Exact Solution"])
-        plt.show()
-        plt.savefig("final_wavefunction.png")
+
+def save_results(base_path, **kwargs) -> bool:
+
+    try:
+        os.makedirs(base_path, exist_ok=True)
+        # Save other results as needed
+    except Exception as e:
+        print(f"Error saving results: {e}")
+        return False
+
+    for key, value in kwargs.items():
+        try:
+            jnp.save(os.path.join(base_path, f"{key}.npy"), value)
+        except Exception as e:
+            print(f"Error saving {key}: {e}")
+            return False
+    return True
