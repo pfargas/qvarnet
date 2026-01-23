@@ -204,10 +204,11 @@ def run_experiment(cli):
     for key, value in cli.get_config().data.items():
         print(f"\t- {key}: {value}")
 
-    device = cli.config.data.get("device", "cpu")
+    device = cli.config.data.get("device", {"type": "cpu", "idx": 0})
     import jax
 
-    jax.config.update("jax_platform_name", device)
+    jax.config.update("jax_platform_name", device["type"])
+    jax.config.update("jax_default_device", jax.devices(device["type"])[device["idx"]])
 
     print("Starting QVarNet...")
     print("*" * 20)
