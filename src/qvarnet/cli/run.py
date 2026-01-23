@@ -207,6 +207,7 @@ def run_experiment(cli):
     device = cli.config.data.get("device", {"type": "cpu", "idx": 0})
     import jax
 
+    print(device["idx"])
     print("=" * 20)
     print("=" * 20)
     print(jax.devices(device["type"])[device["idx"]])
