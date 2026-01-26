@@ -8,8 +8,8 @@ from pathlib import Path
 from .parameters import load_config, create_preset, list_presets, validate_config
 
 
-class EnhancedCLI:
-    """Enhanced CLI with configuration system support.
+class CLI:
+    """CLI with configuration system support.
 
     When initialized, this class sets up an argument parser. The parser is executed by
     the `parse_args` method, which processes command line arguments, loads the configuration
@@ -203,7 +203,7 @@ class EnhancedCLI:
 def main():
     """Main entry point with enhanced CLI support."""
     # Use new enhanced CLI by default
-    cli = EnhancedCLI()
+    cli = CLI()
 
     try:
         args = cli.parse_args()

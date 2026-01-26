@@ -58,7 +58,7 @@ classDiagram
         +_validate_config() void
     }
     
-    class EnhancedCLI {
+    class CLI {
         -parser: ArgumentParser
         -args: Namespace
         -config: ExperimentConfig
@@ -89,14 +89,14 @@ classDiagram
     }
     
     BaseConfig <|-- ExperimentConfig : inherits
-    EnhancedCLI --> ExperimentConfig : uses
-    EnhancedCLI --> ConfigurationFunctions : uses
+    CLI --> ExperimentConfig : uses
+    CLI --> ConfigurationFunctions : uses
     ExperimentConfig --> ConfigurationFunctions : uses
     
-    note for EnhancedCLI "Main CLI interface with\nargument parsing and\nconfiguration management"
+    note for CLI "Main CLI interface with\n argument parsing and\n configuration management"
     note for BaseConfig "Abstract base class\nfor configuration handling"
-    note for ExperimentConfig "Complete experiment\nconfiguration with\nvalidation and defaults"
-    note for ConfigurationFunctions "Utility functions for\npreset management and\nconfiguration operations"
+    note for ExperimentConfig "Complete experiment\nconfiguration with\n validation and defaults"
+    note for ConfigurationFunctions "Utility functions for\n preset management and\n configuration operations"
 ```
 
 
