@@ -88,6 +88,13 @@ class EnhancedCLI:
             overrides = self._parse_overrides()
             self.config.data = self.config.merge_with(overrides)
 
+        print("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
+        print("Loaded configuration:")
+        print("*" * 20)
+        print(self.config.data)
+        print("*" * 20)
+        print("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
+
         # Validate configuration
         if not validate_config(self.config.data):
             raise ValueError("Configuration validation failed")

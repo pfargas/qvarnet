@@ -37,8 +37,6 @@ def run_experiment(args=None, profile=False):
     # ****                Choose model              ****
     # **************************************************
     model = MLP(architecture=modelArguments["architecture"])
-    # model = ExponentialWavefunction()
-    # model = WavefunctionOneParameter()
     # **************************************************
 
     if optimizerArguments["type"] == "adam":

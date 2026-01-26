@@ -1,9 +1,10 @@
 from qvarnet.layers import CustomDense
 from flax import linen as nn
 from typing import Callable
+from .base import BaseModel
 
 
-class MLP(nn.Module):
+class MLP(BaseModel):
     architecture: list
     hidden_activation: Callable = nn.tanh
     kernel_init: Callable = nn.initializers.lecun_normal()
@@ -22,3 +23,16 @@ class MLP(nn.Module):
             if i < len(self.architecture) - 2:
                 x = self.hidden_activation(x)
         return x
+
+    def build_from_params(self, params):
+        architecture = []
+        layers = params["params"]
+        for layer_name in layers:
+            layer_params = layers[layer_name]
+            if "kernel" in layer_params:
+                architecture.append(layer_params["kernel"].shape[0])
+        # Append output layer size
+        last_layer = list(layers.keys())[-1]
+        output_size = layers[last_layer]["kernel"].shape[1]
+        architecture.append(output_size)
+        return MLP(architecture=architecture)
