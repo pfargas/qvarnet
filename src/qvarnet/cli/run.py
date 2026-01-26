@@ -9,7 +9,30 @@ from .parameters import load_config, create_preset, list_presets, validate_confi
 
 
 class EnhancedCLI:
-    """Enhanced CLI with configuration system support."""
+    """Enhanced CLI with configuration system support.
+
+    When initialized, this class sets up an argument parser. The parser is executed by
+    the `parse_args` method, which processes command line arguments, loads the configuration
+    (from file, preset, or defaults), applies overrides, and validates the configuration.
+    The loaded configuration and parsed arguments can be accessed via getter methods.
+
+    Attributes:
+        parser (argparse.ArgumentParser): The argument parser instance.
+        args (argparse.Namespace): Parsed command line arguments.
+        config (ExperimentConfig): Loaded configuration object.
+    Methods:
+        parse_args(argv=None): Parse command line arguments and load configuration.
+        get_args(): Get all parsed arguments as a dictionary.
+        get_config(): Get the loaded configuration object.
+        get_optimizer_args(): Get optimizer configuration.
+        get_training_args(): Get training configuration.
+        get_model_args(): Get model configuration.
+        get_sampler_args(): Get sampler configuration.
+        get_hamiltonian_args(): Get hamiltonian configuration.
+        get_output_args(): Get output configuration.
+        get_seed(): Get experiment seed.
+
+    """
 
     def __init__(self):
         self.parser = self._setup_parser()
@@ -62,7 +85,7 @@ class EnhancedCLI:
         """Parse command line arguments."""
         self.args = self.parser.parse_args(argv)
 
-        # self.args is a dictionary with the following possible attributes:
+        # self.args is a NameSpace with the following possible attributes:
         # - command: "run" or "list-presets"
         # - config: path to config file (str) or None
         # - preset: name of preset configuration (str) or None
@@ -86,6 +109,7 @@ class EnhancedCLI:
         # Apply any additional overrides
         if self.args.override:
             overrides = self._parse_overrides()
+            # TODO: override should override existing keys, not merge with them
             self.config.data = self.config.merge_with(overrides)
 
         print("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
