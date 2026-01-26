@@ -38,40 +38,68 @@ The [] option is recommended if there are prints in the code. The progressbar is
 
 ```mermaid
 classDiagram
-    %% Relations
-    Animal <|-- Dog : Inherits
-    Animal <|-- Cat : Inherits
-    Owner "1" o-- "1..*" Animal : Aggregation (Has-a)
-
-    %% Base Class
-    class Animal {
-        +String name
-        +int age
-        #String _chip_id
-        +make_sound() str
-        +eat(food: str) void
-    }
-
-    %% Subclass 1
-    class Dog {
-        +String breed
-        +bark() void
-        -chase_tail() void
-    }
-
-    %% Subclass 2
-    class Cat {
-        +bool loves_catnip
-        +meow() void
+    class BaseConfig {
+        <<abstract>>
+        +config_path: Path
+        +data: Dict[str, Any]
+        +__init__(config_path: Path)
+        +_load_config()* Dict[str, Any]
+        +_validate_config()*
+        +get(key: str, default=None) Any
+        +merge_with(other_config: Dict[str, Any]) Dict[str, Any]
+        +save(output_path: Optional[Path]) void
+        +to_dict() Dict[str, Any]
     }
     
-    %% Related Class
-    class Owner {
-        +String name
-        +List~Animal~ pets
-        +adopt_pet(new_pet: Animal)
+    class ExperimentConfig {
+        +__init__(config_path: Path)
+        +_load_config() Dict[str, Any]
+        +_get_default_config() Dict[str, Any]
+        +_validate_config() void
     }
+    
+    class EnhancedCLI {
+        -parser: ArgumentParser
+        -args: Namespace
+        -config: ExperimentConfig
+        +__init__()
+        +_setup_parser() ArgumentParser
+        +parse_args(argv=None) Namespace
+        +_parse_overrides() Dict[str, Any]
+        +_list_presets_and_exit() void
+        +get_args() Dict[str, Any]
+        +get_config() ExperimentConfig
+        +get_optimizer_args() Dict[str, Any]
+        +get_training_args() Dict[str, Any]
+        +get_model_args() Dict[str, Any]
+        +get_sampler_args() Dict[str, Any]
+        +get_hamiltonian_args() Dict[str, Any]
+        +get_output_args() Dict[str, Any]
+        +get_seed() int
+    }
+    
+    class ConfigurationFunctions {
+        <<utility>>
+        +load_config(config_path: str) ExperimentConfig
+        +create_preset(preset_name: str, **overrides) ExperimentConfig
+        +list_presets() List[Dict]
+        +validate_config(config_dict: dict) bool
+        +get_default_config() ExperimentConfig
+        +create_config_from_dict(config_dict: Dict[str, Any]) ExperimentConfig
+    }
+    
+    BaseConfig <|-- ExperimentConfig : inherits
+    EnhancedCLI --> ExperimentConfig : uses
+    EnhancedCLI --> ConfigurationFunctions : uses
+    ExperimentConfig --> ConfigurationFunctions : uses
+    
+    note for EnhancedCLI "Main CLI interface with\nargument parsing and\nconfiguration management"
+    note for BaseConfig "Abstract base class\nfor configuration handling"
+    note for ExperimentConfig "Complete experiment\nconfiguration with\nvalidation and defaults"
+    note for ConfigurationFunctions "Utility functions for\npreset management and\nconfiguration operations"
 ```
+
+
 
 Flowchart Diagram
 
