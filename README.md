@@ -33,17 +33,9 @@ The parameters are found inside `./src/qvarnet/cli/parameters`
 The [] option is recommended if there are prints in the code. The progressbar is still displayed in the terminal
 
 
-classDiagram
-  Animal <|-- Duck
-  Animal <|-- Fish
-  class Animal{
-      +int age
-      +String gender
-      +isMammal()
-      +mate()
-  }
-  class Duck{
-      +String beakColor
-      +swim()
-      +quack()
-  }
+```mermaid
+graph TD;
+    A[Start] --> B{Is it working?};
+    B -- Yes --> C[Great!];
+    B -- No --> D[Check Syntax];
+```
