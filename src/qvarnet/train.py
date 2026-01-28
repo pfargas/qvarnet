@@ -137,6 +137,7 @@ def train(
     optimizer,
     sampler_params,
     rng_seed=0,
+    split_sampler=False,
 ):
     r"""Main function to optimize the wavefunction parameters using Variational Monte Carlo.
 
@@ -168,9 +169,8 @@ def train(
         shape: Shape of the input data (batch_size, DoF).
     """
 
-    USE_SPLIT_SAMPLER = True
-
-    if USE_SPLIT_SAMPLER:
+    if split_sampler:
+        print("Using sampler_split module for sampling.")
         from .sampler_split import mh_chain
 
         sampler = jax.vmap(
@@ -230,7 +230,7 @@ def train(
         # --------------------------------------------
         # ---            SAMPLING STEP             ---
         # --------------------------------------------
-        if USE_SPLIT_SAMPLER:
+        if split_sampler:
             keys = random.split(key, n_chains)
             batch = sampler(
                 keys,

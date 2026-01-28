@@ -67,6 +67,7 @@ def run_experiment(args=None, profile=False):
         optimizer=optimizer,
         sampler_params=sampler_args,
         rng_seed=master_seed,
+        split_sampler=args.args.split,
     )
 
     if profile:

@@ -79,6 +79,13 @@ class CLI:
             help="Print loaded configuration and exit",
         )
 
+        parser.add_argument(
+            "--split",
+            "-s",
+            action="store_true",
+            help="Use the sampler_split module for sampling",
+        )
+
         return parser
 
     def parse_args(self, argv=None):
