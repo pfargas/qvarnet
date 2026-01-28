@@ -24,7 +24,33 @@ class BaseConfig(ABC):
         return self.data.get(key, default)
 
     def merge_with(self, other_config: Dict[str, Any]):
-        return {**self.data, **other_config}
+        """Merge current configuration with another configuration dictionary."""
+        self.data = self._merge_dicts(self.data, other_config)
+        return self.data
+
+    def _merge_dicts(self, d1: Dict[str, Any], d2: Dict[str, Any]) -> Dict[str, Any]:
+        result = d1.copy()
+        for key, value in d2.items():
+            if (
+                key in result
+                and isinstance(result[key], dict)
+                and isinstance(value, dict)
+            ):
+                result[key] = self._merge_dicts(result[key], value)
+            elif "." in key:
+                # Handle nested keys in the form "a.b.c"
+                keys = key.split(".")
+                sub_dict = result
+                for sub_key in keys[:-1]:
+                    if sub_key not in sub_dict or not isinstance(
+                        sub_dict[sub_key], dict
+                    ):
+                        sub_dict[sub_key] = {}
+                    sub_dict = sub_dict[sub_key]
+                sub_dict[keys[-1]] = value
+            else:
+                result[key] = value
+        return result
 
     def save(self, output_path: Optional[Path] = None):
         path = output_path or self.config_path
