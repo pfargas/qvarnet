@@ -168,6 +168,40 @@ def train(
         shape: Shape of the input data (batch_size, DoF).
     """
 
+    USE_SPLIT_SAMPLER = True
+
+    if USE_SPLIT_SAMPLER:
+        from .sampler_split import mh_chain
+
+        sampler = jax.vmap(
+            mh_chain,
+            in_axes=(
+                0,  # key (n_chains, )
+                None,  # PBC
+                None,  # prob_fn
+                None,  # prob_params
+                0,  # init_position (n_chains, DoF)
+                None,  # step_size
+                None,  # n_steps
+            ),
+            out_axes=0,
+        )
+    else:
+        from .sampler import mh_chain
+
+        sampler = jax.vmap(
+            mh_chain,
+            in_axes=(
+                0,  # random_values (n_chains, n_steps, DoF + 1)
+                None,  # PBC
+                None,  # prob_fn
+                None,  # prob_params
+                0,  # init_position (n_chains, DoF)
+                None,  # step_size
+            ),
+            out_axes=0,
+        )
+
     state = train_state.TrainState.create(
         apply_fn=model_apply, params=init_params, tx=optimizer
     )
@@ -176,19 +210,6 @@ def train(
         forward = model_apply(params, x).flatten()  # (batch,)
         out = jnp.square(forward)  # non-negative density probability
         return jnp.squeeze(out)  # scalar for scalar input, (batch,) for batch
-
-    sampler = jax.vmap(
-        mh_chain,
-        in_axes=(
-            0,
-            None,
-            None,
-            None,
-            0,
-            None,
-        ),  # random_values, PBC, prob_fn, prob_params, init_position, step_size
-        out_axes=0,
-    )
 
     n_chains = shape[0]
     DoF = shape[1] if len(shape) > 1 else 1
@@ -206,19 +227,31 @@ def train(
         if stop_requested:
             break
 
-        key, subkey = random.split(key)
-        rand_nums = random.uniform(subkey, (n_chains, n_steps_sampler, DoF + 1))
         # --------------------------------------------
         # ---            SAMPLING STEP             ---
         # --------------------------------------------
-        batch = sampler(
-            rand_nums,
-            PBC,
-            prob_fn,
-            state.params,
-            init_position,
-            step_size,
-        )
+        if USE_SPLIT_SAMPLER:
+            keys = random.split(key, n_chains)
+            batch = sampler(
+                keys,
+                PBC,
+                prob_fn,
+                state.params,
+                init_position,
+                step_size,
+                n_steps_sampler,
+            )
+        else:
+            key, subkey = random.split(key)
+            rand_nums = random.uniform(subkey, (n_chains, n_steps_sampler, DoF + 1))
+            batch = sampler(
+                rand_nums,
+                PBC,
+                prob_fn,
+                state.params,
+                init_position,
+                step_size,
+            )
         # combine n_chains and n_steps_sampler into one big batch
         batch = batch.reshape(-1, DoF)  # (n_chains * n_steps_sampler, DoF)
 
