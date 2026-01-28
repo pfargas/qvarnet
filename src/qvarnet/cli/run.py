@@ -109,29 +109,18 @@ class CLI:
         # Apply any additional overrides
         if self.args.override:
             overrides = self._parse_overrides()
-            # TODO: override should override existing keys, not merge with them
             self.config.data = self.config.merge_with(overrides)
-
-        print("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
-        print("Loaded configuration:")
-        print("*" * 20)
-        print(self.config.data)
-        print("*" * 20)
-        print("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
 
         # Validate configuration
         if not validate_config(self.config.data):
             raise ValueError("Configuration validation failed")
 
         # Print configuration if requested
-        if self.args.config_dump:
-            import json
+        # if self.args.config_dump:
+        #     import json
 
-            print(json.dumps(self.config.data, indent=2))
-            sys.exit(0)
-        print("Configuration loaded successfully.")
-        print(self.config.data)
-        print("*" * 20)
+        #     print(json.dumps(self.config.data, indent=2))
+        #     sys.exit(0)
 
         return self.args
 
@@ -199,6 +188,10 @@ class CLI:
 
         return seed if seed is not None else 42  # Default seed
 
+    def get_info_experiment(self):
+        """Get experiment information."""
+        return self.config.get("experiment", {}) if self.config else {}
+
 
 def main():
     """Main entry point with enhanced CLI support."""
@@ -227,31 +220,55 @@ def run_experiment(cli):
         print("Error: No configuration loaded")
         sys.exit(1)
 
-    # Setup device
-    print("Printing all arguments provided:")
-    for key, value in cli.get_args().items():
-        print(f"  {key}: {value}")
-    print("\tConfig data:")
-    for key, value in cli.get_config().data.items():
-        print(f"\t- {key}: {value}")
+    welcome_string = """
+    *************************************
+    *       QVarNet CLI interface      *
+    *************************************
+    """
+    print(welcome_string)
+
+    experiment_description = cli.config.data.get("experiment", {}).get(
+        "description", "No description provided."
+    )
+
+    experiment_name = cli.config.data.get("experiment", {}).get(
+        "name", "Untitled Experiment"
+    )
+
+    exp_info_log = f"""
+    *************************************
+    *       Experiment Information     *
+    *************************************
+    Experiment Name: {experiment_name}
+    Description: {experiment_description}
+    *************************************
+    """
+
+    print(exp_info_log)
+
+    # config_dump
+    if cli.args.config_dump:
+        print("Printing all arguments provided:")
+        print("\tConfig data:")
+        for key, value in cli.get_config().data.items():
+            print(f"\t- {key}: {value}")
 
     device = cli.config.data.get("device", {"type": "cpu", "idx": 0})
     import jax
 
-    print(device["idx"])
-    print("=" * 20)
-    print("=" * 20)
-    print(jax.devices(device["type"])[device["idx"]])
-    print("=" * 20)
-    print("=" * 20)
+    # print("=" * 20)
+    # print("=" * 20)
+    # print(jax.devices(device["type"])[device["idx"]])
+    # print("=" * 20)
+    # print("=" * 20)
 
     # jax.config.update("jax_platform_name", device["type"])
     jax.config.update("jax_default_device", jax.devices(device["type"])[device["idx"]])
 
-    print("Starting QVarNet...")
-    print("*" * 20)
-    print("Using device:", jax.devices())
-    print("*" * 20)
+    # print("Starting QVarNet...")
+    # print("*" * 20)
+    # print("Using device:", jax.devices())
+    # print("*" * 20)
 
     # Import here to avoid circular dependency
     from qvarnet.main import run_experiment as run_experiment_main

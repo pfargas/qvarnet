@@ -7,7 +7,7 @@ from matplotlib.pyplot import hist
 
 @partial(jax.jit, static_argnames=("prob_fn"))
 def mh_kernel(
-    uniform_random_numbers, prob_fn, prob_params, position, prob, step_size, PBC=10.0
+    uniform_random_numbers, prob_fn, prob_params, position, prob, step_size, PBC
 ):
     proposal = position + step_size * (
         2 * uniform_random_numbers[: position.shape[0]] - 1
@@ -32,7 +32,7 @@ def adapt_step_size(step_size, accept, target=0.5, lr=0.01):
 
 
 @partial(jax.jit, static_argnames=("prob_fn"))
-def mh_chain(random_values, PBC, prob_fn, prob_params, init_position, step_size=1.0):
+def mh_chain(random_values, PBC, prob_fn, prob_params, init_position, step_size):
     """
     Single MH chain using pre-generated step keys.
     random_values: shape (n_steps, DoF + 1)

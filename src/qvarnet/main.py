@@ -1,10 +1,9 @@
 import os
-from .models import MLP, WavefunctionOneParameter, ExponentialWavefunction
+from .models import *
 from .train import train
 import jax
 import jax.numpy as jnp
 import optax
-from jax.scipy.integrate import trapezoid
 
 
 def run_experiment(args=None, profile=False):
@@ -18,59 +17,55 @@ def run_experiment(args=None, profile=False):
     if args is None:
         raise ValueError("Arguments must be provided to run_experiment")
 
-    modelArguments = args.get_model_args()
-    trainingArguments = args.get_training_args()
-    samplerArguments = args.get_sampler_args()
-    optimizerArguments = args.get_optimizer_args()
-    outputArguments = args.get_output_args()
+    model_args = args.get_model_args()
+    train_args = args.get_training_args()
+    sampler_args = args.get_sampler_args()
+    optimizer_args = args.get_optimizer_args()
+    output_args = args.get_output_args()
     master_seed = args.get_seed()
+    exp_info = args.get_info_experiment()
 
-    output_base_path = outputArguments.get("save_dir", "tmp/qvarnet/results")
-    os.makedirs(output_base_path, exist_ok=True)
-    directories_in_base = os.listdir(output_base_path)
-    run_id = 0
-    while f"run_{run_id:03d}" in directories_in_base:
-        run_id += 1
-    base_path = os.path.join(output_base_path, f"run_{run_id:03d}")
-    os.makedirs(base_path, exist_ok=True)
+    output_base_path = output_args.get("save_dir", "tmp/qvarnet/results")
+    experiment_name = exp_info.get("name", None)
+    experiment_description = exp_info.get("description", "No description provided.")
+    base_path = create_output_directory(output_base_path, experiment_name)
+    with open(os.path.join(base_path, "description.txt"), "w") as f:
+        f.write(experiment_description)
+
+    print("=" * 40)
+    print(f"Results will be saved to: {base_path}")
+    print("=" * 40)
+
     # **************************************************
     # ****                Choose model              ****
     # **************************************************
-    model = MLP(architecture=modelArguments["architecture"])
+    model = MLP(architecture=model_args["architecture"])
     # **************************************************
 
-    if optimizerArguments["type"] == "adam":
-        optimizer = optax.adam(learning_rate=optimizerArguments["learning_rate"])
-    elif optimizerArguments["type"] == "sgd":
-        optimizer = optax.sgd(learning_rate=optimizerArguments["learning_rate"])
+    if optimizer_args["type"] == "adam":
+        optimizer = optax.adam(learning_rate=optimizer_args["learning_rate"])
+    elif optimizer_args["type"] == "sgd":
+        optimizer = optax.sgd(learning_rate=optimizer_args["learning_rate"])
     else:
-        raise ValueError(f"Unsupported optimizer type: {optimizerArguments['type']}")
+        raise ValueError(f"Unsupported optimizer type: {optimizer_args['type']}")
 
     rng = jax.random.PRNGKey(0)  # Random key for parameter initialization
     input_shape = (
-        trainingArguments["batch_size"],
-        modelArguments["architecture"][0],
+        train_args["batch_size"],
+        model_args["architecture"][0],
     )
     params = model.init(rng, jnp.ones(input_shape) * 0.1)  # Initialize parameters
-    PBC = samplerArguments.get("PBC", 40.0)  # Periodic Boundary Conditions
 
     if profile:
         jax.profiler.start_trace("/tmp/profile-data")
 
-    print("SANITY CHECK: PARAMS USED")
-    print("params: ", params)
-    print("input_shape: ", input_shape)
-    print("optimizer: ", optimizer)
-    print("samplerArguments: ", samplerArguments)
-    print("seed: ", master_seed)
-
     params_fin, energy_hist, _, _ = train(
-        n_epochs=trainingArguments["num_epochs"],
+        n_epochs=train_args["num_epochs"],
         init_params=params,
         shape=input_shape,
         model_apply=model.apply,
         optimizer=optimizer,
-        sampler_params=samplerArguments,
+        sampler_params=sampler_args,
         rng_seed=master_seed,
     )
 
@@ -106,3 +101,38 @@ def save_results(base_path, **kwargs) -> bool:
             print(f"Error saving {key}: {e}")
             return False
     return True
+
+
+def create_output_directory(base_path: str, experiment_name: str) -> str:
+    """Create output directory for experiment results. The directory will be created in the
+    specified base path. If experiment_name is not provided, a unique run ID will be generated.
+
+    That means the relative directory structure will be:
+        ./base_path/experiment_name/
+    or
+        ./base_path/run_000/
+        ./base_path/run_001/
+        ...
+    depending on whether experiment_name is provided.
+
+    Args:
+        base_path: Base path where results should be saved.
+        experiment_name: Name of the experiment (used for subdirectory).
+    Returns:
+        The full path to the created output directory."""
+    if not os.path.isabs(base_path):
+        cwd = os.getcwd()
+        base_path = os.path.join(cwd, base_path)
+
+    if experiment_name is None or experiment_name.strip() == "":
+        directories_in_base = os.listdir(base_path)
+        run_id = 0
+        while f"run_{run_id:03d}" in directories_in_base:
+            run_id += 1
+        base_path = os.path.join(base_path, f"run_{run_id:03d}")
+        os.makedirs(base_path, exist_ok=True)
+
+    else:
+        base_path = os.path.join(base_path, experiment_name)
+    os.makedirs(base_path, exist_ok=True)
+    return os.path.abspath(os.path.normpath(base_path))

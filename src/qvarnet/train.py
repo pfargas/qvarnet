@@ -202,11 +202,6 @@ def train(
     n_steps_sampler = sampler_params.get("chain_length", 500)
     PBC = sampler_params.get("PBC", 40.0)
 
-    print("SANITY CHECK: parameters used in train()")
-    print("step_size: ", step_size)
-    print("n_steps_sampler: ", n_steps_sampler)
-    print("PBC: ", PBC)
-
     for step in tqdm(range(n_epochs)) if tqdm_available else range(n_epochs):
         if stop_requested:
             break
