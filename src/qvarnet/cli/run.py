@@ -48,14 +48,14 @@ class CLI:
 
         # Commands
         parser.add_argument(
-            "command", choices=["run", "list-presets"], help="Command to execute"
+            "command", choices=["run", "plot-energy"], help="Command to execute"
         )
 
         # Configuration options
         parser.add_argument(
             "--config", "-c", type=str, help="Path to configuration file"
         )
-        parser.add_argument("--preset", "-p", type=str, help="Use preset configuration")
+        parser.add_argument("--preset", type=str, help="Use preset configuration")
 
         parser.add_argument(
             "--preset-list",
@@ -84,6 +84,12 @@ class CLI:
             "-s",
             action="store_true",
             help="Use the sampler_split module for sampling",
+        )
+        parser.add_argument(
+            "--plot-path",
+            "-p",
+            type=str,
+            help="Path to read and save energy plot",
         )
 
         return parser
@@ -213,9 +219,8 @@ def main():
 
     if args.command == "run":
         run_experiment(cli)
-    elif args.command == "list-presets":
-        # Already handled in parse_args()
-        pass
+    elif args.command == "plot-energy":
+        plot_energy_history(cli)
     else:
         print(f"Unknown command: {args.command}")
         sys.exit(1)
@@ -263,19 +268,7 @@ def run_experiment(cli):
     device = cli.config.data.get("device", {"type": "cpu", "idx": 0})
     import jax
 
-    # print("=" * 20)
-    # print("=" * 20)
-    # print(jax.devices(device["type"])[device["idx"]])
-    # print("=" * 20)
-    # print("=" * 20)
-
-    # jax.config.update("jax_platform_name", device["type"])
     jax.config.update("jax_default_device", jax.devices(device["type"])[device["idx"]])
-
-    # print("Starting QVarNet...")
-    # print("*" * 20)
-    # print("Using device:", jax.devices())
-    # print("*" * 20)
 
     # Import here to avoid circular dependency
     from qvarnet.main import run_experiment as run_experiment_main
@@ -284,3 +277,37 @@ def run_experiment(cli):
 
     print("Running experiment...")
     run_experiment_main(cli, profile=cli.config.data.get("profile", False))
+
+
+def plot_energy_history(cli):
+
+    path = cli.args.plot_path
+    if path is None:
+        print("Error: --plot-path argument is required for plot-energy command")
+        sys.exit(1)
+    # check if path exists and if it's a directory or file
+    path_obj = Path(path)
+    if not path_obj.exists():
+        print(f"Error: Path {path} does not exist")
+        sys.exit(1)
+    if path_obj.is_dir():
+        # check if it's relative
+        if not path_obj.is_absolute():
+            path_obj = Path.cwd() / path_obj
+        energy_file = os.path.join(path_obj, "energy_hist.txt")
+        output_plot = os.path.join(path_obj, "energy_history.png")
+
+    import numpy as np
+    import matplotlib.pyplot as plt
+
+    try:
+        energy_hist = np.loadtxt(energy_file)
+    except Exception as e:
+        print(f"Error loading energy history from {energy_file}: {e}")
+        sys.exit(1)
+    plt.plot(energy_hist)
+    plt.xlabel("Training Step")
+    plt.ylabel("Energy")
+
+    plt.savefig(output_plot)
+    print(f"Energy history plot saved to {output_plot}")

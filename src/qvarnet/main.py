@@ -59,7 +59,7 @@ def run_experiment(args=None, profile=False):
     if profile:
         jax.profiler.start_trace("/tmp/profile-data")
 
-    params_fin, energy_hist, _, _ = train(
+    params_fin, energy_hist, _, best_energy = train(
         n_epochs=train_args["num_epochs"],
         init_params=params,
         shape=input_shape,
@@ -73,15 +73,15 @@ def run_experiment(args=None, profile=False):
     if profile:
         jax.profiler.stop_trace()
 
-    # print(f"Best energy: {best_energy}")
-    # print(f"Best params: {best_params}")
-    import matplotlib.pyplot as plt
+    # remove zeroes from energy_hist
+    energy_hist = energy_hist[energy_hist != 0.0]
 
-    print(f"last energy: {energy_hist[-1]}, before: {energy_hist[-2]}")
-    plt.plot(energy_hist)
-    plt.xlabel("Training Step")
-    plt.ylabel("Energy")
-    plt.savefig(f"{base_path}/energy_history.png")
+    print(f"last energy: {energy_hist[-1]}, best {best_energy}")
+
+    print(
+        f"mean of last 10%: {jnp.mean(energy_hist[-int(0.1 * len(energy_hist)) :])}, std: {jnp.std(energy_hist[-int(0.1 * len(energy_hist)) :])}"
+    )
+
     if not save_results(base_path, energy_hist=energy_hist, params_fin=params_fin):
         print("Error saving results.")
 
@@ -97,7 +97,10 @@ def save_results(base_path, **kwargs) -> bool:
 
     for key, value in kwargs.items():
         try:
-            jnp.save(os.path.join(base_path, f"{key}.npy"), value)
+            with open(os.path.join(base_path, f"{key}.txt"), "w") as f:
+                for num in value:
+                    f.write(str(num))
+                    f.write("\n")
         except Exception as e:
             print(f"Error saving {key}: {e}")
             return False
@@ -135,5 +138,17 @@ def create_output_directory(base_path: str, experiment_name: str) -> str:
 
     else:
         base_path = os.path.join(base_path, experiment_name)
+    # if the directory does exists, throw a warning
+    if os.path.exists(base_path):
+        print(
+            f"Warning: Directory {base_path} already exists. Creating different run ID."
+        )
+        directories_in_base = os.listdir(os.path.dirname(base_path))
+        run_id = 0
+        while f"{experiment_name}_{run_id:03d}" in directories_in_base:
+            run_id += 1
+        base_path = os.path.join(
+            os.path.dirname(base_path), f"{experiment_name}_{run_id:03d}"
+        )
     os.makedirs(base_path, exist_ok=True)
     return os.path.abspath(os.path.normpath(base_path))
