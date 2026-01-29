@@ -50,6 +50,9 @@ def V(x):
 
 # @partial(jax.jit, static_argnames=["model_apply"])
 def local_energy_batch(params, xs, model_apply):
+    # TODO: Look into jax.vmap for better performance
+    # TODO: Consider using jax.jacfwd/jacrev for Hessian computation
+    # BUG: Ensure that laplace doesn't blow the memory for large architectures/batches
     def psi_fn(x):
         # ensure input has shape (1,) as model expects last-dim features
         x = jnp.atleast_1d(x).reshape(1, -1)  # (1, DoF)
@@ -255,6 +258,8 @@ def train(
         # combine n_chains and n_steps_sampler into one big batch
         batch = batch.reshape(-1, DoF)  # (n_chains * n_steps_sampler, DoF)
 
+        # check_size_batch(batch, step, n_chains, n_steps_sampler)
+
         # --------------------------------------------
         # ---          TRAINING STEP              ---
         # --------------------------------------------
@@ -267,3 +272,27 @@ def train(
             best_params = state.params
 
     return state.params, energy_history, best_params, best_energy
+
+
+def check_size_batch(batch, step, n_chains, n_steps_sampler):
+    with open("batch_debug.txt", "a") as f:
+        f.write(f"# STEP {step}\n")
+        f.write("BATCH INFO\n")
+        f.write(f"Batch shape: {batch.shape}\n")
+        f.write(f"Batch data type: {batch.dtype}\n")
+        f.write(f"Batch size in bytes: {batch.nbytes} bytes\n")
+
+        num = batch[0]
+        f.write("EXPLORING SINGLE SAMPLE\n")
+        size_in_bytes = num.nbytes
+        f.write(f"Sample size: {num.shape}, Size in bytes: {size_in_bytes} bytes\n")
+        f.write(f"Sample data: {num}\n")
+        # check the attributes of the single num
+        f.write(f"Type: {type(num)}\n")
+        for mini_num in num:
+            f.write(f"  Mini value: {mini_num}, Type: {type(mini_num)}\n")
+
+        f.write(
+            f"computed size as the product of shape dimensions and itemsize: {n_chains * n_steps_sampler * size_in_bytes} bytes\n"
+        )
+        f.write("\n")
