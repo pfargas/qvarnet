@@ -1,5 +1,5 @@
 import os
-from .models import *
+from .models import MLP
 from .train import train
 import jax
 import jax.numpy as jnp
@@ -82,12 +82,11 @@ def run_experiment(args=None, profile=False):
         f"mean of last 10%: {jnp.mean(energy_hist[-int(0.1 * len(energy_hist)) :])}, std: {jnp.std(energy_hist[-int(0.1 * len(energy_hist)) :])}"
     )
 
-    if not save_results(base_path, energy_hist=energy_hist, params_fin=params_fin):
+    if not save_results(base_path, energy_histoty=energy_hist, final_params=params_fin):
         print("Error saving results.")
 
 
 def save_results(base_path, **kwargs) -> bool:
-
     try:
         os.makedirs(base_path, exist_ok=True)
         # Save other results as needed
