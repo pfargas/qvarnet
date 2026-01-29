@@ -42,6 +42,7 @@ def laplace_OLD(func, x):
     return d2_dx2
 
 
+@partial(jax.jit, static_argnames=["model_apply"])
 def laplace_autodiff_new(params, xs, model_apply):
     """
     Computes Laplacian using Forward-over-Reverse AD.
