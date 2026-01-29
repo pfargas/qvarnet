@@ -6,6 +6,7 @@ from .train import train
 import jax
 import jax.numpy as jnp
 import optax
+import time
 
 
 def run_experiment(args=None, profile=False):
@@ -61,6 +62,7 @@ def run_experiment(args=None, profile=False):
     if profile:
         jax.profiler.start_trace("/tmp/profile-data")
 
+    time_start = time.perf_counter()
     params_fin, energy_hist, _, best_energy = train(
         n_epochs=train_args["num_epochs"],
         init_params=params,
@@ -71,6 +73,7 @@ def run_experiment(args=None, profile=False):
         rng_seed=master_seed,
         split_sampler=args.args.split,
     )
+    time_end = time.perf_counter()
 
     if profile:
         jax.profiler.stop_trace()
@@ -92,7 +95,7 @@ def run_experiment(args=None, profile=False):
         base_path,
         energy_history=energy_hist,
         final_params=params_fin,
-        final_values=[mean_10_percent, std_10_percent],
+        final_values=[mean_10_percent, std_10_percent, time_end - time_start],
     ):
         print("Error saving results.")
 
