@@ -122,6 +122,53 @@ def laplace_central_difference(params, xs, model_apply, h=1e-6):
     return jax.vmap(single_point_laplacian)(xs)
 
 
+@partial(jax.jit, static_argnames=["model_apply", "h"])
+def laplace_central_difference_scan(params, xs, model_apply, h=1e-4):
+    """
+    Computes Laplacian using jax.lax.scan.
+    Memory: O(N * D) (Linear scaling)
+    Speed: Single compiled kernel (Fast)
+    """
+    batch_size, n_dims = xs.shape
+
+    # 1. Pre-calculate the center value once
+    # f_main shape: (batch,)
+    f_main = model_apply(params, xs).squeeze()
+
+    def scan_body(carry, i):
+        # i is the dimension index we are currently perturbing
+
+        # Create unit vector e_i
+        e_i = jnp.eye(n_dims)[i]  # Shape: (D,)
+
+        # Perturb current dimension i for the whole batch
+        # We broadcast e_i to (batch, D)
+        x_plus = xs + h * e_i
+        x_minus = xs - h * e_i
+
+        # Evaluate model at perturbed points
+        # These run sequentially inside the compiled kernel, saving memory
+        psi_plus = model_apply(params, x_plus).squeeze()
+        psi_minus = model_apply(params, x_minus).squeeze()
+
+        # Finite difference for dimension i
+        d2_dx2 = (psi_plus - 2 * f_main + psi_minus) / (h**2)
+
+        # Accumulate the result (Laplacian is sum of d2_dx2)
+        new_laplacian = carry + d2_dx2
+
+        return new_laplacian, None  # We don't need to stack outputs
+
+    # 2. Run the loop inside XLA
+    # init_val is zeros of shape (batch,)
+    # xs=jnp.arange(n_dims) gives us the loop indices 0..D-1
+    final_laplacian, _ = jax.lax.scan(
+        scan_body, init=jnp.zeros(batch_size), xs=jnp.arange(n_dims)
+    )
+
+    return final_laplacian
+
+
 # @jax.jit
 def V(x):
     """Harmonic oscillator potential."""
@@ -138,7 +185,7 @@ def local_energy_batch(params, xs, model_apply):
         x = jnp.atleast_1d(x).reshape(1, -1)  # (1, DoF)
         return model_apply(params, x).squeeze()
 
-    d2psi = laplace_autodiff_new(params, xs, model_apply)
+    d2psi = laplace_central_difference_scan(params, xs, model_apply)
 
     psi_vals = jax.vmap(lambda x: psi_fn(x))(xs)  # shape (batch,)
 
