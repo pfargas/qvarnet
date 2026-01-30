@@ -92,7 +92,7 @@ def laplace_autodiff_FULL_HESSIAN(params, xs, model_apply):
     return jax.vmap(laplacian_fn)(xs)
 
 
-def laplace_central_difference(params, xs, model_apply, h=1e-6):
+def laplace_central_difference(params, xs, model_apply, h=1e-4):
     """
     Computes Laplacian using central difference, properly handling JAX batching.
     xs shape: (batch, DoF)
@@ -268,6 +268,7 @@ def train(
     sampler_params,
     rng_seed=0,
     split_sampler=False,
+    hamiltonian_params=None,
 ):
     r"""Main function to optimize the wavefunction parameters using Variational Monte Carlo.
 

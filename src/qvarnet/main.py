@@ -27,6 +27,7 @@ def run_experiment(args=None, profile=False):
     output_args = args.get_output_args()
     master_seed = args.get_seed()
     exp_info = args.get_info_experiment()
+    hami_args = args.get_hamiltonian_args()
 
     output_base_path = output_args.get("save_dir", "tmp/qvarnet/results")
     experiment_name = exp_info.get("name", None)
@@ -72,6 +73,7 @@ def run_experiment(args=None, profile=False):
         sampler_params=sampler_args,
         rng_seed=master_seed,
         split_sampler=args.args.split,
+        hamiltonian_params=hami_args,
     )
     time_end = time.perf_counter()
 
