@@ -10,7 +10,7 @@ def mh_kernel(
     uniform_random_numbers, prob_fn, prob_params, position, prob, step_size, PBC
 ):
     proposal = position + step_size * (2 * uniform_random_numbers[:-1] - 1)
-    proposal = ((proposal + 0.5 * PBC) % PBC) - 0.5 * PBC
+    # proposal = ((proposal + 0.5 * PBC) % PBC) - 0.5 * PBC # apply PBC in the samples
     proposal_prob = prob_fn(proposal, prob_params)
     accept_prob = jnp.minimum(1.0, proposal_prob / prob)
     accept = uniform_random_numbers[-1] < accept_prob

@@ -1,7 +1,8 @@
 import os
 
 from tqdm import std
-from .models import MLP
+
+from .models import MLP, ExponentialMLPwithPenalty
 from .train import train
 import jax
 import jax.numpy as jnp
@@ -43,7 +44,8 @@ def run_experiment(args=None, profile=False):
     # **************************************************
     # ****                Choose model              ****
     # **************************************************
-    model = MLP(architecture=model_args["architecture"])
+    # model = MLP(architecture=model_args["architecture"])
+    model = ExponentialMLPwithPenalty(architecture=model_args["architecture"])
     # **************************************************
 
     if optimizer_args["type"] == "adam":

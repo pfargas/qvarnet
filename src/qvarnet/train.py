@@ -185,7 +185,7 @@ def local_energy_batch(params, xs, model_apply):
         x = jnp.atleast_1d(x).reshape(1, -1)  # (1, DoF)
         return model_apply(params, x).squeeze()
 
-    d2psi = laplace_central_difference_scan(params, xs, model_apply)
+    d2psi = laplace_autodiff_new(params, xs, model_apply)
 
     psi_vals = jax.vmap(lambda x: psi_fn(x))(xs)  # shape (batch,)
 
@@ -384,6 +384,8 @@ def train(
                 step_size,
             )
         # combine n_chains and n_steps_sampler into one big batch
+        batch = batch[:, 50:, :]  # burn-in
+        batch = batch[:, ::5, :]  # Thinning to reduce correlations
         batch = batch.reshape(-1, DoF)  # (n_chains * n_steps_sampler, DoF)
 
         # check_size_batch(batch, step, n_chains, n_steps_sampler)
