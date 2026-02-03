@@ -9,6 +9,18 @@ import jax.numpy as jnp
 import optax
 import time
 import json
+from flax import serialization
+
+
+def save_flax_to_json(params, filename):
+    # 1. Convert Flax structure (or TrainState) to a plain nested dict
+    state_dict = serialization.to_state_dict(params)
+
+    # 2. Convert JAX/NumPy arrays to Python lists for JSON
+    serializable_dict = jax.tree_util.tree_map(lambda x: x.tolist(), state_dict)
+
+    with open(filename, "w") as f:
+        json.dump(serializable_dict, f, indent=4)
 
 
 def run_experiment(args=None, profile=False):
@@ -96,8 +108,7 @@ def run_experiment(args=None, profile=False):
     print(f"Final score: {score}")
     print("=" * 40)
     print("Saving best params")
-    with open(os.path.join(base_path, "best_params.json"), "w") as f:
-        json.dump(best_params, f, indent=4)
+    save_flax_to_json(best_params, os.path.join(base_path, "best_params.json"))
 
     energy_10_percent = energy_hist[-int(0.1 * len(energy_hist)) :]
     mean_10_percent = jnp.mean(energy_10_percent)
