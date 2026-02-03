@@ -79,7 +79,7 @@ def run_experiment(args=None, profile=False):
         jax.profiler.start_trace("/tmp/profile-data")
 
     time_start = time.perf_counter()
-    params_fin, energy_hist, best_params, score = train(
+    energy_hist, best_params, score = train(
         n_epochs=train_args["num_epochs"],
         init_params=params,
         shape=input_shape,
