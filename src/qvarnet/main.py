@@ -8,6 +8,7 @@ import jax
 import jax.numpy as jnp
 import optax
 import time
+import json
 
 
 def run_experiment(args=None, profile=False):
@@ -66,7 +67,7 @@ def run_experiment(args=None, profile=False):
         jax.profiler.start_trace("/tmp/profile-data")
 
     time_start = time.perf_counter()
-    params_fin, energy_hist, _, best_energy = train(
+    params_fin, energy_hist, best_params, score = train(
         n_epochs=train_args["num_epochs"],
         init_params=params,
         shape=input_shape,
@@ -85,11 +86,18 @@ def run_experiment(args=None, profile=False):
     # remove zeroes from energy_hist
     energy_hist = energy_hist[energy_hist != 0.0]
 
-    print(f"last energy: {energy_hist[-1]}, best {best_energy}")
+    print(f"last energy: {energy_hist[-1]}, std: {jnp.std(energy_hist)}")
 
     print(
         f"mean of last 10%: {jnp.mean(energy_hist[-int(0.1 * len(energy_hist)) :])}, std: {jnp.std(energy_hist[-int(0.1 * len(energy_hist)) :])}"
     )
+
+    print(f"Total training time: {time_end - time_start} seconds")
+    print(f"Final score: {score}")
+    print("=" * 40)
+    print("Saving best params")
+    with open(os.path.join(base_path, "best_params.json"), "w") as f:
+        json.dump(best_params, f, indent=4)
 
     energy_10_percent = energy_hist[-int(0.1 * len(energy_hist)) :]
     mean_10_percent = jnp.mean(energy_10_percent)
@@ -98,8 +106,11 @@ def run_experiment(args=None, profile=False):
     if not save_results(
         base_path,
         energy_history=energy_hist,
-        final_params=params_fin["params"],
-        final_values=[mean_10_percent, std_10_percent, time_end - time_start],
+        final_values=[
+            mean_10_percent,
+            std_10_percent,
+            f"Total training time: {time_end - time_start} seconds",
+        ],
     ):
         print("Error saving results.")
 
@@ -114,6 +125,13 @@ def save_results(base_path, **kwargs) -> bool:
 
     for key, value in kwargs.items():
         try:
+            # if it's a dictionary, save as a json
+            if isinstance(value, dict):
+                import json
+
+                with open(os.path.join(base_path, f"{key}.json"), "w") as f:
+                    json.dump(value, f, indent=4)
+                continue
             with open(os.path.join(base_path, f"{key}.txt"), "w") as f:
                 for num in value:
                     f.write(str(num))

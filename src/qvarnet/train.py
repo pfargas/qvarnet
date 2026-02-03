@@ -56,18 +56,21 @@ def grad_log_psi(params, x, model_apply):
 def energy_fn(params, batch, model_apply):
     local_energy_per_point = local_energy_batch(params, batch, model_apply)
     E = jnp.mean(local_energy_per_point)
-    return E, local_energy_per_point
+    sigma_e = jnp.std(local_energy_per_point)
+    return E, local_energy_per_point, sigma_e
 
 
 # @partial(jax.jit, static_argnames=["model_apply"])
 def loss_and_grads(params, batch, model_apply):
-    E, local_energy_per_point = energy_fn(params, batch, model_apply)
+    E, local_energy_per_point, sigma_e = energy_fn(params, batch, model_apply)
     loss = lambda p: 2 * jnp.mean(
         jax.lax.stop_gradient(local_energy_per_point - E)
         * log_psi(batch, p, model_apply).reshape(-1, 1)
     )
     grad_E = jax.grad(loss)(params)
-    return E, grad_E
+    score = E + 2.0 * sigma_e / jnp.sqrt(batch.shape[0])
+    # Could i return the loss to monitor it?
+    return E, grad_E, score
 
 
 @jax.jit
@@ -166,7 +169,7 @@ def train(
     key = random.key(rng_seed)
     energy_history = jnp.zeros(n_epochs)
     init_position = jnp.zeros(shape)  # start all chains at 0
-    best_energy = jnp.inf
+    best_score = jnp.inf
     best_params = init_params
     step_size = sampler_params.get("step_size", 1.0)
     n_steps_sampler = sampler_params.get("chain_length", 500)
@@ -211,15 +214,15 @@ def train(
         # --------------------------------------------
         # ---          TRAINING STEP              ---
         # --------------------------------------------
-        state, energy = train_step(state, batch)
+        state, energy, score = train_step(state, batch)
 
         energy_history = energy_history.at[step].set(energy)
 
-        if energy < best_energy:
-            best_energy = energy
+        if score < best_score:
+            best_score = score
             best_params = state.params
 
-    return state.params, energy_history, best_params, best_energy
+    return state.params, energy_history, best_params, best_score
 
 
 def check_size_batch(batch, step, n_chains, n_steps_sampler):
