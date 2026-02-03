@@ -98,7 +98,7 @@ def run_experiment(args=None, profile=False):
     if not save_results(
         base_path,
         energy_history=energy_hist,
-        final_params=params_fin,
+        final_params=params_fin["params"],
         final_values=[mean_10_percent, std_10_percent, time_end - time_start],
     ):
         print("Error saving results.")
