@@ -75,9 +75,9 @@ def loss_and_grads(params, batch, model_apply):
 
 @jax.jit
 def train_step(state, batch):
-    E, grads = loss_and_grads(state.params, batch, state.apply_fn)
+    E, grads, score = loss_and_grads(state.params, batch, state.apply_fn)
     new_state = state.apply_gradients(grads=grads)
-    return new_state, E
+    return new_state, E, score
 
 
 def train(
