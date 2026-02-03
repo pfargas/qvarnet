@@ -231,6 +231,9 @@ def run_experiment(cli):
     if not hasattr(cli, "config") or cli.config is None:
         print("Error: No configuration loaded")
         sys.exit(1)
+    elif cli.config is None:
+        print("Error: Configuration is None")
+        sys.exit(1)
 
     welcome_string = """
     *************************************
