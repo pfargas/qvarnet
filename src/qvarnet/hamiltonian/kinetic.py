@@ -1,4 +1,3 @@
-from functools import partial
 import jax
 import jax.numpy as jnp
 from .laplacian import laplacian_autodiff_new as laplacian

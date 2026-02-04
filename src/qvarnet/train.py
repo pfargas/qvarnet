@@ -6,7 +6,7 @@ from .vmc_state import VMCState
 from .callbacks import *
 from .samplers import mh_chain
 
-from .hamiltonian import V, kinetic_term
+from .hamiltonian import get_hamiltonian
 
 import signal
 
@@ -35,13 +35,8 @@ def signal_handler(signum, frame):
 signal.signal(signal.SIGINT, signal_handler)
 
 
-@partial(jax.jit, static_argnames=["model_apply"])
-def local_energy_batch(params, xs, model_apply):
-    # TODO: look into efficient laplacian implementations
-    # TODO: parametrize the hamiltonian used
-    kinetic = kinetic_term(params, xs, model_apply)
-    potential = V(xs)  # shape (batch,)
-    return (kinetic + potential).reshape(-1, 1)  # keep your (batch,1) convention
+def compute_local_energy(hamiltonian, params, samples, model_apply):
+    return hamiltonian.local_energy(params, samples, model_apply).reshape(-1, 1)
 
 
 @partial(jax.jit, static_argnames=["model_apply"])
@@ -56,16 +51,20 @@ def grad_log_psi(params, x, model_apply):
 
 
 @partial(jax.jit, static_argnames=["model_apply"])
-def energy_fn(params, batch, model_apply):
-    local_energy_per_point = local_energy_batch(params, batch, model_apply)
+def energy_fn(hamiltonian, params, batch, model_apply):
+    local_energy_per_point = compute_local_energy(
+        hamiltonian, params, batch, model_apply
+    )
     E = jnp.mean(local_energy_per_point)
     sigma_e = jnp.std(local_energy_per_point)
     return E, local_energy_per_point, sigma_e
 
 
 @partial(jax.jit, static_argnames=["model_apply"])
-def loss_and_grads(params, batch, model_apply, score_factor=2.0):
-    E, local_energy_per_point, sigma_e = energy_fn(params, batch, model_apply)
+def loss_and_grads(hamiltonian, params, batch, model_apply, score_factor=2.0):
+    E, local_energy_per_point, sigma_e = energy_fn(
+        hamiltonian, params, batch, model_apply
+    )
     loss = lambda p: 2 * jnp.mean(
         jax.lax.stop_gradient(local_energy_per_point - E)
         * log_psi(batch, p, model_apply).reshape(-1, 1)
@@ -77,8 +76,10 @@ def loss_and_grads(params, batch, model_apply, score_factor=2.0):
 
 
 @jax.jit
-def train_step(state, batch):
-    E, sigma_e, grads, score = loss_and_grads(state.params, batch, state.apply_fn)
+def train_step(state, batch, hamiltonian):
+    E, sigma_e, grads, score = loss_and_grads(
+        hamiltonian, state.params, batch, state.apply_fn
+    )
     new_state = state.apply_gradients(grads=grads)
     return new_state.replace(energy=E, std=sigma_e, score=score)
 
@@ -98,7 +99,9 @@ def train(
     """Train a VMC model using Metropolis-Hastings sampling.
     Docs loaded from _docs/train.txt
     """
-    key = random.key(rng_seed)
+    key = random.PRNGKey(rng_seed)
+
+    hamiltonian = get_hamiltonian("harmonic_oscillator")
 
     # Vmap the sampler chain over the batch dimension (n_chains)
     sampler = jax.vmap(
@@ -175,7 +178,16 @@ def train(
 
     @partial(jax.jit, static_argnames=["PBC", "n_steps", "burn_in", "thinning"])
     def full_update(
-        state, best_state, key, current_pos, step_size, PBC, n_steps, burn_in, thinning
+        state,
+        best_state,
+        key,
+        current_pos,
+        step_size,
+        PBC,
+        n_steps,
+        burn_in,
+        thinning,
+        hamiltonian,
     ):
         """Performs Sampling + Training + Best State Tracking in one compiled block."""
         key, subkey = jax.random.split(key)
@@ -193,7 +205,7 @@ def train(
         )
 
         # 2. Train
-        new_state = train_step(state, batch)
+        new_state = train_step(state, batch, hamiltonian)
 
         # 3. Track Best State (On Device)
         # Create a boolean condition tensor
@@ -226,6 +238,7 @@ def train(
             n_steps=n_steps_sampler,
             burn_in=burn_in_steps,
             thinning=thinning_factor,
+            hamiltonian=hamiltonian,
         )
 
         # Append energy to list (cheap Python operation)
