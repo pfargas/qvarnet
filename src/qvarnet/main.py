@@ -8,6 +8,8 @@ import optax
 import time
 from .utils import save_flax_to_json, save_results, create_output_directory
 
+CSV_DELIMITERS = [",", ";", "\t"]
+
 
 def run_experiment(args=None, profile=False):
     """Run a quantum variational Monte Carlo experiment.
@@ -103,11 +105,12 @@ def run_experiment(args=None, profile=False):
 
     if not save_results(
         base_path,
+        CSV_DELIMITERS,
         energy_history=energy_hist,
         final_values=[
-            best_state.energy,
-            best_state.std,
-            f"Total training time: {time_end - time_start} seconds",
+            f"total_energy{CSV_DELIMITERS[-1]}{best_state.energy}",
+            f"std{CSV_DELIMITERS[-1]}{best_state.std}",
+            f"time{CSV_DELIMITERS[-1]}{time_end - time_start}",
         ],
     ):
         print("Error saving results.")

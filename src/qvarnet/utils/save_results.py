@@ -1,7 +1,7 @@
 import os
 
 
-def save_results(base_path, **kwargs) -> bool:
+def save_results(base_path, csv_delimiters, **kwargs) -> bool:
     try:
         os.makedirs(base_path, exist_ok=True)
         # Save other results as needed
@@ -18,6 +18,19 @@ def save_results(base_path, **kwargs) -> bool:
                 with open(os.path.join(base_path, f"{key}.json"), "w") as f:
                     json.dump(value, f, indent=4)
                 continue
+            elif (
+                isinstance(value, list)
+                and all(isinstance(item, str) for item in value)
+                and all(
+                    any(delim in item for delim in csv_delimiters) for item in value
+                )
+            ):
+                with open(os.path.join(base_path, f"{key}.csv"), "w") as f:
+                    for line in value:
+                        f.write(line)
+                        f.write("\n")
+                continue
+            # otherwise, save as a text file
             with open(os.path.join(base_path, f"{key}.txt"), "w") as f:
                 for num in value:
                     f.write(str(num))
