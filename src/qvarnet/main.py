@@ -79,7 +79,7 @@ def run_experiment(args=None, profile=False):
         jax.profiler.start_trace("/tmp/profile-data")
 
     time_start = time.perf_counter()
-    energy_hist, best_params, score = train(
+    energy_hist, best_state, score = train(
         n_epochs=train_args["num_epochs"],
         init_params=params,
         shape=input_shape,
@@ -87,14 +87,15 @@ def run_experiment(args=None, profile=False):
         optimizer=optimizer,
         sampler_params=sampler_args,
         rng_seed=master_seed,
-        split_sampler=args.args.split,
         hamiltonian_params=hami_args,
+        checkpoint_path=base_path,
     )
     time_end = time.perf_counter()
 
     if profile:
         jax.profiler.stop_trace()
 
+    best_params = best_state.params
     # remove zeroes from energy_hist
     energy_hist = energy_hist[energy_hist != 0.0]
 

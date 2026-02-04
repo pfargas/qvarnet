@@ -3,14 +3,16 @@ import jax.numpy as jnp
 from jax import random
 
 from flax.training import train_state
-from .callback import nan_callback, update_best_params
-from .sampler import mh_chain
+from .callbacks import *
+from .samplers import mh_chain
 
 from .hamiltonian import V, kinetic_term
 
 import signal
 
 from functools import partial
+
+from .utils import load_doc, save_checkpoint, load_checkpoint
 
 try:
     from tqdm import tqdm
@@ -61,14 +63,16 @@ def energy_fn(params, batch, model_apply):
 
 
 # @partial(jax.jit, static_argnames=["model_apply"])
-def loss_and_grads(params, batch, model_apply):
+def loss_and_grads(params, batch, model_apply, score_factor=2.0):
     E, local_energy_per_point, sigma_e = energy_fn(params, batch, model_apply)
     loss = lambda p: 2 * jnp.mean(
         jax.lax.stop_gradient(local_energy_per_point - E)
         * log_psi(batch, p, model_apply).reshape(-1, 1)
     )
     grad_E = jax.grad(loss)(params)
-    score = E + 2.0 * sigma_e / jnp.sqrt(batch.shape[0])
+    score = (
+        E + score_factor * sigma_e
+    )  # no use of sqrt because we want the std of the model
     # Could i return the loss to monitor it?
     return E, grad_E, score
 
@@ -80,6 +84,7 @@ def train_step(state, batch):
     return new_state, E, score
 
 
+@load_doc("train.txt")
 def train(
     n_epochs,
     init_params,
@@ -88,75 +93,34 @@ def train(
     optimizer,
     sampler_params,
     rng_seed=0,
-    split_sampler=False,
     hamiltonian_params=None,
+    checkpoint_path="./",
+    save_checkpoints=False,
 ):
-    r"""Main function to optimize the wavefunction parameters using Variational Monte Carlo.
-
-    The optimizer approach is based on gradient descent:
-
-    .. math::
-
-        \theta_{t+1} = \theta_t - \eta \nabla_\theta \mathcal{L}(\theta_t)
-
-    Where $\mathcal{L}$ is the loss function defined as:
-
-    .. math::
-
-        \Psi
-
-    .. math::
-
-        \mathcal{L}(\theta) = 2
-        E_{x \sim |\psi_\theta(x)|^2}\Big[
-            (E_{\rm loc}(x) - \langle E \rangle)
-            \log |\psi_\theta(x)|
-        \Big]
-
-
-
-    Args:
-        n_epochs: Number of training epochs.
-        init_params: Initial parameters of the wavefunction model.
-        shape: Shape of the input data (batch_size, DoF).
+    """Train a VMC model using Metropolis-Hastings sampling.
+    Docs loaded from _docs/train.txt
     """
 
-    if split_sampler:
-        print("Using sampler_split module for sampling.")
-        from .sampler_split import mh_chain
-
-        sampler = jax.vmap(
-            mh_chain,
-            in_axes=(
-                0,  # key (n_chains, )
-                None,  # PBC
-                None,  # prob_fn
-                None,  # prob_params
-                0,  # init_position (n_chains, DoF)
-                None,  # step_size
-                None,  # n_steps
-            ),
-            out_axes=0,
-        )
-    else:
-        from .sampler import mh_chain
-
-        sampler = jax.vmap(
-            mh_chain,
-            in_axes=(
-                0,  # random_values (n_chains, n_steps, DoF + 1)
-                None,  # PBC
-                None,  # prob_fn
-                None,  # prob_params
-                0,  # init_position (n_chains, DoF)
-                None,  # step_size
-            ),
-            out_axes=0,
-        )
+    sampler = jax.vmap(
+        mh_chain,
+        in_axes=(
+            0,  # random_values (n_chains, n_steps, DoF + 1)
+            None,  # PBC
+            None,  # prob_fn
+            None,  # prob_params
+            0,  # init_position (n_chains, DoF)
+            None,  # step_size
+        ),
+        out_axes=0,
+    )
 
     state = train_state.TrainState.create(
         apply_fn=model_apply, params=init_params, tx=optimizer
     )
+
+    state = load_checkpoint(state, path=checkpoint_path, filename="checkpoint.msgpack")
+
+    init_steps = state.n_step if hasattr(state, "n_step") else 0
 
     def prob_fn(x, params):
         forward = model_apply(params, x).flatten()  # (batch,)
@@ -170,40 +134,32 @@ def train(
     energy_history = jnp.zeros(n_epochs)
     init_position = jnp.zeros(shape)  # start all chains at 0
     best_score = jnp.inf
-    best_params = init_params
+    best_state = state
     step_size = sampler_params.get("step_size", 1.0)
     n_steps_sampler = sampler_params.get("chain_length", 500)
     PBC = sampler_params.get("PBC", 40.0)
 
-    for step in tqdm(range(n_epochs)) if tqdm_available else range(n_epochs):
+    # --------------------------------------------
+    # ---          TRAINING LOOP              ---
+    # --------------------------------------------
+    progress_bar = tqdm(range(init_steps, n_epochs), disable=not tqdm_available)
+    for step in progress_bar:
         if stop_requested:
             break
 
         # --------------------------------------------
         # ---            SAMPLING STEP             ---
         # --------------------------------------------
-        if split_sampler:
-            keys = random.split(key, n_chains)
-            batch = sampler(
-                keys,
-                PBC,
-                prob_fn,
-                state.params,
-                init_position,
-                step_size,
-                n_steps_sampler,
-            )
-        else:
-            key, subkey = random.split(key)
-            rand_nums = random.uniform(subkey, (n_chains, n_steps_sampler, DoF + 1))
-            batch = sampler(
-                rand_nums,
-                PBC,
-                prob_fn,
-                state.params,
-                init_position,
-                step_size,
-            )
+        key, subkey = random.split(key)
+        rand_nums = random.uniform(subkey, (n_chains, n_steps_sampler, DoF + 1))
+        batch = sampler(
+            rand_nums,
+            PBC,
+            prob_fn,
+            state.params,
+            init_position,
+            step_size,
+        )
         # combine n_chains and n_steps_sampler into one big batch
         batch = batch[:, 50:, :]  # burn-in
         batch = batch[:, ::5, :]  # Thinning to reduce correlations
@@ -217,12 +173,18 @@ def train(
         state, energy, score = train_step(state, batch)
 
         energy_history = energy_history.at[step].set(energy)
+        if save_checkpoints:
+            save_checkpoint(state, path=checkpoint_path, filename="checkpoint.msgpack")
+
+        if tqdm_available:
+            # You can pass keyword arguments directly
+            progress_bar.set_postfix(E=f"{energy:.2f}", best_score=f"{best_score:.3f}")
 
         if score < best_score:
             best_score = score
-            best_params = state.params
+            best_state = state
 
-    return state.params, energy_history, best_params, best_score
+    return energy_history, best_state, best_score
 
 
 def check_size_batch(batch, step, n_chains, n_steps_sampler):

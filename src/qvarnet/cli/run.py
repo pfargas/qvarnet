@@ -5,7 +5,7 @@ import argparse
 from pathlib import Path
 
 # Import new configuration system
-from .parameters import load_config, create_preset, list_presets, validate_config
+from .cli_config import load_config, create_preset, list_presets, validate_config
 
 
 class CLI:
@@ -78,13 +78,6 @@ class CLI:
             action="store_true",
             help="Print loaded configuration and exit",
         )
-
-        parser.add_argument(
-            "--split",
-            "-s",
-            action="store_true",
-            help="Use the sampler_split module for sampling",
-        )
         parser.add_argument(
             "--plot-path",
             "-p",
@@ -115,7 +108,7 @@ class CLI:
             self.config = create_preset(self.args.preset, **overrides)
         else:
             # Default configuration
-            from .parameters import get_default_config
+            from .cli_config import get_default_config
 
             self.config = get_default_config()
 
