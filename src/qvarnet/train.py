@@ -6,8 +6,6 @@ from .vmc_state import VMCState
 from .callbacks import *
 from .samplers import mh_chain
 
-from .hamiltonian import get_hamiltonian
-
 import signal
 
 from functools import partial
@@ -91,8 +89,8 @@ def train(
     model,
     optimizer,
     sampler_params,
+    hamiltonian,
     rng_seed=0,
-    hamiltonian_params=None,
     checkpoint_path="./",
     save_checkpoints=False,
 ):
@@ -100,8 +98,6 @@ def train(
     Docs loaded from _docs/train.txt
     """
     key = random.PRNGKey(rng_seed)
-
-    hamiltonian = get_hamiltonian("harmonic_oscillator")
 
     # Vmap the sampler chain over the batch dimension (n_chains)
     sampler = jax.vmap(
@@ -130,8 +126,8 @@ def train(
         out = jnp.square(forward)
         return jnp.squeeze(out)
 
-    n_chains = shape[0]
-    DoF = shape[1] if len(shape) > 1 else 1
+    # n_chains = shape[0]
+    # DoF = shape[1] if len(shape) > 1 else 1
 
     # Use a standard list for history to avoid JAX array updates in loop
     energy_history = []

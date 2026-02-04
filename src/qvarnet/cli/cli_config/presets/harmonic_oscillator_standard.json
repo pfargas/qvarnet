@@ -2,20 +2,16 @@
   "experiment": {
     "name": "harmonic_oscillator_standard",
     "description": "Standard harmonic oscillator benchmark with default MLP",
-    "tags": ["continuous", "benchmark", "harmonic_oscillator"]
+    "random_seed": 42
   },
   "model": {
     "type": "exponential-mlp-fourth-decay",
-    "architecture": [2, 10, 1],
+    "architecture": [2, 20, 1],
     "activation": "tanh"
   },
   "training": {
-    "batch_size": 1000,
-    "num_epochs": 3000,
-    "early_stopping": {
-      "patience": 100,
-      "min_delta": 1e-6
-    }
+    "batch_size": 200,
+    "num_epochs": 3000
   },
   "optimizer": {
     "type": "adam",
@@ -28,15 +24,12 @@
     "thermalization_steps": 50
   },
   "hamiltonian": {
-    "type": "harmonic_oscillator",
+    "name": "harmonic-oscillator",
     "params": {
-      "omega": 1.0,
-      "dimensions": 2
+      "omega": 1.0
     }
   },
   "output": {
-    "save_dir": "./results",
-    "save_frequency": 100,
-    "save_best_only": false
+    "save_dir": "./test_harmonic_oscillator"
   }
 }

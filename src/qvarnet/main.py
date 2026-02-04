@@ -7,6 +7,7 @@ import jax.numpy as jnp
 import optax
 import time
 from .utils import save_flax_to_json, save_results, create_output_directory
+from .hamiltonian import get_hamiltonian
 
 CSV_DELIMITERS = [",", ";", "\t"]
 
@@ -57,6 +58,13 @@ def run_experiment(args=None, profile=False):
     model = get_model(model_name, architecture=model_args["architecture"])
     # **************************************************
 
+    # **************************************************
+    # ****             Choose hamiltonian           ****
+    # **************************************************
+    hamiltonian_name = hami_args.get("name", "harmonic-oscillator")
+    hamiltonian = get_hamiltonian(hamiltonian_name, **hami_args.get("params", {}))
+    # **************************************************
+
     if optimizer_args["type"] == "adam":
         optimizer = optax.adam(learning_rate=optimizer_args["learning_rate"])
     elif optimizer_args["type"] == "sgd":
@@ -80,7 +88,7 @@ def run_experiment(args=None, profile=False):
         optimizer=optimizer,
         sampler_params=sampler_args,
         rng_seed=master_seed,
-        hamiltonian_params=hami_args,
+        hamiltonian=hamiltonian,
         checkpoint_path=base_path,
         save_checkpoints=output_args.get("save_checkpoints", False),
     )
