@@ -1,4 +1,4 @@
-from qvarnet.layers import CustomDense
+from .layers import CustomDense
 from flax import linen as nn
 from typing import Callable
 from .base import BaseModel

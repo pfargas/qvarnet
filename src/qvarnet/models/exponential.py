@@ -2,7 +2,7 @@ from flax import linen as nn
 from jax import numpy as jnp
 from pyparsing import Callable
 
-from qvarnet.layers.custom_dense import CustomDense
+from .layers.custom_dense import CustomDense
 from .mlp import MLP
 from .base import BaseModel
 
