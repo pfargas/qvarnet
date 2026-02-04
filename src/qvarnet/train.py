@@ -38,12 +38,13 @@ signal.signal(signal.SIGINT, signal_handler)
 @partial(jax.jit, static_argnames=["model_apply"])
 def local_energy_batch(params, xs, model_apply):
     # TODO: look into efficient laplacian implementations
+    # TODO: parametrize the hamiltonian used
     kinetic = kinetic_term(params, xs, model_apply)
     potential = V(xs)  # shape (batch,)
     return (kinetic + potential).reshape(-1, 1)  # keep your (batch,1) convention
 
 
-# @partial(jax.jit, static_argnames=["model_apply"])
+@partial(jax.jit, static_argnames=["model_apply"])
 def log_psi(x, params, model_apply):
     psi = model_apply(params, x)
     return jnp.log(jnp.abs(psi) + 1e-8).squeeze()  # Add small constant to avoid log(0)
@@ -54,7 +55,7 @@ def grad_log_psi(params, x, model_apply):
     return jax.grad(lambda p: log_psi(x, p, model_apply), argnums=0)(params)
 
 
-# @partial(jax.jit, static_argnames=["model_apply"])
+@partial(jax.jit, static_argnames=["model_apply"])
 def energy_fn(params, batch, model_apply):
     local_energy_per_point = local_energy_batch(params, batch, model_apply)
     E = jnp.mean(local_energy_per_point)
@@ -62,7 +63,7 @@ def energy_fn(params, batch, model_apply):
     return E, local_energy_per_point, sigma_e
 
 
-# @partial(jax.jit, static_argnames=["model_apply"])
+@partial(jax.jit, static_argnames=["model_apply"])
 def loss_and_grads(params, batch, model_apply, score_factor=2.0):
     E, local_energy_per_point, sigma_e = energy_fn(params, batch, model_apply)
     loss = lambda p: 2 * jnp.mean(
@@ -99,6 +100,7 @@ def train(
     """
     key = random.key(rng_seed)
 
+    # Vmap the sampler chain over the batch dimension (n_chains)
     sampler = jax.vmap(
         mh_chain,
         in_axes=(
@@ -113,101 +115,136 @@ def train(
     )
 
     params = model.init(key, jnp.ones(shape) * 0.1)  # Initialize parameters
-
     state = VMCState.create(apply_fn=model.apply, params=params, tx=optimizer)
-
     state = load_checkpoint(state, path=checkpoint_path, filename="checkpoint.msgpack")
 
     init_steps = state.n_step if hasattr(state, "n_step") else 0
 
+    # Define prob_fn for the sampler
+    @jax.jit
     def prob_fn(x, params):
-        forward = model.apply(params, x).flatten()  # (batch,)
-        out = jnp.square(forward)  # non-negative density probability
-        return jnp.squeeze(out)  # scalar for scalar input, (batch,) for batch
+        forward = model.apply(params, x).flatten()
+        out = jnp.square(forward)
+        return jnp.squeeze(out)
 
     n_chains = shape[0]
     DoF = shape[1] if len(shape) > 1 else 1
 
-    energy_history = jnp.zeros(n_epochs)
-    init_position = jnp.zeros(shape)  # start all chains at 0
-    best_state = state
+    # Use a standard list for history to avoid JAX array updates in loop
+    energy_history = []
+
+    # Initialize walkers at 0 (or load from checkpoint if you had them)
+    # This variable persists across loop iterations to keep chains "warm"
+    current_positions = jnp.zeros(shape)
+
+    # Track best state separately
+    best_state_device = state
 
     step_size = sampler_params.get("step_size", 1.0)
     n_steps_sampler = sampler_params.get("chain_length", 500)
-
     burn_in_steps = sampler_params.get("thermalization_steps", 50)
     thinning_factor = sampler_params.get("thinning_factor", 5)
-
     PBC = sampler_params.get("PBC", 40.0)
+
+    # --- JIT-COMPILED HELPER FUNCTIONS ---
+
+    @partial(jax.jit, static_argnames=["PBC", "n_steps", "burn_in", "thinning"])
+    def sample_and_process(
+        key,
+        params,
+        init_pos,
+        step_size,
+        PBC,
+        n_steps,
+        burn_in,
+        thinning,
+    ):
+        """Runs the sampler and processes the batch on-device."""
+        n_chains, DoF = init_pos.shape
+        rand_nums = jax.random.uniform(key, (n_chains, n_steps, DoF + 1))
+
+        # Run sampler (returns shape: [n_chains, n_steps, DoF])
+        raw_batch = sampler(rand_nums, PBC, prob_fn, params, init_pos, step_size)
+
+        # 2. Process batch for training (Burn-in & Thinning)
+        batch = raw_batch[:, burn_in:, :]
+        batch = batch[:, ::thinning, :]
+        batch_flat = batch.reshape(-1, DoF)
+
+        return batch_flat
+
+    @partial(jax.jit, static_argnames=["PBC", "n_steps", "burn_in", "thinning"])
+    def full_update(
+        state, best_state, key, current_pos, step_size, PBC, n_steps, burn_in, thinning
+    ):
+        """Performs Sampling + Training + Best State Tracking in one compiled block."""
+        key, subkey = jax.random.split(key)
+
+        # 1. Sample (and get new walker positions)
+        batch = sample_and_process(
+            subkey,
+            state.params,
+            current_pos,
+            step_size,
+            PBC,
+            n_steps,
+            burn_in,
+            thinning,
+        )
+
+        # 2. Train
+        new_state = train_step(state, batch)
+
+        # 3. Track Best State (On Device)
+        # Create a boolean condition tensor
+        is_better = new_state.score < best_state.score
+
+        # Select the better state for every leaf in the PyTree
+        new_best_state = jax.tree.map(
+            lambda new, old: jnp.where(is_better, new, old), new_state, best_state
+        )
+
+        return new_state, new_best_state, key
 
     # --------------------------------------------
     # ---          TRAINING LOOP              ---
     # --------------------------------------------
     progress_bar = tqdm(range(init_steps, n_epochs), disable=not tqdm_available)
+
     for step in progress_bar:
         if stop_requested:
             break
 
-        # --------------------------------------------
-        # ---            SAMPLING STEP             ---
-        # --------------------------------------------
-        key, subkey = random.split(key)
-        rand_nums = random.uniform(subkey, (n_chains, n_steps_sampler, DoF + 1))
-        batch = sampler(
-            rand_nums,
-            PBC,
-            prob_fn,
-            state.params,
-            init_position,
-            step_size,
+        # execute the "Mega-Step"
+        state, best_state_device, key = full_update(
+            state=state,
+            best_state=best_state_device,
+            key=key,
+            current_pos=current_positions,  # Pass warm walkers in
+            step_size=step_size,
+            PBC=PBC,
+            n_steps=n_steps_sampler,
+            burn_in=burn_in_steps,
+            thinning=thinning_factor,
         )
-        # combine n_chains and n_steps_sampler into one big batch
-        batch = batch[:, burn_in_steps:, :]  # burn-in
-        batch = batch[:, ::thinning_factor, :]  # Thinning to reduce correlations
-        batch = batch.reshape(-1, DoF)  # (n_chains * n_steps_sampler, DoF)
 
-        # check_size_batch(batch, step, n_chains, n_steps_sampler)
+        # Append energy to list (cheap Python operation)
+        # Note: state.energy is a DeviceArray. Accessing it here is fine,
+        # but don't print/convert it every single step if you want max speed.
+        energy_history.append(state.energy)
 
-        # --------------------------------------------
-        # ---          TRAINING STEP              ---
-        # --------------------------------------------
-        state = train_step(state, batch)
+        # --- Logging & Checkpointing (Throttled) ---
 
-        energy_history = energy_history.at[step].set(state.energy)
-        if save_checkpoints:
-            save_checkpoint(state, path=checkpoint_path, filename="checkpoint.msgpack")
-
-        if tqdm_available:
-            # You can pass keyword arguments directly
+        # Update progress bar only every 10 steps to reduce CPU-GPU sync overhead
+        if tqdm_available and step % 10 == 0:
             progress_bar.set_postfix(
-                E=f"{state.energy:.2f}", best_score=f"{best_state.score:.3f}"
+                E=f"{state.energy:.2f}", best=f"{best_state_device.score:.3f}"
             )
 
-        if state.score < best_state.score:
-            best_state = state
+        # Save checkpoints rarely (e.g., every 50 steps)
+        if save_checkpoints and step % 50 == 0:
+            save_checkpoint(
+                best_state_device, path=checkpoint_path, filename="checkpoint.msgpack"
+            )
 
-    return energy_history, best_state
-
-
-def check_size_batch(batch, step, n_chains, n_steps_sampler):
-    with open("batch_debug.txt", "a") as f:
-        f.write(f"# STEP {step}\n")
-        f.write("BATCH INFO\n")
-        f.write(f"Batch shape: {batch.shape}\n")
-        f.write(f"Batch data type: {batch.dtype}\n")
-        f.write(f"Batch size in bytes: {batch.nbytes} bytes\n")
-
-        num = batch[0]
-        f.write("EXPLORING SINGLE SAMPLE\n")
-        size_in_bytes = num.nbytes
-        f.write(f"Sample size: {num.shape}, Size in bytes: {size_in_bytes} bytes\n")
-        f.write(f"Sample data: {num}\n")
-        # check the attributes of the single num
-        f.write(f"Type: {type(num)}\n")
-        for mini_num in num:
-            f.write(f"  Mini value: {mini_num}, Type: {type(mini_num)}\n")
-
-        f.write(
-            f"computed size as the product of shape dimensions and itemsize: {n_chains * n_steps_sampler * size_in_bytes} bytes\n"
-        )
-        f.write("\n")
+    return jnp.array(energy_history), best_state_device

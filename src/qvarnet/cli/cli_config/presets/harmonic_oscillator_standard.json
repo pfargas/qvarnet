@@ -5,7 +5,7 @@
     "tags": ["continuous", "benchmark", "harmonic_oscillator"]
   },
   "model": {
-    "type": "mlp",
+    "type": "exponential-mlp-fourth-decay",
     "architecture": [2, 10, 1],
     "activation": "tanh"
   },
