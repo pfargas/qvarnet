@@ -3,7 +3,10 @@ from flax import linen as nn
 from typing import Callable
 from .base import BaseModel
 
+from .registry import register_model
 
+
+@register_model("mlp")
 class MLP(BaseModel):
     architecture: list
     hidden_activation: Callable = nn.tanh

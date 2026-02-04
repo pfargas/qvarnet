@@ -1,8 +1,6 @@
 import os
 
-from tqdm import std
-
-from .models import MLP, ExponentialMLPwithPenalty
+from .models import get_model
 from .train import train
 import jax
 import jax.numpy as jnp
@@ -47,8 +45,14 @@ def run_experiment(args=None, profile=False):
     # **************************************************
     # ****                Choose model              ****
     # **************************************************
-    # model = MLP(architecture=model_args["architecture"])
-    model = ExponentialMLPwithPenalty(architecture=model_args["architecture"])
+
+    # if model name is custom, load from custom path
+    if model_args["type"] == "custom":
+        pass
+        # implement this functionality later, for now use the default model
+
+    model_name = model_args.get("type", "exponential-mlp-fourth-decay")
+    model = get_model(model_name, architecture=model_args["architecture"])
     # **************************************************
 
     if optimizer_args["type"] == "adam":
@@ -58,12 +62,10 @@ def run_experiment(args=None, profile=False):
     else:
         raise ValueError(f"Unsupported optimizer type: {optimizer_args['type']}")
 
-    rng = jax.random.PRNGKey(0)  # Random key for parameter initialization
-    input_shape = (
-        train_args["batch_size"],
-        model_args["architecture"][0],
+    shape = (
+        train_args["batch_size"],  # number of parallel chains
+        model_args["architecture"][0],  # input dimension (degrees of freedom)
     )
-    params = model.init(rng, jnp.ones(input_shape) * 0.1)  # Initialize parameters
 
     if profile:
         jax.profiler.start_trace("/tmp/profile-data")
@@ -71,14 +73,14 @@ def run_experiment(args=None, profile=False):
     time_start = time.perf_counter()
     energy_hist, best_state = train(
         n_epochs=train_args["num_epochs"],
-        init_params=params,
-        shape=input_shape,
-        model_apply=model.apply,
+        shape=shape,
+        model=model,
         optimizer=optimizer,
         sampler_params=sampler_args,
         rng_seed=master_seed,
         hamiltonian_params=hami_args,
         checkpoint_path=base_path,
+        save_checkpoints=output_args.get("save_checkpoints", False),
     )
     time_end = time.perf_counter()
 

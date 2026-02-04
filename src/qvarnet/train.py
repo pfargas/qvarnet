@@ -85,9 +85,8 @@ def train_step(state, batch):
 @load_doc("train.txt")
 def train(
     n_epochs,
-    init_params,
     shape,
-    model_apply,
+    model,
     optimizer,
     sampler_params,
     rng_seed=0,
@@ -98,6 +97,7 @@ def train(
     """Train a VMC model using Metropolis-Hastings sampling.
     Docs loaded from _docs/train.txt
     """
+    key = random.key(rng_seed)
 
     sampler = jax.vmap(
         mh_chain,
@@ -112,24 +112,26 @@ def train(
         out_axes=0,
     )
 
-    state = VMCState.create(apply_fn=model_apply, params=init_params, tx=optimizer)
+    params = model.init(key, jnp.ones(shape) * 0.1)  # Initialize parameters
+
+    state = VMCState.create(apply_fn=model.apply, params=params, tx=optimizer)
 
     state = load_checkpoint(state, path=checkpoint_path, filename="checkpoint.msgpack")
 
     init_steps = state.n_step if hasattr(state, "n_step") else 0
 
     def prob_fn(x, params):
-        forward = model_apply(params, x).flatten()  # (batch,)
+        forward = model.apply(params, x).flatten()  # (batch,)
         out = jnp.square(forward)  # non-negative density probability
         return jnp.squeeze(out)  # scalar for scalar input, (batch,) for batch
 
     n_chains = shape[0]
     DoF = shape[1] if len(shape) > 1 else 1
 
-    key = random.key(rng_seed)
     energy_history = jnp.zeros(n_epochs)
     init_position = jnp.zeros(shape)  # start all chains at 0
     best_state = state
+
     step_size = sampler_params.get("step_size", 1.0)
     n_steps_sampler = sampler_params.get("chain_length", 500)
 

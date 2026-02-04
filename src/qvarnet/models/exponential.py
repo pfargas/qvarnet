@@ -6,6 +6,8 @@ from .layers.custom_dense import CustomDense
 from .mlp import MLP
 from .base import BaseModel
 
+from .registry import register_model
+
 
 class ExponentialWavefunction(nn.Module):
 
@@ -15,6 +17,7 @@ class ExponentialWavefunction(nn.Module):
         return jnp.exp(-alpha * jnp.sum(x**2, axis=-1))
 
 
+@register_model("exponential-mlp-fourth-decay")
 class ExponentialMLPwithPenalty(BaseModel):
     architecture: list
     hidden_activation: Callable = nn.tanh
