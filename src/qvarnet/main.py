@@ -56,10 +56,15 @@ def run_experiment(args=None, profile=False):
 
     # if model name is custom, load from custom path
     if args.args.custom_model:
-        model = load_custom_module(args.args.custom_model)
+        load_custom_module(args.args.custom_model)
+        print("Custom model loaded.")
+        from qvarnet.models.registry import MODEL_REGISTRY
+
+        print("Available models:", list(MODEL_REGISTRY.keys()))
+        model_name = "new_model"  # FIXME: custom_model is hardcoded here
     else:
         model_name = model_args.get("type", "exponential-mlp-fourth-decay")
-        model = get_model(model_name, architecture=model_args["architecture"])
+    model = get_model(model_name, architecture=model_args["architecture"])
     # **************************************************
 
     # **************************************************
@@ -67,8 +72,9 @@ def run_experiment(args=None, profile=False):
     # **************************************************
     if args.args.custom_hamiltonian:
         load_custom_module(args.args.custom_hamiltonian)
-        print("Custom hamiltonian loaded. Name :")
-        hamiltonian_name = "local_potential"
+        print("Custom hamiltonian loaded.")
+        hamiltonian_name = "local_potential"  # FIXME: local_potential is hardcoded here
+        # I propose that the name should be the name of the file without extension, but this is a quick fix for now
     else:
         hamiltonian_name = hami_args.get("name", "harmonic-oscillator")
     hamiltonian = get_hamiltonian(hamiltonian_name, **hami_args.get("params", {}))

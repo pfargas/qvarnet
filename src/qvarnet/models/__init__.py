@@ -1,6 +1,7 @@
 from .mlp import MLP
 from .exponential import ExponentialMLPwithPenalty
-from .registry import MODEL_REGISTRY
+from .base import BaseModel
+from .registry import MODEL_REGISTRY, register_model
 
 
 def get_model(model_name, **kwargs):
