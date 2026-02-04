@@ -1,5 +1,3 @@
-from .main import *
-from .cli import *
-from .models import *
-from .train import *
-from .samplers import *
+from .train import train
+from .hamiltonian import define_hamiltonian, list_hamiltonians
+from .utils import load_custom_module

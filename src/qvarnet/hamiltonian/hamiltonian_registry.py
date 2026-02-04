@@ -13,3 +13,10 @@ def register_hamiltonian(name):
         return cls
 
     return decorator
+
+
+def list_hamiltonians():
+    """List all registered hamiltonians in the HAMILTONIAN_REGISTER.
+    Returns:
+        A list of names of all registered hamiltonians."""
+    return list(HAMILTONIAN_REGISTER.keys())

@@ -6,7 +6,12 @@ import jax
 import jax.numpy as jnp
 import optax
 import time
-from .utils import save_flax_to_json, save_results, create_output_directory
+from .utils import (
+    save_flax_to_json,
+    save_results,
+    create_output_directory,
+    load_custom_module,
+)
 from .hamiltonian import get_hamiltonian
 
 CSV_DELIMITERS = [",", ";", "\t"]
@@ -50,18 +55,22 @@ def run_experiment(args=None, profile=False):
     # **************************************************
 
     # if model name is custom, load from custom path
-    if model_args["type"] == "custom":
-        pass
-        # implement this functionality later, for now use the default model
-
-    model_name = model_args.get("type", "exponential-mlp-fourth-decay")
-    model = get_model(model_name, architecture=model_args["architecture"])
+    if args.args.custom_model:
+        model = load_custom_module(args.args.custom_model)
+    else:
+        model_name = model_args.get("type", "exponential-mlp-fourth-decay")
+        model = get_model(model_name, architecture=model_args["architecture"])
     # **************************************************
 
     # **************************************************
     # ****             Choose hamiltonian           ****
     # **************************************************
-    hamiltonian_name = hami_args.get("name", "harmonic-oscillator")
+    if args.args.custom_hamiltonian:
+        load_custom_module(args.args.custom_hamiltonian)
+        print("Custom hamiltonian loaded. Name :")
+        hamiltonian_name = "local_potential"
+    else:
+        hamiltonian_name = hami_args.get("name", "harmonic-oscillator")
     hamiltonian = get_hamiltonian(hamiltonian_name, **hami_args.get("params", {}))
     # **************************************************
 

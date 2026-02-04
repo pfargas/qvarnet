@@ -85,6 +85,20 @@ class CLI:
             help="Path to read and save energy plot",
         )
 
+        parser.add_argument(
+            "--custom-model",
+            "-cm",
+            type=str,
+            help="Path to custom model definition file (Python script)",
+        )
+
+        parser.add_argument(
+            "--custom-hamiltonian",
+            "-ch",
+            type=str,
+            help="Path to custom hamiltonian definition file (Python script)",
+        )
+
         return parser
 
     def parse_args(self, argv=None):
