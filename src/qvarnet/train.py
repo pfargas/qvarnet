@@ -2,7 +2,7 @@ import jax
 import jax.numpy as jnp
 from jax import random
 
-from flax.training import train_state
+from .vmc_state import VMCState
 from .callbacks import *
 from .samplers import mh_chain
 
@@ -70,18 +70,16 @@ def loss_and_grads(params, batch, model_apply, score_factor=2.0):
         * log_psi(batch, p, model_apply).reshape(-1, 1)
     )
     grad_E = jax.grad(loss)(params)
-    score = (
-        E + score_factor * sigma_e
-    )  # no use of sqrt because we want the std of the model
+    score = E + score_factor * sigma_e
     # Could i return the loss to monitor it?
-    return E, grad_E, score
+    return E, sigma_e, grad_E, score
 
 
 @jax.jit
 def train_step(state, batch):
-    E, grads, score = loss_and_grads(state.params, batch, state.apply_fn)
+    E, sigma_e, grads, score = loss_and_grads(state.params, batch, state.apply_fn)
     new_state = state.apply_gradients(grads=grads)
-    return new_state, E, score
+    return new_state.replace(energy=E, std=sigma_e, score=score)
 
 
 @load_doc("train.txt")
@@ -114,9 +112,7 @@ def train(
         out_axes=0,
     )
 
-    state = train_state.TrainState.create(
-        apply_fn=model_apply, params=init_params, tx=optimizer
-    )
+    state = VMCState.create(apply_fn=model_apply, params=init_params, tx=optimizer)
 
     state = load_checkpoint(state, path=checkpoint_path, filename="checkpoint.msgpack")
 
@@ -133,10 +129,13 @@ def train(
     key = random.key(rng_seed)
     energy_history = jnp.zeros(n_epochs)
     init_position = jnp.zeros(shape)  # start all chains at 0
-    best_score = jnp.inf
     best_state = state
     step_size = sampler_params.get("step_size", 1.0)
     n_steps_sampler = sampler_params.get("chain_length", 500)
+
+    burn_in_steps = sampler_params.get("thermalization_steps", 50)
+    thinning_factor = sampler_params.get("thinning_factor", 5)
+
     PBC = sampler_params.get("PBC", 40.0)
 
     # --------------------------------------------
@@ -161,8 +160,8 @@ def train(
             step_size,
         )
         # combine n_chains and n_steps_sampler into one big batch
-        batch = batch[:, 50:, :]  # burn-in
-        batch = batch[:, ::5, :]  # Thinning to reduce correlations
+        batch = batch[:, burn_in_steps:, :]  # burn-in
+        batch = batch[:, ::thinning_factor, :]  # Thinning to reduce correlations
         batch = batch.reshape(-1, DoF)  # (n_chains * n_steps_sampler, DoF)
 
         # check_size_batch(batch, step, n_chains, n_steps_sampler)
@@ -170,21 +169,22 @@ def train(
         # --------------------------------------------
         # ---          TRAINING STEP              ---
         # --------------------------------------------
-        state, energy, score = train_step(state, batch)
+        state = train_step(state, batch)
 
-        energy_history = energy_history.at[step].set(energy)
+        energy_history = energy_history.at[step].set(state.energy)
         if save_checkpoints:
             save_checkpoint(state, path=checkpoint_path, filename="checkpoint.msgpack")
 
         if tqdm_available:
             # You can pass keyword arguments directly
-            progress_bar.set_postfix(E=f"{energy:.2f}", best_score=f"{best_score:.3f}")
+            progress_bar.set_postfix(
+                E=f"{state.energy:.2f}", best_score=f"{best_state.score:.3f}"
+            )
 
-        if score < best_score:
-            best_score = score
+        if state.score < best_state.score:
             best_state = state
 
-    return energy_history, best_state, best_score
+    return energy_history, best_state
 
 
 def check_size_batch(batch, step, n_chains, n_steps_sampler):
