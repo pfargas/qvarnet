@@ -64,9 +64,19 @@ def run_experiment(args=None, profile=False):
         model_name = "new_model"  # FIXME: custom_model is hardcoded here
     else:
         model_name = model_args.get("type", "exponential-mlp-fourth-decay")
-    model = get_model(model_name, architecture=model_args["architecture"])
     if model_name == "fermionic-mlp":
         is_fermionic = True
+        model = get_model(
+            model_name,
+            architecture=model_args["architecture"],
+            n_fermions=model_args["n_fermions"],
+            n_dim=model_args["n_dim"],
+        )
+        print(
+            f"Using FermionicMLP with {model_args['n_fermions']} fermions and {model_args['n_dim']} dimensions."
+        )
+    else:
+        model = get_model(model_name, architecture=model_args["architecture"])
     # **************************************************
 
     # **************************************************
@@ -96,7 +106,9 @@ def run_experiment(args=None, profile=False):
     if is_fermionic:
         shape = (
             train_args["batch_size"],
-            2,  # For the FermionicMLP, we have 2 fermions, so input dimension is 2
+            model_args[
+                "n_fermions"
+            ],  # For the FermionicMLP, we have 3 fermions, so input dimension is 3
         )
 
     if profile:
