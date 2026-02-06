@@ -119,9 +119,10 @@ Experiment info:
     if is_fermionic:
         shape = (
             train_args["batch_size"],
-            model_args[
-                "n_fermions"
-            ],  # For the FermionicMLP, we have 3 fermions, so input dimension is 3
+            model_args["n_fermions"]
+            * model_args[
+                "n_dim"
+            ],  # For the FermionicMLP, we have 4 fermions, so input dimension is 4 * 3 dimensions = 12
         )
 
     if profile:

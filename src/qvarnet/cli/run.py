@@ -268,6 +268,8 @@ def run_experiment(cli):
 
     print(exp_info_log)
 
+    cli._list_presets_and_exit() if cli.args.preset_list else None
+
     # config_dump
     if cli.args.config_dump:
         print("Printing all arguments provided:")

@@ -1,0 +1,34 @@
+{
+    "experiment": {
+        "name": "fermionic_harmonic_oscillator",
+        "description": "fermions in an isotropic harmonic oscillator potential in 1D",
+        "seed": null
+    },
+    "device":{"type":"cuda","idx":0},
+    "model": {
+        "type": "fermionic-mlp",
+        "architecture": [32, 32],
+        "n_fermions": 3,
+        "n_dim": 2
+    },
+    "training": {
+        "batch_size": 1000,
+        "num_epochs": 3000
+    },
+    "optimizer": {
+    "type": "adam",
+    "learning_rate": 0.001
+    },
+    "sampler": {
+        "step_size": 0.5,
+        "chain_length": 100,
+        "thermalization_steps": 50
+    },
+    "hamiltonian": {
+        "type": "harmonic-oscillator",
+        "params": {}
+    },
+    "output": {
+        "save_dir": "./results"
+    }
+}
