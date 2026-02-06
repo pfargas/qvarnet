@@ -39,7 +39,20 @@ def run_experiment(args=None, profile=False):
 
     output_base_path = output_args.get("save_dir", "tmp/qvarnet/results")
     experiment_name = exp_info.get("name", None)
-    experiment_description = exp_info.get("description", "No description provided.")
+    experiment_description = (
+        f"#{exp_info.get('description', 'No description provided.')}"
+    )
+
+    experiment_description += f"""
+
+Experiment info:
+- Model: {model_args.get('type', 'N/A')}
+- Hamiltonian: {hami_args.get('name', 'N/A')}
+- Sampler info: {sampler_args}
+- Optimizer info: {optimizer_args}
+- Training info: {train_args}
+"""
+
     base_path = create_output_directory(
         output_base_path, experiment_name, load_config=False
     )
