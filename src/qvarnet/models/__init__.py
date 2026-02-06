@@ -1,6 +1,7 @@
 from .mlp import MLP
 from .exponential import ExponentialMLPwithPenalty
 from .base import BaseModel
+from .mlp_fermions import FermionicMLP
 from .registry import MODEL_REGISTRY, register_model
 
 

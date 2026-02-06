@@ -65,6 +65,8 @@ def run_experiment(args=None, profile=False):
     else:
         model_name = model_args.get("type", "exponential-mlp-fourth-decay")
     model = get_model(model_name, architecture=model_args["architecture"])
+    if model_name == "fermionic-mlp":
+        is_fermionic = True
     # **************************************************
 
     # **************************************************
@@ -91,6 +93,11 @@ def run_experiment(args=None, profile=False):
         train_args["batch_size"],  # number of parallel chains
         model_args["architecture"][0],  # input dimension (degrees of freedom)
     )
+    if is_fermionic:
+        shape = (
+            train_args["batch_size"],
+            2,  # For the FermionicMLP, we have 2 fermions, so input dimension is 2
+        )
 
     if profile:
         jax.profiler.start_trace("/tmp/profile-data")
