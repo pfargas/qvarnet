@@ -8,13 +8,13 @@ import optax
 import time
 from .utils import (
     save_flax_to_json,
-    save_results,
+    save_energy_history,
+    save_metrics,
+    save_config,
     create_output_directory,
     load_custom_module,
 )
 from .hamiltonian import get_hamiltonian
-
-CSV_DELIMITERS = [",", ";", "\t"]
 
 
 def run_experiment(args=None, profile=False):
@@ -153,20 +153,50 @@ Experiment info:
     print(f"Total training time: {time_end - time_start: <.4f} seconds")
     print(f"Best score: {best_score:<.4f}")
     print("=" * 40)
-    print("Saving best params")
-    try:
-        save_flax_to_json(best_params, os.path.join(base_path, "best_params.json"))
-    except Exception as e:
-        print(f"Error saving best params: {e}")
+    print("Saving results...")
 
-    if not save_results(
-        base_path,
-        CSV_DELIMITERS,
-        energy_history=energy_hist,
-        final_values=[
-            f"total_energy{CSV_DELIMITERS[-1]}{best_state.energy}",
-            f"std{CSV_DELIMITERS[-1]}{best_state.std}",
-            f"time{CSV_DELIMITERS[-1]}{time_end - time_start}",
-        ],
-    ):
-        print("Error saving results.")
+    # Save model parameters
+    try:
+        save_flax_to_json(best_params, os.path.join(base_path, "parameters.json"))
+        print("Saved parameters to parameters.json")
+    except Exception as e:
+        print(f"Error saving parameters: {e}")
+
+    # Save energy history
+    try:
+        save_energy_history(base_path, energy_hist)
+        print("Saved energy history to energy_history.csv")
+    except Exception as e:
+        print(f"Error saving energy history: {e}")
+
+    # Save final metrics
+    try:
+        save_metrics(
+            base_path,
+            {
+                "total_energy": float(best_state.energy),
+                "std": float(best_state.std),
+                "training_time_seconds": time_end - time_start,
+                "best_score": float(best_score),
+            },
+        )
+        print("Saved metrics to metrics.json")
+    except Exception as e:
+        print(f"Error saving metrics: {e}")
+
+    # Save experiment configuration
+    try:
+        save_config(
+            base_path,
+            {
+                "model": model_args,
+                "training": train_args,
+                "sampler": sampler_args,
+                "optimizer": optimizer_args,
+                "hamiltonian": hami_args,
+                "seed": master_seed,
+            },
+        )
+        print("Saved config to config.json")
+    except Exception as e:
+        print(f"Error saving config: {e}")

@@ -1,63 +1,51 @@
 import os
+from datetime import datetime
 
 
 def create_output_directory(
-    base_path: str, experiment_name: str, load_config: bool
+    base_path: str, load_config: bool = False
 ) -> str:
-    """Create output directory for experiment results. The directory will be created in the
-    specified base path. If experiment_name is not provided, a unique run ID will be generated.
-
-    That means the relative directory structure will be:
-        ./base_path/experiment_name/
-    or
-        ./base_path/run_000/
-        ./base_path/run_001/
-        ...
-    depending on whether experiment_name is provided.
-
-    If load_config is True, it indicates that the function is being called to load an existing
-    configuration, and thus the directory should already exist. In this case, no new directory
-    will be created.
-
+    """Create output directory for experiment results.
+    
+    The directory will be created at the exact path specified. If the directory
+    already exists, a timestamp will be appended to create a unique directory.
+    
     Args:
-        base_path: Base path where results should be saved.
-        experiment_name: Name of the experiment (used for subdirectory).
+        base_path: Path where results should be saved.
+        load_config: If True, the directory should already exist (for loading
+                    existing configurations). No new directory will be created.
+    
     Returns:
-        The full path to the created output directory."""
-
-    if load_config:
-        if os.path.exists(base_path):
-            return os.path.abspath(os.path.normpath(base_path))
-        else:
-            raise Warning(
-                f"Configuration loading requested, but directory {base_path} does not exist. Creating new directory."
-            )
-
+        The full absolute path to the output directory.
+    
+    Raises:
+        ValueError: If load_config is True but the directory doesn't exist.
+    """
+    # Convert to absolute path if relative
     if not os.path.isabs(base_path):
-        cwd = os.getcwd()
-        base_path = os.path.join(cwd, base_path)
-
-    if experiment_name is None or experiment_name.strip() == "":
-        directories_in_base = os.listdir(base_path)
-        run_id = 0
-        while f"run_{run_id:03d}" in directories_in_base:
-            run_id += 1
-        base_path = os.path.join(base_path, f"run_{run_id:03d}")
+        base_path = os.path.join(os.getcwd(), base_path)
+    
+    # If loading config, directory must exist
+    if load_config:
+        if not os.path.exists(base_path):
+            raise ValueError(
+                f"Configuration loading requested, but directory {base_path} does not exist."
+            )
+        return os.path.abspath(os.path.normpath(base_path))
+    
+    # If directory doesn't exist, create it
+    if not os.path.exists(base_path):
         os.makedirs(base_path, exist_ok=True)
-
-    else:
-        base_path = os.path.join(base_path, experiment_name)
-    # if the directory does exists, throw a warning
-    if os.path.exists(base_path):
-        print(
-            f"Warning: Directory {base_path} already exists. Creating different run ID."
-        )
-        directories_in_base = os.listdir(os.path.dirname(base_path))
-        run_id = 0
-        while f"{experiment_name}_{run_id:03d}" in directories_in_base:
-            run_id += 1
-        base_path = os.path.join(
-            os.path.dirname(base_path), f"{experiment_name}_{run_id:03d}"
-        )
-    os.makedirs(base_path, exist_ok=True)
-    return os.path.abspath(os.path.normpath(base_path))
+        return os.path.abspath(os.path.normpath(base_path))
+    
+    # Directory exists - append timestamp to create unique directory
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    new_path = f"{base_path}_{timestamp}"
+    
+    # Edge case: if timestamped path also exists (very unlikely), add milliseconds
+    if os.path.exists(new_path):
+        timestamp_ms = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        new_path = f"{base_path}_{timestamp_ms}"
+    
+    os.makedirs(new_path, exist_ok=True)
+    return os.path.abspath(os.path.normpath(new_path))
