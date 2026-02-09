@@ -13,7 +13,6 @@ from .utils import (
     save_config,
     create_output_directory,
     load_custom_module,
-    load_flax_from_json,
 )
 from .hamiltonian import get_hamiltonian
 
@@ -204,43 +203,3 @@ Experiment info:
         print("Saved config to config.json")
     except Exception as e:
         print(f"Error saving config: {e}")
-
-
-def load_model_from_results(results_path: str):
-    """Load a model and its parameters from a results directory.
-
-    Returns:
-        (model, params, input_dim)
-    """
-    config_path = os.path.join(results_path, "config.json")
-    if not os.path.exists(config_path):
-        raise ValueError(f"Config file not found in {results_path}")
-
-    with open(config_path, "r") as f:
-        config = json.load(f)
-
-    model_args = config["model"]
-    model_name = model_args.get("type")
-
-    # Replicate model instantiation logic from run_experiment
-    if model_name == "fermionic-mlp":
-        model = get_model(
-            model_name,
-            architecture=model_args["architecture"],
-            n_fermions=model_args["n_fermions"],
-            n_dim=model_args["n_dim"],
-        )
-        input_dim = model_args["n_fermions"] * model_args["n_dim"]
-    else:
-        model = get_model(model_name, architecture=model_args["architecture"])
-        input_dim = model_args["architecture"][0]
-
-    params_path = os.path.join(results_path, "parameters.json")
-    if not os.path.exists(params_path):
-        raise ValueError(f"Parameters file not found in {results_path}")
-
-    params = load_flax_from_json(params_path, model, input_dim)
-
-    # Ensure params is a dictionary with a 'params' key if the model expects it,
-    # and return input_dim as well since it's useful for calling the model.
-    return model, params, input_dim
