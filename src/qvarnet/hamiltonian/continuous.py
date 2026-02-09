@@ -1,4 +1,3 @@
-import jax
 from .base import BaseHamiltonian
 from .hamiltonian_registry import register_hamiltonian
 from .kinetic import kinetic_term
