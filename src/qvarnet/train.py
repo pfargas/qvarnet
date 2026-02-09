@@ -20,6 +20,12 @@ except ImportError:
     tqdm_available = False
     print("tqdm not found, progress bars will not be displayed.")
 
+from .qgt import (
+    compute_natural_gradient,
+    DEFAULT_QGT_CONFIG,
+    flatten_params,
+    unflatten_params,
+)
 
 stop_requested = False
 
@@ -74,11 +80,29 @@ def loss_and_grads(hamiltonian, params, batch, model_apply, score_factor=2.0):
 
 
 @jax.jit
-def train_step(state, batch, hamiltonian):
+def train_step(
+    state, batch, hamiltonian, use_qgt=False, qgt_config=DEFAULT_QGT_CONFIG.to_dict()
+):
     E, sigma_e, grads, score = loss_and_grads(
         hamiltonian, state.params, batch, state.apply_fn
     )
-    new_state = state.apply_gradients(grads=grads)
+    if not use_qgt:
+        new_state = state.apply_gradients(grads=grads)
+    else:
+        # Compute natural gradient using QGT
+        natural_grad_flat, unravel_fn = compute_natural_gradient(
+            state.params, batch, state.apply_fn, grads, qgt_config
+        )
+
+        # Apply natural gradient with learning rate
+        learning_rate = qgt_config.get("learning_rate", 1e-3)
+        new_params_flat = (
+            flatten_params(state.params)[0] - learning_rate * natural_grad_flat
+        )
+        new_params = unflatten_params(new_params_flat, unravel_fn)
+
+        # Create new state
+        new_state = state.replace(params=new_params)
     return new_state.replace(energy=E, std=sigma_e, score=score)
 
 
