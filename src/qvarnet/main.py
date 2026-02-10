@@ -91,6 +91,18 @@ Experiment info:
         print(
             f"Using FermionicMLP with {model_args['n_fermions']} fermions and {model_args['n_dim']} dimensions."
         )
+    elif model_name == "half-spin-non-interacting-fermion":
+        is_fermionic = True
+        model = get_model(
+            model_name,
+            architecture=model_args["architecture"],
+            n_up=model_args["n_up"],
+            n_down=model_args["n_down"],
+            n_dim=model_args["n_dim"],
+        )
+        print(
+            f"Using HalfSpinNonInteractingFermion with {model_args['n_up']} up and {model_args['n_down']} down fermions and {model_args['n_dim']} dimensions."
+        )
     else:
         model = get_model(model_name, architecture=model_args["architecture"])
     # **************************************************
@@ -105,7 +117,13 @@ Experiment info:
         # I propose that the name should be the name of the file without extension, but this is a quick fix for now
     else:
         hamiltonian_name = hami_args.get("name", "harmonic-oscillator")
-    hamiltonian = get_hamiltonian(hamiltonian_name, **hami_args.get("params", {}))
+    if hamiltonian_name == "gross-struct-hamiltonian":
+        hamiltonian = get_hamiltonian(
+            hamiltonian_name,
+            **{"n_fermions": model_args["n_up"] + model_args["n_down"]},
+        )
+    else:
+        hamiltonian = get_hamiltonian(hamiltonian_name, **hami_args.get("params", {}))
     # **************************************************
 
     if optimizer_args["type"] == "adam":
@@ -120,13 +138,19 @@ Experiment info:
         model_args["architecture"][0],  # input dimension (degrees of freedom)
     )
     if is_fermionic:
-        shape = (
-            train_args["batch_size"],
-            model_args["n_fermions"]
-            * model_args[
-                "n_dim"
-            ],  # For the FermionicMLP, we have 4 fermions, so input dimension is 4 * 3 dimensions = 12
-        )
+        if model_name == "half-spin-non-interacting-fermion":
+            shape = (
+                train_args["batch_size"],
+                (model_args["n_up"] + model_args["n_down"]) * model_args["n_dim"],
+            )
+        else:
+            shape = (
+                train_args["batch_size"],
+                model_args["n_fermions"]
+                * model_args[
+                    "n_dim"
+                ],  # For the FermionicMLP, we have 4 fermions, so input dimension is 4 * 3 dimensions = 12
+            )
 
     if profile:
         jax.profiler.start_trace("/tmp/profile-data")

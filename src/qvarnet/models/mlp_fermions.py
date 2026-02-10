@@ -1,4 +1,5 @@
 import jax.numpy as jnp
+import jax.nn
 from .layers import CustomDense
 from flax import linen as nn
 from typing import Callable
@@ -70,6 +71,135 @@ class FermionicMLP(BaseModel):
         psi = jnp.linalg.det(orbitals)
 
         return psi
+
+
+@register_model("half-spin-non-interacting-fermion")
+class HalfSpinNonInteractingFermion(BaseModel):
+    """
+    A neural network ansatz for non-interacting fermions with spin.
+    It includes an exponential envelope to satisfy boundary conditions
+    (essential for atomic systems like Hydrogen).
+    """
+
+    architecture: list[int]
+    hidden_activation: Callable = nn.tanh
+    output_activation: Callable = jax.nn.identity
+    kernel_init: Callable = nn.initializers.lecun_normal()
+    bias_init: Callable = nn.initializers.zeros_init()
+
+    # Physics parameters
+    n_dim: int = 3  # Default to 3D for atoms
+    n_up: int = 1
+    n_down: int = 1
+
+    # Initial value for the exponential decay (can be learned)
+    init_alpha: float = 1.0
+
+    def setup(self):
+        # 1. Total Fermions
+        self.total_fermions = self.n_up + self.n_down
+
+        # 2. Trainable Decay Parameter (Alpha)
+        # By defining it with self.param, Flax adds it to the parameter collection.
+        # We initialize it to 'init_alpha'.
+        self.alpha = self.param(
+            "alpha", nn.initializers.constant(self.init_alpha), (1,)
+        )
+
+        # 3. Hidden Layers (The "Backflow" / Correlation part)
+        self.hidden_layers = [
+            CustomDense(
+                features=feat,
+                kernel_init=self.kernel_init,
+                bias_init=self.bias_init,
+                name=f"hidden_{i}",
+            )
+            for i, feat in enumerate(self.architecture)
+        ]
+
+        # 4. Orbital Output Layer
+        # We generate enough orbitals for all particles
+        self.output_layer = CustomDense(
+            features=self.total_fermions,
+            kernel_init=self.kernel_init,
+            bias_init=self.bias_init,
+            name="orbital_output",
+        )
+
+    def __call__(self, x):
+        """
+        Forward pass of the wavefunction.
+        Args:
+            x: Input coordinates. Shape (Batch, N_particles * N_dim) or (N_particles * N_dim,)
+        Returns:
+            psi: The value of the wavefunction (scalar).
+        """
+        n_dim = getattr(self, "n_dim", 3)
+
+        # -----------------------------------------------------------
+        # 1. ROBUST RESHAPE & DISTANCE CALCULATION
+        # -----------------------------------------------------------
+        # Reshape to (Batch, N_particles, N_dim)
+        # This handles both batched (Batch, N*D) and unbatched (N*D) inputs
+        h = x.reshape(*x.shape[:-1], self.total_fermions, n_dim)
+
+        # Calculate distance from origin r_i = |x_i| for every particle
+        # Shape: (Batch, N_particles)
+        r = jnp.linalg.norm(h, axis=-1)
+
+        # Sum distances for the envelope: R = sum(r_i)
+        total_r = jnp.sum(r, axis=-1)
+
+        # -----------------------------------------------------------
+        # 2. ENVELOPE (The Physics Fix)
+        # -----------------------------------------------------------
+        # Psi_envelope = exp(-alpha * sum(r_i))
+        # We use softplus to ensure alpha stays positive during training
+        # (Negative alpha would make the wavefunction explode at infinity)
+        envelope = jnp.exp(-nn.softplus(self.alpha) * total_r)
+
+        # -----------------------------------------------------------
+        # 3. SPLIT STREAMS (Spin Up / Spin Down)
+        # -----------------------------------------------------------
+        # Spin UP gets the first n_up particles
+        h_up = h[..., : self.n_up, :]
+        # Spin DOWN gets the remaining particles
+        h_down = h[..., self.n_up :, :]
+
+        # -----------------------------------------------------------
+        # 4. NEURAL NETWORK PASS
+        # -----------------------------------------------------------
+        # Apply layers. Note: h_up and h_down pass through the SAME weights.
+        for layer in self.hidden_layers:
+            h_up = self.hidden_activation(layer(h_up))
+            h_down = self.hidden_activation(layer(h_down))
+
+        # Project to Orbitals
+        # We slice columns [..., :n_up] to form a square matrix (N_up x N_up)
+        # We slice columns [..., :n_down] because down spins also occupy lowest orbitals
+        orbitals_up = self.output_layer(h_up)[..., : self.n_up]
+        orbitals_down = self.output_layer(h_down)[..., : self.n_down]
+
+        # -----------------------------------------------------------
+        # 5. DETERMINANTS (Slater)
+        # -----------------------------------------------------------
+        # Handle cases where a spin sector is empty (e.g. Hydrogen n_down=0)
+        if self.n_up > 0:
+            psi_up = jnp.linalg.det(orbitals_up)
+        else:
+            psi_up = 1.0
+
+        if self.n_down > 0:
+            psi_down = jnp.linalg.det(orbitals_down)
+        else:
+            psi_down = 1.0
+
+        # -----------------------------------------------------------
+        # 6. COMBINE
+        # -----------------------------------------------------------
+        # Psi_total = Det(Up) * Det(Down) * Envelope
+        # Squeeze ensures we return a scalar per batch element
+        return (psi_up * psi_down * envelope).squeeze()
 
 
 @register_model("fermionic-mlp-2")

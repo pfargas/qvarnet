@@ -66,16 +66,15 @@ def energy_fn(hamiltonian, params, batch, model_apply):
 
 @partial(jax.jit, static_argnames=["model_apply"])
 def loss_and_grads(hamiltonian, params, batch, model_apply, score_factor=2.0):
-    E, local_energy_per_point, sigma_e = energy_fn(
-        hamiltonian, params, batch, model_apply
-    )
+    E, E_loc, sigma_e = energy_fn(hamiltonian, params, batch, model_apply)
+    tv = 5.0
+    E_clipped = jnp.clip(E_loc, E - tv * sigma_e, E + tv * sigma_e)
     loss = lambda p: 2 * jnp.mean(
-        jax.lax.stop_gradient(local_energy_per_point - E)
+        jax.lax.stop_gradient(E_clipped - E)
         * log_psi(batch, p, model_apply).reshape(-1, 1)
     )
     grad_E = jax.grad(loss)(params)
     score = E + score_factor * sigma_e
-    # Could i return the loss to monitor it?
     return E, sigma_e, grad_E, score
 
 
@@ -158,7 +157,8 @@ def train(
 
     # Initialize walkers at 0 (or load from checkpoint if you had them)
     # This variable persists across loop iterations to keep chains "warm"
-    current_positions = jnp.zeros(shape)
+    # current_positions = jnp.zeros(shape) THIS LEADS TO NANS IN THE HIDROGEN CASE
+    current_positions = jax.random.normal(key, shape) * 0.5
 
     # Track best state separately
     best_state_device = state
