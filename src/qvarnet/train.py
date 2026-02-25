@@ -157,8 +157,8 @@ def train(
 
     # Initialize walkers at 0 (or load from checkpoint if you had them)
     # This variable persists across loop iterations to keep chains "warm"
-    # current_positions = jnp.zeros(shape) THIS LEADS TO NANS IN THE HIDROGEN CASE
-    current_positions = jax.random.normal(key, shape) * 0.5
+    current_positions = jnp.zeros(shape)  # THIS LEADS TO NANS IN THE HIDROGEN CASE
+    # current_positions = jax.random.normal(key, shape) * 0.5
 
     # Track best state separately
     best_state_device = state
