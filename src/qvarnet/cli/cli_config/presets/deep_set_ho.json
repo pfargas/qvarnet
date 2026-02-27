@@ -1,0 +1,35 @@
+{
+  "experiment": {
+    "name": "deep_set_harmonic_oscillator",
+    "description": "Standard harmonic oscillator benchmark with default MLP",
+    "random_seed": 42
+  },
+  "model": {
+    "type": "exponential-deep-set",
+    "phi_hidden_architecture": [20],
+    "F_hidden_architecture": [10],
+    "n_particles": 10
+  },
+  "training": {
+    "batch_size": 200,
+    "num_epochs": 3000
+  },
+  "optimizer": {
+    "type": "adam",
+    "learning_rate": 1e-3
+  },
+  "sampler": {
+    "type": "metropolis_hastings",
+    "step_size": 0.5,
+    "chain_length": 100,
+    "thermalization_steps": 50
+  },
+  "hamiltonian": {
+    "name": "harmonic-oscillator",
+    "params": {
+    }
+  },
+  "output": {
+    "save_dir": "./deep_set_harmonic_oscillator"
+  }
+}

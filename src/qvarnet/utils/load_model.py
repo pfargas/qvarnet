@@ -62,6 +62,15 @@ def load_model_from_results(results_path: str):
             n_dim=model_args["n_dim"],
         )
         input_dim = model_args["n_fermions"] * model_args["n_dim"]
+    elif model_name == "exponential-deep-set":
+        model = get_model(
+            model_name,
+            phi_hidden_architecture=model_args["phi_hidden_architecture"],
+            F_hidden_architecture=model_args["F_hidden_architecture"],
+            n_dim=model_args.get("n_dim", 1),
+            n_particles=model_args.get("n_particles", 10),
+        )
+        input_dim = model_args.get("n_dim", 1) * model_args.get("n_particles", 10)
     else:
         model = get_model(model_name, architecture=model_args["architecture"])
         input_dim = model_args["architecture"][0]

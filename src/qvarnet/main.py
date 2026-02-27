@@ -70,6 +70,8 @@ Experiment info:
     # ****                Choose model              ****
     # **************************************************
 
+    # FIXME: De-hardcode all things. This is too hard
+
     # if model name is custom, load from custom path
     if args.args.custom_model:
         load_custom_module(args.args.custom_model)
@@ -103,6 +105,14 @@ Experiment info:
         print(
             f"Using HalfSpinNonInteractingFermion with {model_args['n_up']} up and {model_args['n_down']} down fermions and {model_args['n_dim']} dimensions."
         )
+    elif model_name == "exponential-deep-set":
+        model = get_model(
+            model_name,
+            phi_hidden_architecture=model_args["phi_hidden_architecture"],
+            F_hidden_architecture=model_args["F_hidden_architecture"],
+            n_dim=model_args.get("n_dim", 1),
+            n_particles=model_args.get("n_particles", 10),
+        )
     else:
         model = get_model(model_name, architecture=model_args["architecture"])
     # **************************************************
@@ -133,10 +143,18 @@ Experiment info:
     else:
         raise ValueError(f"Unsupported optimizer type: {optimizer_args['type']}")
 
-    shape = (
-        train_args["batch_size"],  # number of parallel chains
-        model_args["architecture"][0],  # input dimension (degrees of freedom)
-    )
+    if model_name == "exponential-deep-set":
+        shape = (
+            train_args["batch_size"],  # number of parallel chains
+            model_args.get("n_dim", 1) * model_args.get("n_particles", 1),
+        )
+    else:
+        shape = (
+            train_args["batch_size"],  # number of parallel chains
+            model_args["architecture"][
+                0
+            ],  # input dimension (degrees of freedom = N*Dim)
+        )
     if is_fermionic:
         if model_name == "half-spin-non-interacting-fermion":
             shape = (

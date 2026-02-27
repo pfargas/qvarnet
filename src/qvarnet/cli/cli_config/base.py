@@ -118,11 +118,12 @@ class ExperimentConfig(BaseConfig):
                 raise ValueError(f"Missing required configuration key: {key}")
 
         # Validate model configuration
+        # FIXME: Careful with hardcoded validation. Not always true.
         model_config = self.data.get("model", {})
         if not model_config.get("type"):
             raise ValueError("Model type is required")
-        if not model_config.get("architecture"):
-            raise ValueError("Model architecture is required")
+        # if not model_config.get("architecture"):
+        #     raise ValueError("Model architecture is required")
 
         # Validate training configuration
         training_config = self.data.get("training", {})
