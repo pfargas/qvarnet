@@ -1,6 +1,6 @@
 import os
 
-from .models import get_model, MODEL_REGISTRY
+from .models import MODEL_REGISTRY
 from .train import train
 import jax
 import jax.numpy as jnp
