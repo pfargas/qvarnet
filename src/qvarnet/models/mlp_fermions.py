@@ -72,6 +72,18 @@ class FermionicMLP(BaseModel):
 
         return psi
 
+    @classmethod
+    def from_config(cls, model_args: dict):
+        return cls(
+            architecture=model_args["architecture"],
+            n_fermions=model_args["n_fermions"],
+            n_dim=model_args["n_dim"],
+        )
+
+    @classmethod
+    def get_input_shape(cls, model_args: dict, batch_size: int) -> tuple:
+        return (batch_size, model_args["n_fermions"] * model_args["n_dim"])
+
 
 @register_model("half-spin-non-interacting-fermion")
 class HalfSpinNonInteractingFermion(BaseModel):
@@ -201,6 +213,22 @@ class HalfSpinNonInteractingFermion(BaseModel):
         # Squeeze ensures we return a scalar per batch element
         return (psi_up * psi_down * envelope).squeeze()
 
+    @classmethod
+    def from_config(cls, model_args: dict):
+        return cls(
+            architecture=model_args["architecture"],
+            n_up=model_args["n_up"],
+            n_down=model_args["n_down"],
+            n_dim=model_args["n_dim"],
+        )
+
+    @classmethod
+    def get_input_shape(cls, model_args: dict, batch_size: int) -> tuple:
+        return (
+            batch_size,
+            (model_args["n_up"] + model_args["n_down"]) * model_args["n_dim"],
+        )
+
 
 @register_model("fermionic-mlp-2")
 class FermionicMLP2ferms(BaseModel):
@@ -257,3 +285,14 @@ class FermionicMLP2ferms(BaseModel):
         phi2_B = orb_2[..., 1]
 
         return phi1_A * phi2_B - phi1_B * phi2_A
+
+    @classmethod
+    def from_config(cls, model_args: dict):
+        return cls(
+            architecture=model_args["architecture"],
+            n_fermions=model_args.get("n_fermions", 2),
+        )
+
+    @classmethod
+    def get_input_shape(cls, model_args: dict, batch_size: int) -> tuple:
+        return (batch_size, model_args.get("n_fermions", 2))

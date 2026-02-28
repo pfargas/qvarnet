@@ -92,3 +92,19 @@ class ExponentialDeepSet(BaseModel):
         ), "Output dimension of F should be 1 for energy evaluation."
         # Exponential output for positive values, shape (Batch, F_out_dim)
         return jnp.exp(output)
+
+    @classmethod
+    def from_config(cls, model_args: dict):
+        return cls(
+            phi_hidden_architecture=model_args["phi_hidden_architecture"],
+            F_hidden_architecture=model_args["F_hidden_architecture"],
+            n_dim=model_args.get("n_dim", 1),
+            n_particles=model_args.get("n_particles", 10),
+        )
+
+    @classmethod
+    def get_input_shape(cls, model_args: dict, batch_size: int) -> tuple:
+        return (
+            batch_size,
+            model_args.get("n_dim", 1) * model_args.get("n_particles", 10),
+        )

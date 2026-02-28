@@ -1,6 +1,6 @@
 import os
 
-from .models import get_model
+from .models import get_model, MODEL_REGISTRY
 from .train import train
 import jax
 import jax.numpy as jnp
@@ -55,7 +55,6 @@ Experiment info:
 - Training info: {train_args}
 """
 
-    is_fermionic = False
     base_path = create_output_directory(
         os.path.join(output_base_path, experiment_name), load_config=False
     )
@@ -70,51 +69,25 @@ Experiment info:
     # ****                Choose model              ****
     # **************************************************
 
-    # FIXME: De-hardcode all things. This is too hard
-
     # if model name is custom, load from custom path
     if args.args.custom_model:
         load_custom_module(args.args.custom_model)
         print("Custom model loaded.")
-        from qvarnet.models.registry import MODEL_REGISTRY
+        from qvarnet.models.registry import MODEL_REGISTRY as _REG
 
-        print("Available models:", list(MODEL_REGISTRY.keys()))
-        model_name = "new_model"  # FIXME: custom_model is hardcoded here
+        print("Available models:", list(_REG.keys()))
+        model_name = "new_model"  # FIXME: custom_model name is hardcoded here
     else:
         model_name = model_args.get("type", "exponential-mlp-fourth-decay")
-    if model_name == "fermionic-mlp":
-        is_fermionic = True
-        model = get_model(
-            model_name,
-            architecture=model_args["architecture"],
-            n_fermions=model_args["n_fermions"],
-            n_dim=model_args["n_dim"],
+
+    if model_name not in MODEL_REGISTRY:
+        raise ValueError(
+            f"Model '{model_name}' not found. Available models: {list(MODEL_REGISTRY.keys())}"
         )
-        print(
-            f"Using FermionicMLP with {model_args['n_fermions']} fermions and {model_args['n_dim']} dimensions."
-        )
-    elif model_name == "half-spin-non-interacting-fermion":
-        is_fermionic = True
-        model = get_model(
-            model_name,
-            architecture=model_args["architecture"],
-            n_up=model_args["n_up"],
-            n_down=model_args["n_down"],
-            n_dim=model_args["n_dim"],
-        )
-        print(
-            f"Using HalfSpinNonInteractingFermion with {model_args['n_up']} up and {model_args['n_down']} down fermions and {model_args['n_dim']} dimensions."
-        )
-    elif model_name == "exponential-deep-set":
-        model = get_model(
-            model_name,
-            phi_hidden_architecture=model_args["phi_hidden_architecture"],
-            F_hidden_architecture=model_args["F_hidden_architecture"],
-            n_dim=model_args.get("n_dim", 1),
-            n_particles=model_args.get("n_particles", 10),
-        )
-    else:
-        model = get_model(model_name, architecture=model_args["architecture"])
+    model_class = MODEL_REGISTRY[model_name]
+    model = model_class.from_config(model_args)
+    shape = model_class.get_input_shape(model_args, train_args["batch_size"])
+    print(f"Using {type(model).__name__}, input shape={shape}")
     # **************************************************
 
     # **************************************************
@@ -142,33 +115,6 @@ Experiment info:
         optimizer = optax.sgd(learning_rate=optimizer_args["learning_rate"])
     else:
         raise ValueError(f"Unsupported optimizer type: {optimizer_args['type']}")
-
-    if model_name == "exponential-deep-set":
-        shape = (
-            train_args["batch_size"],  # number of parallel chains
-            model_args.get("n_dim", 1) * model_args.get("n_particles", 1),
-        )
-    else:
-        shape = (
-            train_args["batch_size"],  # number of parallel chains
-            model_args["architecture"][
-                0
-            ],  # input dimension (degrees of freedom = N*Dim)
-        )
-    if is_fermionic:
-        if model_name == "half-spin-non-interacting-fermion":
-            shape = (
-                train_args["batch_size"],
-                (model_args["n_up"] + model_args["n_down"]) * model_args["n_dim"],
-            )
-        else:
-            shape = (
-                train_args["batch_size"],
-                model_args["n_fermions"]
-                * model_args[
-                    "n_dim"
-                ],  # For the FermionicMLP, we have 4 fermions, so input dimension is 4 * 3 dimensions = 12
-            )
 
     if profile:
         jax.profiler.start_trace("/tmp/profile-data")

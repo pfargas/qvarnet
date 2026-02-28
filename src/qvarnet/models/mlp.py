@@ -39,3 +39,11 @@ class MLP(BaseModel):
         output_size = layers[last_layer]["kernel"].shape[1]
         architecture.append(output_size)
         return MLP(architecture=architecture)
+
+    @classmethod
+    def from_config(cls, model_args: dict):
+        return cls(architecture=model_args["architecture"])
+
+    @classmethod
+    def get_input_shape(cls, model_args: dict, batch_size: int) -> tuple:
+        return (batch_size, model_args["architecture"][0])

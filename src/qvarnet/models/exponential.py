@@ -41,3 +41,11 @@ class ExponentialMLPwithPenalty(BaseModel):
 
     def build_from_params(self, params):
         pass
+
+    @classmethod
+    def from_config(cls, model_args: dict):
+        return cls(architecture=model_args["architecture"])
+
+    @classmethod
+    def get_input_shape(cls, model_args: dict, batch_size: int) -> tuple:
+        return (batch_size, model_args["architecture"][0])

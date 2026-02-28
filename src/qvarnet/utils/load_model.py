@@ -3,7 +3,7 @@ import flax.serialization as serialization
 from flax import linen as nn
 import jax
 import jax.numpy as jnp
-from ..models import get_model
+from ..models import MODEL_REGISTRY
 import os
 
 
@@ -53,27 +53,13 @@ def load_model_from_results(results_path: str):
     model_args = config["model"]
     model_name = model_args.get("type")
 
-    # Replicate model instantiation logic from run_experiment
-    if model_name == "fermionic-mlp":
-        model = get_model(
-            model_name,
-            architecture=model_args["architecture"],
-            n_fermions=model_args["n_fermions"],
-            n_dim=model_args["n_dim"],
+    if model_name not in MODEL_REGISTRY:
+        raise ValueError(
+            f"Model '{model_name}' not found. Available models: {list(MODEL_REGISTRY.keys())}"
         )
-        input_dim = model_args["n_fermions"] * model_args["n_dim"]
-    elif model_name == "exponential-deep-set":
-        model = get_model(
-            model_name,
-            phi_hidden_architecture=model_args["phi_hidden_architecture"],
-            F_hidden_architecture=model_args["F_hidden_architecture"],
-            n_dim=model_args.get("n_dim", 1),
-            n_particles=model_args.get("n_particles", 10),
-        )
-        input_dim = model_args.get("n_dim", 1) * model_args.get("n_particles", 10)
-    else:
-        model = get_model(model_name, architecture=model_args["architecture"])
-        input_dim = model_args["architecture"][0]
+    model_class = MODEL_REGISTRY[model_name]
+    model = model_class.from_config(model_args)
+    input_dim = model_class.get_input_shape(model_args, batch_size=1)[1]
 
     params_path = os.path.join(results_path, "parameters.json")
     if not os.path.exists(params_path):
