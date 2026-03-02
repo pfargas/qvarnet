@@ -1,6 +1,6 @@
 from .base import BaseHamiltonian
 from .hamiltonian_registry import register_hamiltonian
-from .kinetic import kinetic_term, kinetic_term_log
+from .kinetic import kinetic_term, kinetic_term_log, kinetic_term_divergence_theorem
 from flax import struct
 
 import jax.numpy as jnp
@@ -13,6 +13,7 @@ class ContinuousHamiltonian(BaseHamiltonian):
 
     def kinetic_local_energy(self, params, samples, model_apply):
         return kinetic_term(params, samples, model_apply)
+        # return kinetic_term_divergence_theorem(params, samples, model_apply)
 
     def potential_energy(self, samples):
         raise NotImplementedError(

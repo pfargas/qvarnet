@@ -18,6 +18,19 @@ def kinetic_term(params, xs, model_apply, laplacian=laplacian):
     return -0.5 * (d2psi / psi_safe)  # shape (batch,)
 
 
+def kinetic_term_divergence_theorem(params, xs, model_apply):
+    def log_psi_fn(x):
+        x = jnp.atleast_1d(x).reshape(1, -1)  # (1, DoF)
+        psi = model_apply(params, x).squeeze()
+        return jnp.log(jnp.abs(psi) + 1e-12)
+
+    # Compute Gradient of Log Psi
+    grad_log_psi_fn = jax.grad(log_psi_fn)
+    grad_val = jax.vmap(grad_log_psi_fn)(xs)  # shape: (batch, n_dim)
+
+    return 0.5 * jnp.sum(grad_val**2, axis=-1)
+
+
 def kinetic_term_log(params, samples, model_apply):
     # This computes: -0.5 * laplacian(log_psi) - 0.5 * (grad(log_psi))^2
     # This form is numerically much more stable than (nabla^2 psi) / psi
