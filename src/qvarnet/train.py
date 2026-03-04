@@ -95,28 +95,15 @@ def loss_and_grads(hamiltonian, params, batch, model_apply, score_factor=2.0):
         * log_psi(batch, p, model_apply).reshape(-1, 1)
     )
     grad_E = jax.grad(loss)(params)
-
-    grad_E_n = numerical_parameter_gradients(hamiltonian, params, batch, model_apply)
-    grads_difference_squared = jax.tree_util.tree_map(
-        lambda g_num, g_ana: jnp.sum((g_num - g_ana) ** 2),
-        grad_E_n,
-        grad_E,
-    )
     score = E + score_factor * sigma_e
-    return (
-        E,
-        sigma_e,
-        grad_E,
-        score,
-        grads_difference_squared,
-    )  # FIXME: GRADS RETURNED FOR DEBUGGING, REMOVE LATER ALL
+    return E, sigma_e, grad_E, score
 
 
 @jax.jit
 def train_step(
     state, batch, hamiltonian, use_qgt=False, qgt_config=DEFAULT_QGT_CONFIG.to_dict()
 ):
-    E, sigma_e, grads, score, grads_difference_squared = loss_and_grads(
+    E, sigma_e, grads, score = loss_and_grads(
         hamiltonian, state.params, batch, state.apply_fn
     )
     if not use_qgt:
@@ -136,10 +123,7 @@ def train_step(
 
         # Create new state
         new_state = state.replace(params=new_params)
-    return (
-        new_state.replace(energy=E, std=sigma_e, score=score),
-        grads_difference_squared,
-    )  # FIXME: GRADS RETURNED FOR DEBUGGING, REMOVE LATER
+    return new_state.replace(energy=E, std=sigma_e, score=score)
 
 
 @load_doc("train.txt")
@@ -262,9 +246,7 @@ def train(
         )
 
         # 2. Train
-        new_state, grads_difference_squared = train_step(
-            state, batch, hamiltonian
-        )  # FIXME: GRADS RETURNED FOR DEBUGGING, REMOVE LATER
+        new_state = train_step(state, batch, hamiltonian)
 
         # 3. Track Best State (On Device)
         # Create a boolean condition tensor
@@ -279,21 +261,19 @@ def train(
             new_state,
             new_best_state,
             key,
-            grads_difference_squared,
-        )  # FIXME: GRADS RETURNED FOR DEBUGGING, REMOVE LATER
+        )
 
     # --------------------------------------------
     # ---          TRAINING LOOP              ---
     # --------------------------------------------
     progress_bar = tqdm(range(init_steps, n_epochs), disable=not tqdm_available)
-    grads_differences = []
 
     for step in progress_bar:
         if stop_requested:
             break
 
         # execute the "Mega-Step"
-        state, best_state_device, key, grads_difference_squared = full_update(
+        state, best_state_device, key = full_update(
             state=state,
             best_state=best_state_device,
             key=key,
@@ -304,13 +284,12 @@ def train(
             burn_in=burn_in_steps,
             thinning=thinning_factor,
             hamiltonian=hamiltonian,
-        )  # FIXME: GRADS RETURNED FOR DEBUGGING, REMOVE LATER
+        )
 
         # Append energy to list (cheap Python operation)
         # Note: state.energy is a DeviceArray. Accessing it here is fine,
         # but don't print/convert it every single step if you want max speed.
         energy_history.append(state.energy)
-        grads_differences.append(grads_difference_squared)
 
         # --- Logging & Checkpointing (Throttled) ---
 
@@ -325,13 +304,4 @@ def train(
             save_checkpoint(
                 best_state_device, path=checkpoint_path, filename="checkpoint.msgpack"
             )
-    import matplotlib.pyplot as plt  # FIXME: GRADS PLOTTING FOR DEBUGGING, REMOVE LATER
-
-    plt.figure(figsize=(12, 6))
-    plt.plot(jnp.array(grads_differences), label="Gradient MSE")
-    plt.xlabel("Training Steps")
-    plt.ylabel("Value")
-    plt.legend()
-    plt.title("Training Progress")
-    plt.show()
     return jnp.array(energy_history), best_state_device
