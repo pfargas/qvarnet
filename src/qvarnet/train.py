@@ -139,7 +139,10 @@ def train_step(
 
         # Create new state
         new_state = state.replace(params=new_params)
-    return new_state.replace(energy=E, std=sigma_e, score=score)
+    return (
+        new_state.replace(energy=E, std=sigma_e, score=score),
+        negative_energy_stuff,
+    )  # FIXME: negative_energy
 
 
 @load_doc("train.txt")
@@ -265,7 +268,7 @@ def train(
         )
 
         # 2. Train
-        new_state = train_step(
+        new_state, negative_energy_stuff = train_step(
             state, batch, hamiltonian, negative_energy_stuff=negative_energy_stuff
         )  # FIXME: negative_energy
 
@@ -278,11 +281,7 @@ def train(
             lambda new, old: jnp.where(is_better, new, old), new_state, best_state
         )
 
-        return (
-            new_state,
-            new_best_state,
-            key,
-        )
+        return (new_state, new_best_state, key, negative_energy_stuff)
 
     # --------------------------------------------
     # ---          TRAINING LOOP              ---
@@ -294,7 +293,7 @@ def train(
             break
 
         # execute the "Mega-Step"
-        state, best_state_device, key = full_update(
+        state, best_state_device, key, negative_energy_stuff = full_update(
             state=state,
             best_state=best_state_device,
             key=key,
@@ -326,4 +325,9 @@ def train(
             save_checkpoint(
                 best_state_device, path=checkpoint_path, filename="checkpoint.msgpack"
             )
+    import json
+
+    negative_energy_stuff.block_until_ready()  # Ensure all JAX computations are done before accessing
+    with open("negative_energy_log.json", "w") as f:
+        json.dump(negative_energy_stuff, f, indent=4, default=str)
     return jnp.array(energy_history), best_state_device
