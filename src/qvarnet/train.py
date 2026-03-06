@@ -298,6 +298,7 @@ def train(
             burn_in=burn_in_steps,
             thinning=thinning_factor,
             hamiltonian=hamiltonian,
+            negative_energy_stuff=negative_energy_stuff,  # FIXME: negative_energy
         )
 
         # Append energy to list (cheap Python operation)
