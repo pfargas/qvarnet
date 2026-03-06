@@ -101,11 +101,20 @@ def loss_and_grads(hamiltonian, params, batch, model_apply, score_factor=2.0):
 
 @jax.jit
 def train_step(
-    state, batch, hamiltonian, use_qgt=False, qgt_config=DEFAULT_QGT_CONFIG.to_dict()
+    state,
+    batch,
+    hamiltonian,
+    use_qgt=False,
+    qgt_config=DEFAULT_QGT_CONFIG.to_dict(),
+    negative_energy_stuff={},
 ):
     E, sigma_e, grads, score = loss_and_grads(
         hamiltonian, state.params, batch, state.apply_fn
     )
+    if E < 0:  # FIXME: negative_energy
+        negative_energy_stuff["samples"] = batch
+        negative_energy_stuff["params"] = state.params
+        negative_energy_stuff["energy"] = E
     if not use_qgt:
         new_state = state.apply_gradients(grads=grads)
     else:
@@ -156,6 +165,8 @@ def train(
         ),
         out_axes=0,
     )
+
+    negative_energy_stuff = {}  # FIXME: negative_energy
 
     params = model.init(key, jnp.ones(shape) * 0.1)  # Initialize parameters
     state = VMCState.create(apply_fn=model.apply, params=params, tx=optimizer)
@@ -229,6 +240,7 @@ def train(
         burn_in,
         thinning,
         hamiltonian,
+        negative_energy_stuff,  # FIXME: negative_energy
     ):
         """Performs Sampling + Training + Best State Tracking in one compiled block."""
         key, subkey = jax.random.split(key)
@@ -246,7 +258,9 @@ def train(
         )
 
         # 2. Train
-        new_state = train_step(state, batch, hamiltonian)
+        new_state = train_step(
+            state, batch, hamiltonian, negative_energy_stuff=negative_energy_stuff
+        )  # FIXME: negative_energy
 
         # 3. Track Best State (On Device)
         # Create a boolean condition tensor
