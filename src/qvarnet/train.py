@@ -99,6 +99,14 @@ def loss_and_grads(hamiltonian, params, batch, model_apply, score_factor=2.0):
     return E, sigma_e, grad_E, score
 
 
+def log_if_negative(energy, batch, state, negative_energy_stuff):
+    if energy < 0:
+        negative_energy_stuff["samples"] = batch
+        negative_energy_stuff["params"] = state.params
+        negative_energy_stuff["energy"] = energy
+        jax.debug.print("Negative energy detected")
+
+
 @jax.jit
 def train_step(
     state,
@@ -111,10 +119,9 @@ def train_step(
     E, sigma_e, grads, score = loss_and_grads(
         hamiltonian, state.params, batch, state.apply_fn
     )
-    if E < 0:  # FIXME: negative_energy
-        negative_energy_stuff["samples"] = batch
-        negative_energy_stuff["params"] = state.params
-        negative_energy_stuff["energy"] = E
+    jax.debug.callback(
+        log_if_negative, E, batch, state, negative_energy_stuff
+    )  # FIXME: negative_energy
     if not use_qgt:
         new_state = state.apply_gradients(grads=grads)
     else:
