@@ -1,6 +1,7 @@
 import jax
 import jax.numpy as jnp
 from jax import random
+from jax.flatten_util import ravel_pytree
 
 from .vmc_state import VMCState
 from .callbacks import *
@@ -10,7 +11,12 @@ import signal
 
 from functools import partial
 
-from .utils import load_doc, save_checkpoint, load_checkpoint
+from .utils import (
+    load_doc,
+    save_checkpoint,
+    load_checkpoint,
+    numerical_parameter_gradients,
+)
 
 try:
     from tqdm import tqdm
@@ -23,8 +29,6 @@ except ImportError:
 from .qgt import (
     compute_natural_gradient,
     DEFAULT_QGT_CONFIG,
-    flatten_params,
-    unflatten_params,
 )
 
 stop_requested = False
@@ -64,27 +68,6 @@ def energy_fn(hamiltonian, params, batch, model_apply):
     return E, local_energy_per_point, sigma_e
 
 
-@partial(jax.jit, static_argnames=["model_apply", "epsilon"])
-def numerical_parameter_gradients(
-    hamiltonian, params, batch, model_apply, epsilon=1e-6
-):
-    flat_params, unravel_fn = flatten_params(params)
-
-    # Create an identity matrix of perturbations
-    eye = jnp.eye(flat_params.size) * epsilon
-
-    def get_energy(p_flat):
-        E, _, _ = energy_fn(hamiltonian, unravel_fn(p_flat), batch, model_apply)
-        return E
-
-    # Vmap over the rows of the identity matrix to get all E_plus and E_minus at once
-    E_plus = jax.vmap(lambda p: get_energy(flat_params + p))(eye)
-    E_minus = jax.vmap(lambda p: get_energy(flat_params - p))(eye)
-
-    grad_flat = (E_plus - E_minus) / (2 * epsilon)
-    return unravel_fn(grad_flat)
-
-
 @partial(jax.jit, static_argnames=["model_apply"])
 def loss_and_grads(hamiltonian, params, batch, model_apply, score_factor=2.0):
     E, E_loc, sigma_e = energy_fn(hamiltonian, params, batch, model_apply)
@@ -117,9 +100,9 @@ def train_step(
         # Apply natural gradient with learning rate
         learning_rate = qgt_config.get("learning_rate", 1e-3)
         new_params_flat = (
-            flatten_params(state.params)[0] - learning_rate * natural_grad_flat
+            ravel_pytree(state.params)[0] - learning_rate * natural_grad_flat
         )
-        new_params = unflatten_params(new_params_flat, unravel_fn)
+        new_params = unravel_fn(new_params_flat)
 
         # Create new state
         new_state = state.replace(params=new_params)
@@ -278,7 +261,7 @@ def train(
             state=state,
             best_state=best_state_device,
             key=key,
-            current_pos=current_positions,  # Pass warm walkers in
+            current_pos=current_positions,  # Note: discuss warm walkers strategy
             step_size=step_size,
             PBC=PBC,
             n_steps=n_steps_sampler,
@@ -288,8 +271,7 @@ def train(
         )
 
         # Append energy to list (cheap Python operation)
-        # Note: state.energy is a DeviceArray. Accessing it here is fine,
-        # but don't print/convert it every single step if you want max speed.
+        # Note: I don't know if this is efficient, but it avoids JAX array updates in the loop which can be costly
         energy_history.append(state.energy)
         energy_std_history.append(state.std)
 
