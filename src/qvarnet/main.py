@@ -120,7 +120,7 @@ Experiment info:
         jax.profiler.start_trace("/tmp/profile-data")
 
     time_start = time.perf_counter()
-    energy_hist, best_state = train(
+    energy_hist, energy_std_hist, best_state, state = train(
         n_epochs=train_args["num_epochs"],
         shape=shape,
         model=model,
@@ -138,8 +138,12 @@ Experiment info:
 
     best_params = best_state.params
     best_score = best_state.score
+    last_params = state.params
+    last_score = state.score
+
     # remove zeroes from energy_hist
     energy_hist = energy_hist[energy_hist != 0.0]
+    energy_std_hist = energy_std_hist[energy_hist != 0.0]
 
     print(f"Total training time: {time_end - time_start: <.4f} seconds")
     print(f"Best score: {best_score:<.4f}")
@@ -148,14 +152,15 @@ Experiment info:
 
     # Save model parameters
     try:
-        save_flax_to_json(best_params, os.path.join(base_path, "parameters.json"))
-        print("Saved parameters to parameters.json")
+        save_flax_to_json(best_params, os.path.join(base_path, "best_parameters.json"))
+        save_flax_to_json(last_params, os.path.join(base_path, "last_parameters.json"))
+        print("Saved parameters to best_parameters.json, last_parameters.json")
     except Exception as e:
         print(f"Error saving parameters: {e}")
 
     # Save energy history
     try:
-        save_energy_history(base_path, energy_hist)
+        save_energy_history(base_path, energy_hist, energy_std_hist)
         print("Saved energy history to energy_history.csv")
     except Exception as e:
         print(f"Error saving energy history: {e}")
@@ -170,8 +175,20 @@ Experiment info:
                 "training_time_seconds": time_end - time_start,
                 "best_score": float(best_score),
             },
+            name="best_metrics.json",
         )
-        print("Saved metrics to metrics.json")
+        save_metrics(
+            base_path,
+            {
+                "total_energy": float(state.energy),
+                "std": float(state.std),
+                "training_time_seconds": time_end - time_start,
+                "last_score": float(last_score),
+            },
+            name="final_metrics.json",
+        )
+
+        print("Saved metrics to best_metrics.json, final_metrics.json")
     except Exception as e:
         print(f"Error saving metrics: {e}")
 

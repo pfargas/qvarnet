@@ -175,6 +175,7 @@ def train(
 
     # Use a standard list for history to avoid JAX array updates in loop
     energy_history = []
+    energy_std_history = []
 
     # Initialize walkers at 0 (or load from checkpoint if you had them)
     # This variable persists across loop iterations to keep chains "warm"
@@ -290,6 +291,7 @@ def train(
         # Note: state.energy is a DeviceArray. Accessing it here is fine,
         # but don't print/convert it every single step if you want max speed.
         energy_history.append(state.energy)
+        energy_std_history.append(state.std)
 
         # --- Logging & Checkpointing (Throttled) ---
 
@@ -304,4 +306,9 @@ def train(
             save_checkpoint(
                 best_state_device, path=checkpoint_path, filename="checkpoint.msgpack"
             )
-    return jnp.array(energy_history), best_state_device
+    return (
+        jnp.array(energy_history),
+        jnp.array(energy_std_history),
+        best_state_device,
+        state,
+    )
