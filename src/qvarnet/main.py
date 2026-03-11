@@ -120,7 +120,7 @@ Experiment info:
         jax.profiler.start_trace("/tmp/profile-data")
 
     time_start = time.perf_counter()
-    energy_hist, energy_std_hist, best_state, state = train(
+    state_history = train(
         n_epochs=train_args["num_epochs"],
         shape=shape,
         model=model,
@@ -136,27 +136,26 @@ Experiment info:
     if profile:
         jax.profiler.stop_trace()
 
-    best_params = best_state.params
-    best_score = best_state.score
-    last_params = state.params
-    last_score = state.score
+    print("Training completed. Processing results...")
+    print("Extracting energy history from state history...")
 
-    # remove zeroes from energy_hist
+    print(f"state_history = \n\n{state_history}")
+    print("*.=" * 10)
+
+    for i, state in enumerate(state_history):
+        print(f"Type of state: {type(state)}")
+        print(f"state = {state}")
+
+    energy_hist = jnp.array([state.energy for state in state_history])
+    energy_std_hist = jnp.array([state.std for state in state_history])
+
+    # remove zeroes from energy_hist, to cut the histories if cutting the computation early (with ctrl+c for example)
     energy_hist = energy_hist[energy_hist != 0.0]
     energy_std_hist = energy_std_hist[energy_hist != 0.0]
 
     print(f"Total training time: {time_end - time_start: <.4f} seconds")
-    print(f"Best score: {best_score:<.4f}")
     print("=" * 40)
     print("Saving results...")
-
-    # Save model parameters
-    try:
-        save_flax_to_json(best_params, os.path.join(base_path, "best_parameters.json"))
-        save_flax_to_json(last_params, os.path.join(base_path, "last_parameters.json"))
-        print("Saved parameters to best_parameters.json, last_parameters.json")
-    except Exception as e:
-        print(f"Error saving parameters: {e}")
 
     # Save energy history
     try:
@@ -170,25 +169,12 @@ Experiment info:
         save_metrics(
             base_path,
             {
-                "total_energy": float(best_state.energy),
-                "std": float(best_state.std),
                 "training_time_seconds": time_end - time_start,
-                "best_score": float(best_score),
             },
-            name="best_metrics.json",
-        )
-        save_metrics(
-            base_path,
-            {
-                "total_energy": float(state.energy),
-                "std": float(state.std),
-                "training_time_seconds": time_end - time_start,
-                "last_score": float(last_score),
-            },
-            name="final_metrics.json",
+            name="computation_time.json",
         )
 
-        print("Saved metrics to best_metrics.json, final_metrics.json")
+        print("Saved metrics to computation_time.json")
     except Exception as e:
         print(f"Error saving metrics: {e}")
 
@@ -208,3 +194,19 @@ Experiment info:
         print("Saved config to config.json")
     except Exception as e:
         print(f"Error saving config: {e}")
+
+    # Save state history
+    try:
+        state_history_serializable = [
+            jax.tree.map(lambda x: jax.device_get(x), state.params)
+            for state in state_history
+        ]
+        print(len(state_history))
+        print(len(state_history_serializable))
+
+        save_flax_to_json(
+            state_history_serializable, os.path.join(base_path, "state_history.json")
+        )
+        print("Saved state history to state_history.json")
+    except Exception as e:
+        print(f"Error saving state history: {e}")

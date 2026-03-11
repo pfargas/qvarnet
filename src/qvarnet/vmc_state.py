@@ -6,4 +6,3 @@ class VMCState(train_state.TrainState):
 
     energy: float = float("inf")
     std: float = float("inf")
-    score: float = float("inf")

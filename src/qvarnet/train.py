@@ -69,7 +69,7 @@ def energy_fn(hamiltonian, params, batch, model_apply):
 
 
 @partial(jax.jit, static_argnames=["model_apply"])
-def loss_and_grads(hamiltonian, params, batch, model_apply, score_factor=2.0):
+def loss_and_grads(hamiltonian, params, batch, model_apply):
     E, E_loc, sigma_e = energy_fn(hamiltonian, params, batch, model_apply)
     tv = 5.0
     E_clipped = jnp.clip(E_loc, E - tv * sigma_e, E + tv * sigma_e)
@@ -78,17 +78,14 @@ def loss_and_grads(hamiltonian, params, batch, model_apply, score_factor=2.0):
         * log_psi(batch, p, model_apply).reshape(-1, 1)
     )
     grad_E = jax.grad(loss)(params)
-    score = E + score_factor * sigma_e
-    return E, sigma_e, grad_E, score
+    return E, sigma_e, grad_E
 
 
 @jax.jit
 def train_step(
     state, batch, hamiltonian, use_qgt=False, qgt_config=DEFAULT_QGT_CONFIG.to_dict()
 ):
-    E, sigma_e, grads, score = loss_and_grads(
-        hamiltonian, state.params, batch, state.apply_fn
-    )
+    E, sigma_e, grads = loss_and_grads(hamiltonian, state.params, batch, state.apply_fn)
     if not use_qgt:
         new_state = state.apply_gradients(grads=grads)
     else:
@@ -106,7 +103,7 @@ def train_step(
 
         # Create new state
         new_state = state.replace(params=new_params)
-    return new_state.replace(energy=E, std=sigma_e, score=score)
+    return new_state.replace(energy=E, std=sigma_e)
 
 
 @load_doc("train.txt")
@@ -157,8 +154,9 @@ def train(
     # DoF = shape[1] if len(shape) > 1 else 1
 
     # Use a standard list for history to avoid JAX array updates in loop
-    energy_history = []
-    energy_std_history = []
+    # energy_history = []
+    # energy_std_history = []
+    state_history = []
 
     # Initialize walkers at 0 (or load from checkpoint if you had them)
     # This variable persists across loop iterations to keep chains "warm"
@@ -204,7 +202,7 @@ def train(
     @partial(jax.jit, static_argnames=["PBC", "n_steps", "burn_in", "thinning"])
     def full_update(
         state,
-        best_state,
+        # best_state,
         key,
         current_pos,
         step_size,
@@ -232,18 +230,8 @@ def train(
         # 2. Train
         new_state = train_step(state, batch, hamiltonian)
 
-        # 3. Track Best State (On Device)
-        # Create a boolean condition tensor
-        is_better = new_state.score < best_state.score
-
-        # Select the better state for every leaf in the PyTree
-        new_best_state = jax.tree.map(
-            lambda new, old: jnp.where(is_better, new, old), new_state, best_state
-        )
-
         return (
             new_state,
-            new_best_state,
             key,
         )
 
@@ -257,9 +245,9 @@ def train(
             break
 
         # execute the "Mega-Step"
-        state, best_state_device, key = full_update(
+        state, key = full_update(
             state=state,
-            best_state=best_state_device,
+            # best_state=best_state_device,
             key=key,
             current_pos=current_positions,  # Note: discuss warm walkers strategy
             step_size=step_size,
@@ -272,25 +260,17 @@ def train(
 
         # Append energy to list (cheap Python operation)
         # Note: I don't know if this is efficient, but it avoids JAX array updates in the loop which can be costly
-        energy_history.append(state.energy)
-        energy_std_history.append(state.std)
+        state_history.append(state)
 
         # --- Logging & Checkpointing (Throttled) ---
 
         # Update progress bar only every 10 steps to reduce CPU-GPU sync overhead
         if tqdm_available and step % 10 == 0:
             progress_bar.set_postfix(
-                E=f"{state.energy:.2f}", best=f"{best_state_device.score:.3f}"
+                E=f"{state.energy:.2f}", sigma_E=f"{state.std:.2f}"
             )
 
         # Save checkpoints rarely (e.g., every 50 steps)
         if save_checkpoints and step % 50 == 0:
-            save_checkpoint(
-                best_state_device, path=checkpoint_path, filename="checkpoint.msgpack"
-            )
-    return (
-        jnp.array(energy_history),
-        jnp.array(energy_std_history),
-        best_state_device,
-        state,
-    )
+            save_checkpoint(state, path=checkpoint_path, filename="checkpoint.msgpack")
+    return state_history
