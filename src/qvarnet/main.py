@@ -191,8 +191,6 @@ Experiment info:
             jax.tree.map(lambda x: jax.device_get(x), state.params)
             for state in state_history
         ]
-        print(len(state_history))
-        print(len(state_history_serializable))
 
         save_flax_to_json(
             state_history_serializable, os.path.join(base_path, "state_history.msgpack")
