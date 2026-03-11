@@ -1,6 +1,6 @@
 from flax import serialization
 import jax
-import json
+import msgpack
 
 
 def save_flax_to_json(params, filename):
@@ -10,5 +10,5 @@ def save_flax_to_json(params, filename):
     # 2. Convert JAX/NumPy arrays to Python lists for JSON
     serializable_dict = jax.tree.map(lambda x: x.tolist(), state_dict)
 
-    with open(filename, "w") as f:
-        json.dump(serializable_dict, f, indent=4)
+    with open(filename, "wb") as f:
+        msgpack.pack(serializable_dict, f)

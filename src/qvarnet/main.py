@@ -136,16 +136,6 @@ Experiment info:
     if profile:
         jax.profiler.stop_trace()
 
-    print("Training completed. Processing results...")
-    print("Extracting energy history from state history...")
-
-    print(f"state_history = \n\n{state_history}")
-    print("*.=" * 10)
-
-    for i, state in enumerate(state_history):
-        print(f"Type of state: {type(state)}")
-        print(f"state = {state}")
-
     energy_hist = jnp.array([state.energy for state in state_history])
     energy_std_hist = jnp.array([state.std for state in state_history])
 
@@ -205,8 +195,8 @@ Experiment info:
         print(len(state_history_serializable))
 
         save_flax_to_json(
-            state_history_serializable, os.path.join(base_path, "state_history.json")
+            state_history_serializable, os.path.join(base_path, "state_history.msgpack")
         )
-        print("Saved state history to state_history.json")
+        print("Saved state history to state_history.msgpack")
     except Exception as e:
         print(f"Error saving state history: {e}")
