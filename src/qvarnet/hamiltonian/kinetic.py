@@ -38,7 +38,7 @@ def kinetic_term_log(params, samples, model_apply):
     def log_psi_fn(x):
         psi = model_apply(params, x)
         # Sign trick: work in log domain to avoid underflow
-        return jnp.log(jnp.abs(psi) + 1e-12)
+        return jnp.log(jnp.abs(psi) + 1e-12).squeeze()
 
     # 1. Compute Gradient of Log Psi
     # shape: (batch, n_dim)

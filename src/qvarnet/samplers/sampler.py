@@ -16,10 +16,7 @@ def mh_kernel(
     accept = uniform_random_numbers[-1] < accept_prob
     new_position = jnp.where(accept, proposal, position)
     new_prob = jnp.where(accept, proposal_prob, prob)
-    # acceptance_rate = jnp.mean(accept.astype(jnp.float32))
-    # acceptance_rate = accept.astype(jnp.float32)
-    acceptance_rate = 0.0
-    return new_position, new_prob, acceptance_rate
+    return new_position, new_prob, accept
 
 
 @partial(jax.jit, static_argnames=("prob_fn"))
@@ -31,11 +28,11 @@ def mh_chain(random_values, PBC, prob_fn, prob_params, init_position, step_size)
     """
 
     init_prob = prob_fn(init_position, prob_params)
-    carry0 = (init_position, init_prob, step_size)
+    carry0 = (init_position, init_prob, step_size, 0)
 
     def body_fn(carry, random_values):
-        position, prob, step_size = carry
-        new_position, new_prob, _ = mh_kernel(
+        position, prob, step_size, count = carry
+        new_position, new_prob, accepted = mh_kernel(
             uniform_random_numbers=random_values,
             prob_fn=prob_fn,
             prob_params=prob_params,
@@ -44,7 +41,11 @@ def mh_chain(random_values, PBC, prob_fn, prob_params, init_position, step_size)
             step_size=step_size,
             PBC=PBC,
         )
-        return (new_position, new_prob, step_size), new_position
+        new_count = count + accepted
+        return (new_position, new_prob, step_size, new_count), (new_position, accepted)
 
-    (_, _, _), positions = jax.lax.scan(body_fn, carry0, random_values)
-    return positions
+    (_, _, _, counts), (positions, accepted) = jax.lax.scan(
+        body_fn, carry0, random_values
+    )
+    acceptance_rate = counts / random_values.shape[0]
+    return positions, acceptance_rate

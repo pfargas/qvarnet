@@ -12,7 +12,7 @@ class ContinuousHamiltonian(BaseHamiltonian):
     """
 
     def kinetic_local_energy(self, params, samples, model_apply):
-        return kinetic_term(params, samples, model_apply)
+        return kinetic_term_log(params, samples, model_apply)
         # return kinetic_term_divergence_theorem(params, samples, model_apply)
 
     def potential_energy(self, samples):

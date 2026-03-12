@@ -83,15 +83,17 @@ def loss_and_grads(hamiltonian, params, batch, model_apply):
 
 @jax.jit
 def train_step(
-    state, batch, hamiltonian, use_qgt=False, qgt_config=DEFAULT_QGT_CONFIG.to_dict()
+    state, samples, hamiltonian, use_qgt=False, qgt_config=DEFAULT_QGT_CONFIG.to_dict()
 ):
-    E, sigma_e, grads = loss_and_grads(hamiltonian, state.params, batch, state.apply_fn)
+    E, sigma_e, grads = loss_and_grads(
+        hamiltonian, state.params, samples, state.apply_fn
+    )
     if not use_qgt:
-        new_state = state.apply_gradients(grads=grads)
+        new_state = state.apply_gradients(grads=grads)  # modifying the parameters!
     else:
         # Compute natural gradient using QGT
         natural_grad_flat, unravel_fn = compute_natural_gradient(
-            state.params, batch, state.apply_fn, grads, qgt_config
+            state.params, samples, state.apply_fn, grads, qgt_config
         )
 
         # Apply natural gradient with learning rate
@@ -103,13 +105,13 @@ def train_step(
 
         # Create new state
         new_state = state.replace(params=new_params)
-    return new_state.replace(energy=E, std=sigma_e)
+    return new_state, E, sigma_e
 
 
 @load_doc("train.txt")
 def train(
     n_epochs,
-    shape,
+    shape,  # n_chains, DoF -> shape of the input to the network
     model,
     optimizer,
     sampler_params,
@@ -117,6 +119,7 @@ def train(
     rng_seed=0,
     checkpoint_path="./",
     save_checkpoints=False,
+    init_positions="normal",
 ):
     """Train a VMC model using Metropolis-Hastings sampling.
     Docs loaded from _docs/train.txt
@@ -150,21 +153,17 @@ def train(
         out = jnp.square(forward)
         return jnp.squeeze(out)
 
-    # n_chains = shape[0]
-    # DoF = shape[1] if len(shape) > 1 else 1
-
     # Use a standard list for history to avoid JAX array updates in loop
-    # energy_history = []
-    # energy_std_history = []
     state_history = []
 
     # Initialize walkers at 0 (or load from checkpoint if you had them)
     # This variable persists across loop iterations to keep chains "warm"
-    current_positions = jnp.zeros(shape)  # THIS LEADS TO NANS IN THE HIDROGEN CASE
-    # current_positions = jax.random.normal(key, shape) * 0.5
-
-    # Track best state separately
-    best_state_device = state
+    if init_positions == "normal":
+        current_positions = jax.random.normal(key, shape) * 0.5
+    elif init_positions == "zeros":
+        current_positions = jnp.zeros(shape)
+    else:
+        raise ValueError(f"Unknown init_positions: {init_positions}")
 
     step_size = sampler_params.get("step_size", 1.0)
     n_steps_sampler = sampler_params.get("chain_length", 500)
@@ -174,11 +173,14 @@ def train(
 
     # --- JIT-COMPILED HELPER FUNCTIONS ---
 
-    @partial(jax.jit, static_argnames=["PBC", "n_steps", "burn_in", "thinning"])
+    @partial(
+        jax.jit, static_argnames=["PBC", "n_steps", "burn_in", "thinning", "shape"]
+    )
     def sample_and_process(
         key,
         params,
         init_pos,
+        shape,  # n_chains, DoF -> shape of the input to the network
         step_size,
         PBC,
         n_steps,
@@ -186,40 +188,55 @@ def train(
         thinning,
     ):
         """Runs the sampler and processes the batch on-device."""
-        n_chains, DoF = init_pos.shape
+        n_chains, DoF = shape
         rand_nums = jax.random.uniform(key, (n_chains, n_steps, DoF + 1))
 
         # Run sampler (returns shape: [n_chains, n_steps, DoF])
-        raw_batch = sampler(rand_nums, PBC, prob_fn, params, init_pos, step_size)
+        raw_batch, acceptance_rates = sampler(
+            rand_nums, PBC, prob_fn, params, init_pos, step_size
+        )
 
         # 2. Process batch for training (Burn-in & Thinning)
         batch = raw_batch[:, burn_in:, :]
         batch = batch[:, ::thinning, :]
+        last_positions = raw_batch[:, -1, :]
         batch_flat = batch.reshape(-1, DoF)
 
-        return batch_flat
+        return batch_flat, last_positions, acceptance_rates
 
-    @partial(jax.jit, static_argnames=["PBC", "n_steps", "burn_in", "thinning"])
+    @partial(
+        jax.jit,
+        static_argnames=[
+            "PBC",
+            "n_steps",
+            "burn_in",
+            "thinning",
+            "shape",
+            "warm_walkers",
+        ],
+    )
     def full_update(
         state,
-        # best_state,
         key,
         current_pos,
+        shape,
         step_size,
         PBC,
         n_steps,
         burn_in,
         thinning,
         hamiltonian,
+        warm_walkers=False,
     ):
         """Performs Sampling + Training + Best State Tracking in one compiled block."""
         key, subkey = jax.random.split(key)
 
         # 1. Sample (and get new walker positions)
-        batch = sample_and_process(
+        batch, last_positions, acceptance_rate = sample_and_process(
             subkey,
             state.params,
             current_pos,
+            shape,
             step_size,
             PBC,
             n_steps,
@@ -228,16 +245,30 @@ def train(
         )
 
         # 2. Train
-        new_state = train_step(state, batch, hamiltonian)
+        new_state, E, sigma_e = train_step(state, batch, hamiltonian)
 
-        return (
-            new_state,
-            key,
-        )
+        if warm_walkers:
+            current_positions = last_positions
+        else:
+            current_positions = None
+
+        return new_state, key, current_positions, E, sigma_e, acceptance_rate
 
     # --------------------------------------------
     # ---          TRAINING LOOP              ---
     # --------------------------------------------
+
+    _, current_positions, _ = sample_and_process(
+        key,
+        state.params,
+        current_positions,
+        shape,
+        step_size,
+        PBC,
+        n_steps_sampler * 10,
+        0,
+        1,
+    )
     progress_bar = tqdm(range(init_steps, n_epochs), disable=not tqdm_available)
 
     for step in progress_bar:
@@ -245,32 +276,35 @@ def train(
             break
 
         # execute the "Mega-Step"
-        state, key = full_update(
+        new_state, key, current_positions, E, sigma_e, acceptance_rate = full_update(
             state=state,
-            # best_state=best_state_device,
             key=key,
-            current_pos=current_positions,  # Note: discuss warm walkers strategy
+            current_pos=current_positions,
+            shape=shape,
             step_size=step_size,
             PBC=PBC,
             n_steps=n_steps_sampler,
             burn_in=burn_in_steps,
             thinning=thinning_factor,
             hamiltonian=hamiltonian,
+            warm_walkers=True,
         )
 
-        # Append energy to list (cheap Python operation)
-        # Note: I don't know if this is efficient, but it avoids JAX array updates in the loop which can be costly
-        state_history.append(state)
+        # Append state with energy evaluated for its parameters
+        state_history.append(
+            state.replace(energy=E, std=sigma_e, acceptance_rate=acceptance_rate)
+        )
+        state = new_state
 
         # --- Logging & Checkpointing (Throttled) ---
 
         # Update progress bar only every 10 steps to reduce CPU-GPU sync overhead
         if tqdm_available and step % 10 == 0:
-            progress_bar.set_postfix(
-                E=f"{state.energy:.2f}", sigma_E=f"{state.std:.2f}"
-            )
+            progress_bar.set_postfix(E=f"{E:.2f}", sigma_E=f"{sigma_e:.2f}")
 
         # Save checkpoints rarely (e.g., every 50 steps)
         if save_checkpoints and step % 50 == 0:
-            save_checkpoint(state, path=checkpoint_path, filename="checkpoint.msgpack")
+            save_checkpoint(
+                new_state, path=checkpoint_path, filename="checkpoint.msgpack"
+            )
     return state_history
