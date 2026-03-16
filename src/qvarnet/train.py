@@ -237,7 +237,7 @@ def train(
             "thinning",
             "shape",
             "warm_walkers",
-            "update_step_size",
+            "is_update_step_size",
         ],
     )
     def full_update(
