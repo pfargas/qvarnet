@@ -121,6 +121,8 @@ def train(
     save_checkpoints=False,
     init_positions="normal",
     warm_walkers=False,
+    min_step=1e-5,
+    max_step=5.0,
 ):
     """Train a VMC model using Metropolis-Hastings sampling.
     Docs loaded from _docs/train.txt
@@ -266,7 +268,9 @@ def train(
         )
 
         # Update step size
-        step_size = update_step_size(step_size, acceptance_rate)
+        step_size = update_step_size(
+            step_size, acceptance_rate, min_step=min_step, max_step=max_step
+        )
 
         # 2. Train
         new_state, E, sigma_e = train_step(state, batch, hamiltonian)
