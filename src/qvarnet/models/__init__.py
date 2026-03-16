@@ -1,5 +1,5 @@
 from .mlp import MLP
-from .exponential import ExponentialMLPwithPenalty
+from .exponential import ExponentialMLPwithPenalty, LogExponentialMLPwithPenalty
 from .deep_set import ExponentialDeepSet
 from .base import BaseModel
 from .mlp_fermions import FermionicMLP
