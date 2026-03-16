@@ -176,7 +176,12 @@ def train(
 
     @jax.jit
     def update_step_size(
-        step_size, acceptance_rate, target_acc=0.5, adaptation_rate=0.1
+        step_size,
+        acceptance_rate,
+        target_acc=0.5,
+        adaptation_rate=0.1,
+        min_step=1e-5,
+        max_step=5.0,
     ):
         """
         Adjusts step_size based on the last recorded acceptance rate.
@@ -186,7 +191,7 @@ def train(
         # Simple multiplicative update
         # We use jnp.clip to prevent the step size from exploding or hitting zero
         factor = 1.0 + adaptation_rate * (jnp.mean(acceptance_rate) - target_acc)
-        new_step_size = jnp.clip(step_size * factor, 0.01, 5.0)
+        new_step_size = jnp.clip(step_size * factor, min_step, max_step)
         return new_step_size
 
     @partial(
