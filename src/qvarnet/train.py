@@ -295,7 +295,7 @@ def train(
         # Normalize state parameters to prevent numerical issues (optional, can be tuned or removed)
         wf_norm_squared = jnp.sum(jnp.square(state.apply_fn(state.params, batch)))
         norm_factor = jnp.sqrt(wf_norm_squared + 1e-8)
-        new_params = jax.tree_map(lambda p: p / norm_factor, new_state.params)
+        new_params = jax.tree.map(lambda p: p / norm_factor, new_state.params)
         new_state = new_state.replace(params=new_params)
 
         return new_state, key, current_pos, E, sigma_e, acceptance_rate, step_size
