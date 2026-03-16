@@ -90,9 +90,7 @@ def loss_and_grads(hamiltonian, params, batch, model_apply, is_log_model=False):
     return E, sigma_e, grad_E
 
 
-@partial(
-    jax.jit, static_argnames=["is_log_model", "use_qgt", "qgt_config", "hamiltonian"]
-)
+@partial(jax.jit, static_argnames=["is_log_model", "use_qgt", "qgt_config"])
 def train_step(
     state,
     samples,
