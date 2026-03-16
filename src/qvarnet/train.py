@@ -329,7 +329,7 @@ def train(
                 thinning=thinning_factor,
                 hamiltonian=hamiltonian,
                 warm_walkers=warm_walkers,
-                update_step_size=update_step_size,  # Enable adaptive step size adjustment
+                is_update_step_size=is_update_step_size,  # Enable adaptive step size adjustment
             )
         )
 
