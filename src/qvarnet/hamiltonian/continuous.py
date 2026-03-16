@@ -1,6 +1,11 @@
 from .base import BaseHamiltonian
 from .hamiltonian_registry import register_hamiltonian
-from .kinetic import kinetic_term, kinetic_term_log, kinetic_term_divergence_theorem
+from .kinetic import (
+    kinetic_term,
+    kinetic_term_log,
+    kinetic_term_divergence_theorem,
+    kinetic_term_log_wavefunction,
+)
 from flax import struct
 
 import jax.numpy as jnp
@@ -12,16 +17,22 @@ class ContinuousHamiltonian(BaseHamiltonian):
     """
 
     def kinetic_local_energy(self, params, samples, model_apply):
-        return kinetic_term_log(params, samples, model_apply)
+        return kinetic_term(params, samples, model_apply)
         # return kinetic_term_divergence_theorem(params, samples, model_apply)
+
+    def kinetic_local_energy_log_model(self, params, samples, model_apply):
+        return kinetic_term_log_wavefunction(params, samples, model_apply)
 
     def potential_energy(self, samples):
         raise NotImplementedError(
             "Potential energy function must be implemented by subclass."
         )
 
-    def local_energy(self, params, samples, model_apply):
-        kinetic = self.kinetic_local_energy(params, samples, model_apply)
+    def local_energy(self, params, samples, model_apply, is_log_model=False):
+        if not is_log_model:
+            kinetic = self.kinetic_local_energy(params, samples, model_apply)
+        else:
+            kinetic = self.kinetic_local_energy_log_model(params, samples, model_apply)
         potential = self.potential_energy(samples)
         return kinetic.squeeze() + potential.squeeze()
 

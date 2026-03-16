@@ -43,8 +43,10 @@ def signal_handler(signum, frame):
 signal.signal(signal.SIGINT, signal_handler)
 
 
-def compute_local_energy(hamiltonian, params, samples, model_apply):
-    return hamiltonian.local_energy(params, samples, model_apply).reshape(-1, 1)
+def compute_local_energy(hamiltonian, params, samples, model_apply, is_log_model=False):
+    return hamiltonian.local_energy(
+        params, samples, model_apply, is_log_model=is_log_model
+    ).reshape(-1, 1)
 
 
 @partial(jax.jit, static_argnames=["model_apply"])
@@ -58,35 +60,49 @@ def grad_log_psi(params, x, model_apply):
     return jax.grad(lambda p: log_psi(x, p, model_apply), argnums=0)(params)
 
 
-@partial(jax.jit, static_argnames=["model_apply"])
-def energy_fn(hamiltonian, params, batch, model_apply):
+@partial(jax.jit, static_argnames=["model_apply", "is_log_model"])
+def energy_fn(hamiltonian, params, batch, model_apply, is_log_model=False):
     local_energy_per_point = compute_local_energy(
-        hamiltonian, params, batch, model_apply
+        hamiltonian, params, batch, model_apply, is_log_model=is_log_model
     )
     E = jnp.mean(local_energy_per_point)
     sigma_e = jnp.std(local_energy_per_point)
     return E, local_energy_per_point, sigma_e
 
 
-@partial(jax.jit, static_argnames=["model_apply"])
-def loss_and_grads(hamiltonian, params, batch, model_apply):
-    E, E_loc, sigma_e = energy_fn(hamiltonian, params, batch, model_apply)
+@partial(jax.jit, static_argnames=["model_apply", "is_log_model"])
+def loss_and_grads(hamiltonian, params, batch, model_apply, is_log_model=False):
+    E, E_loc, sigma_e = energy_fn(
+        hamiltonian, params, batch, model_apply, is_log_model=is_log_model
+    )
     tv = 5.0
     E_clipped = jnp.clip(E_loc, E - tv * sigma_e, E + tv * sigma_e)
-    loss = lambda p: 2 * jnp.mean(
-        jax.lax.stop_gradient(E_clipped - E)
-        * log_psi(batch, p, model_apply).reshape(-1, 1)
-    )
+    if not is_log_model:
+        loss = lambda p: 2 * jnp.mean(
+            jax.lax.stop_gradient(E_clipped - E)
+            * log_psi(batch, p, model_apply).reshape(-1, 1)
+        )
+    else:
+        loss = lambda p: 2 * jnp.mean(
+            jax.lax.stop_gradient(E_clipped - E) * model_apply(p, batch).reshape(-1, 1)
+        )
     grad_E = jax.grad(loss)(params)
     return E, sigma_e, grad_E
 
 
-@jax.jit
+@partial(
+    jax.jit, static_argnames=["is_log_model", "use_qgt", "qgt_config", "hamiltonian"]
+)
 def train_step(
-    state, samples, hamiltonian, use_qgt=False, qgt_config=DEFAULT_QGT_CONFIG.to_dict()
+    state,
+    samples,
+    hamiltonian,
+    is_log_model=False,
+    use_qgt=False,
+    qgt_config=DEFAULT_QGT_CONFIG.to_dict(),
 ):
     E, sigma_e, grads = loss_and_grads(
-        hamiltonian, state.params, samples, state.apply_fn
+        hamiltonian, state.params, samples, state.apply_fn, is_log_model=is_log_model
     )
     if not use_qgt:
         new_state = state.apply_gradients(grads=grads)  # modifying the parameters!
@@ -124,6 +140,7 @@ def train(
     min_step=1e-5,
     max_step=5.0,
     is_update_step_size=False,
+    is_log_model=False,
 ):
     """Train a VMC model using Metropolis-Hastings sampling.
     Docs loaded from _docs/train.txt
@@ -140,6 +157,7 @@ def train(
             None,  # prob_params
             0,  # init_position (n_chains, DoF)
             None,  # step_size
+            None,  # is_log_prob
         ),
         out_axes=0,
     )
@@ -151,11 +169,21 @@ def train(
     init_steps = state.n_step if hasattr(state, "n_step") else 0
 
     # Define prob_fn for the sampler
-    @jax.jit
-    def prob_fn(x, params):
-        forward = model.apply(params, x).flatten()
-        out = jnp.square(forward)
-        return jnp.squeeze(out)
+    if not is_log_model:
+
+        @jax.jit
+        def prob_fn(x, params):
+            forward = model.apply(params, x).flatten()
+            out = jnp.square(forward)
+            return jnp.squeeze(out)
+
+    else:
+
+        @jax.jit
+        def prob_fn(x, params):
+            forward = model.apply(params, x).flatten()
+            out = 2 * forward
+            return jnp.squeeze(out)
 
     # Use a standard list for history to avoid JAX array updates in loop
     state_history = []
@@ -198,7 +226,15 @@ def train(
         return new_step_size
 
     @partial(
-        jax.jit, static_argnames=["PBC", "n_steps", "burn_in", "thinning", "shape"]
+        jax.jit,
+        static_argnames=[
+            "PBC",
+            "n_steps",
+            "burn_in",
+            "thinning",
+            "shape",
+            "is_log_prob",
+        ],
     )
     def sample_and_process(
         key,
@@ -210,6 +246,7 @@ def train(
         n_steps,
         burn_in,
         thinning,
+        is_log_prob=False,
     ):
         """Runs the sampler and processes the batch on-device."""
         n_chains, DoF = shape
@@ -217,7 +254,7 @@ def train(
 
         # Run sampler (returns shape: [n_chains, n_steps, DoF])
         raw_batch, acceptance_rates = sampler(
-            rand_nums, PBC, prob_fn, params, init_pos, step_size
+            rand_nums, PBC, prob_fn, params, init_pos, step_size, is_log_prob
         )
 
         # 2. Process batch for training (Burn-in & Thinning)
@@ -238,6 +275,7 @@ def train(
             "shape",
             "warm_walkers",
             "is_update_step_size",
+            "is_log_model",
         ],
     )
     def full_update(
@@ -253,6 +291,7 @@ def train(
         hamiltonian,
         warm_walkers=False,
         is_update_step_size=False,
+        is_log_model=False,
     ):
         """Performs Sampling + Training + Best State Tracking in one compiled block."""
         key, subkey = jax.random.split(key)
@@ -269,6 +308,7 @@ def train(
                 n_steps,
                 burn_in,
                 thinning,
+                is_log_prob=is_log_model,
             )
         else:
             batch, _, acceptance_rate = sample_and_process(
@@ -281,6 +321,7 @@ def train(
                 n_steps,
                 burn_in,
                 thinning,
+                is_log_prob=is_log_model,
             )
 
         # Update step size
@@ -290,13 +331,9 @@ def train(
             )
 
         # 2. Train
-        new_state, E, sigma_e = train_step(state, batch, hamiltonian)
-
-        # Normalize state parameters to prevent numerical issues (optional, can be tuned or removed)
-        wf_norm_squared = jnp.sum(jnp.square(state.apply_fn(state.params, batch)))
-        norm_factor = jnp.sqrt(wf_norm_squared + 1e-8)
-        new_params = jax.tree.map(lambda p: p / norm_factor, new_state.params)
-        new_state = new_state.replace(params=new_params)
+        new_state, E, sigma_e = train_step(
+            state, batch, hamiltonian, is_log_model=is_log_model
+        )
 
         return new_state, key, current_pos, E, sigma_e, acceptance_rate, step_size
 

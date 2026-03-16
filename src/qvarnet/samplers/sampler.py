@@ -20,7 +20,30 @@ def mh_kernel(
 
 
 @partial(jax.jit, static_argnames=("prob_fn"))
-def mh_chain(random_values, PBC, prob_fn, prob_params, init_position, step_size):
+def mh_kernel_log(
+    uniform_random_numbers, prob_fn, prob_params, position, prob, step_size, PBC
+):
+    proposal = position + step_size * (2 * uniform_random_numbers[:-1] - 1)
+    proposal_log_prob = prob_fn(proposal, prob_params)
+    accept_log_prob = jnp.minimum(
+        0.0, proposal_log_prob - prob
+    )  # log(accept_prob) = min(0, log(proposal_prob) - log(current_prob))
+    accept = uniform_random_numbers[-1] < jnp.exp(accept_log_prob)
+    new_position = jnp.where(accept, proposal, position)
+    new_log_prob = jnp.where(accept, proposal_log_prob, prob)
+    return new_position, new_log_prob, accept
+
+
+@partial(jax.jit, static_argnames=("prob_fn", "is_log_prob"))
+def mh_chain(
+    random_values,
+    PBC,
+    prob_fn,
+    prob_params,
+    init_position,
+    step_size,
+    is_log_prob=False,
+):
     """
     Single MH chain using pre-generated step keys.
     random_values: shape (n_steps, DoF + 1)
@@ -30,9 +53,14 @@ def mh_chain(random_values, PBC, prob_fn, prob_params, init_position, step_size)
     init_prob = prob_fn(init_position, prob_params)
     carry0 = (init_position, init_prob, step_size, 0)
 
+    if is_log_prob:
+        mh_kernel_fn = mh_kernel_log
+    else:
+        mh_kernel_fn = mh_kernel
+
     def body_fn(carry, random_values):
         position, prob, step_size, count = carry
-        new_position, new_prob, accepted = mh_kernel(
+        new_position, new_prob, accepted = mh_kernel_fn(
             uniform_random_numbers=random_values,
             prob_fn=prob_fn,
             prob_params=prob_params,
