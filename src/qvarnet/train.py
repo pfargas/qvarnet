@@ -258,17 +258,30 @@ def train(
         key, subkey = jax.random.split(key)
 
         # 1. Sample (and get new walker positions)
-        batch, last_positions, acceptance_rate = sample_and_process(
-            subkey,
-            state.params,
-            current_pos,
-            shape,
-            step_size,
-            PBC,
-            n_steps,
-            burn_in,
-            thinning,
-        )
+        if warm_walkers:
+            batch, current_positions, acceptance_rate = sample_and_process(
+                subkey,
+                state.params,
+                current_pos,
+                shape,
+                step_size,
+                PBC,
+                n_steps,
+                burn_in,
+                thinning,
+            )
+        else:
+            batch, _, acceptance_rate = sample_and_process(
+                subkey,
+                state.params,
+                current_pos,
+                shape,
+                step_size,
+                PBC,
+                n_steps,
+                burn_in,
+                thinning,
+            )
 
         # Update step size
         if update_step_size:
@@ -278,11 +291,6 @@ def train(
 
         # 2. Train
         new_state, E, sigma_e = train_step(state, batch, hamiltonian)
-
-        if warm_walkers:
-            current_positions = last_positions
-        else:
-            current_positions = None
 
         return new_state, key, current_positions, E, sigma_e, acceptance_rate, step_size
 
