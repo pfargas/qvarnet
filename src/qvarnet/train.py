@@ -120,6 +120,7 @@ def train(
     checkpoint_path="./",
     save_checkpoints=False,
     init_positions="normal",
+    warm_walkers=False,
 ):
     """Train a VMC model using Metropolis-Hastings sampling.
     Docs loaded from _docs/train.txt
@@ -172,6 +173,21 @@ def train(
     PBC = sampler_params.get("PBC", 40.0)
 
     # --- JIT-COMPILED HELPER FUNCTIONS ---
+
+    @jax.jit
+    def update_step_size(
+        step_size, acceptance_rate, target_acc=0.5, adaptation_rate=0.1
+    ):
+        """
+        Adjusts step_size based on the last recorded acceptance rate.
+        If acc > target, increase step_size.
+        If acc < target, decrease step_size.
+        """
+        # Simple multiplicative update
+        # We use jnp.clip to prevent the step size from exploding or hitting zero
+        factor = 1.0 + adaptation_rate * (jnp.mean(acceptance_rate) - target_acc)
+        new_step_size = jnp.clip(step_size * factor, 0.01, 5.0)
+        return new_step_size
 
     @partial(
         jax.jit, static_argnames=["PBC", "n_steps", "burn_in", "thinning", "shape"]
@@ -226,7 +242,7 @@ def train(
         burn_in,
         thinning,
         hamiltonian,
-        warm_walkers=False,
+        warm_walkers=warm_walkers,
     ):
         """Performs Sampling + Training + Best State Tracking in one compiled block."""
         key, subkey = jax.random.split(key)
@@ -244,6 +260,9 @@ def train(
             thinning,
         )
 
+        # Update step size
+        step_size = update_step_size(step_size, acceptance_rate)
+
         # 2. Train
         new_state, E, sigma_e = train_step(state, batch, hamiltonian)
 
@@ -252,23 +271,23 @@ def train(
         else:
             current_positions = None
 
-        return new_state, key, current_positions, E, sigma_e, acceptance_rate
+        return new_state, key, current_positions, E, sigma_e, acceptance_rate, step_size
 
     # --------------------------------------------
     # ---          TRAINING LOOP              ---
     # --------------------------------------------
 
-    _, current_positions, _ = sample_and_process(
-        key,
-        state.params,
-        current_positions,
-        shape,
-        step_size,
-        PBC,
-        n_steps_sampler * 10,
-        0,
-        1,
-    )
+    # _, current_positions, _ = sample_and_process(
+    #     key,
+    #     state.params,
+    #     current_positions,
+    #     shape,
+    #     step_size,
+    #     PBC,
+    #     n_steps_sampler * 10,
+    #     0,
+    #     1,
+    # )
     progress_bar = tqdm(range(init_steps, n_epochs), disable=not tqdm_available)
 
     for step in progress_bar:
@@ -276,18 +295,20 @@ def train(
             break
 
         # execute the "Mega-Step"
-        new_state, key, current_positions, E, sigma_e, acceptance_rate = full_update(
-            state=state,
-            key=key,
-            current_pos=current_positions,
-            shape=shape,
-            step_size=step_size,
-            PBC=PBC,
-            n_steps=n_steps_sampler,
-            burn_in=burn_in_steps,
-            thinning=thinning_factor,
-            hamiltonian=hamiltonian,
-            warm_walkers=True,
+        new_state, key, current_positions, E, sigma_e, acceptance_rate, step_size = (
+            full_update(
+                state=state,
+                key=key,
+                current_pos=current_positions,
+                shape=shape,
+                step_size=step_size,
+                PBC=PBC,
+                n_steps=n_steps_sampler,
+                burn_in=burn_in_steps,
+                thinning=thinning_factor,
+                hamiltonian=hamiltonian,
+                warm_walkers=True,
+            )
         )
 
         # Append state with energy evaluated for its parameters
