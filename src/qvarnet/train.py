@@ -138,7 +138,7 @@ def train(
     min_step=1e-5,
     max_step=5.0,
     is_update_step_size=False,
-    is_log_model=False,
+    is_log_model=False,  # FIXME: It still does not work. Energy is not ok and idk if it's sampling correctly when using log-probs.
 ):
     """Train a VMC model using Metropolis-Hastings sampling.
     Docs loaded from _docs/train.txt
