@@ -1,0 +1,50 @@
+{
+  "experiment": {
+    "name": "qgt_comparison_test",
+    "description": "Compare QGT preconditioning against standard optimizers",
+    "tags": ["qgt", "natural_gradient", "optimization", "comparison"]
+  },
+  "model": {
+    "type": "mlp",
+    "architecture": [10, 20, 1],
+    "activation": "tanh"
+  },
+  "training": {
+    "batch_size": 800,
+    "num_epochs": 1500,
+    "early_stopping": {
+      "patience": 100,
+      "min_delta": 1e-7
+    }
+  },
+  "optimizer": {
+    "type": "qgt",
+    "learning_rate": 1e-3,
+    "qgt_config": {
+      "solver": "cholesky",
+      "regularization": 1e-6,
+      "solver_options": {
+        "maxiter": 1000,
+        "tolerance": 1e-8
+      }
+    }
+  },
+  "sampler": {
+    "type": "metropolis_hastings",
+    "step_size": 0.3,
+    "chain_length": 80,
+    "thermalization_steps": 75
+  },
+  "hamiltonian": {
+    "type": "harmonic_oscillator",
+    "params": {
+      "omega": 1.0,
+      "dimensions": 2
+    }
+  },
+  "output": {
+    "save_dir": "./results",
+    "save_frequency": 75,
+    "save_best_only": false
+  }
+}

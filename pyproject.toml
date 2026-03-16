@@ -11,8 +11,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "numpy",
-    "matplotlib",
-    "torch"
+    "matplotlib"
 ]
 
 [tool.setuptools.packages.find]
@@ -20,3 +19,6 @@ where = ["src"]
 
 [project.optional-dependencies]
 docs = ["sphinx", "sphinx-rtd-theme"]
+
+[project.scripts]
+qvarnet = "qvarnet.cli:main"

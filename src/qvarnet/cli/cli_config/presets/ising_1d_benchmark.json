@@ -1,0 +1,43 @@
+{
+  "experiment": {
+    "name": "ising_1d_benchmark",
+    "description": "1D Ising model for testing discrete spin systems",
+    "tags": ["discrete", "ising", "spin_system", "benchmark"]
+  },
+  "model": {
+    "type": "mlp",
+    "architecture": [20, 10, 1],
+    "activation": "tanh"
+  },
+  "training": {
+    "batch_size": 500,
+    "num_epochs": 2000,
+    "early_stopping": {
+      "patience": 150,
+      "min_delta": 1e-6
+    }
+  },
+  "optimizer": {
+    "type": "adam",
+    "learning_rate": 5e-4
+  },
+  "sampler": {
+    "type": "metropolis_hastings",
+    "step_size": 1.0,
+    "chain_length": 50,
+    "thermalization_steps": 100
+  },
+  "hamiltonian": {
+    "type": "ising_1d",
+    "params": {
+      "J": 1.0,
+      "h": 0.0,
+      "L": 20
+    }
+  },
+  "output": {
+    "save_dir": "./results",
+    "save_frequency": 50,
+    "save_best_only": false
+  }
+}

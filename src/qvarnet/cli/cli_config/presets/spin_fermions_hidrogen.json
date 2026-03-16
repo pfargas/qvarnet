@@ -1,0 +1,35 @@
+{
+    "experiment": {
+        "name": "hidrogen-atom",
+        "description": "hidrogen atom gross structure",
+        "seed": null
+    },
+    "device":{"type":"cuda","idx":0},
+    "model": {
+        "type": "half-spin-non-interacting-fermion",
+        "architecture": [32, 32],
+        "n_up": 1,
+        "n_down": 0,
+        "n_dim": 3
+    },
+    "training": {
+        "batch_size": 1000,
+        "num_epochs": 3000
+    },
+    "optimizer": {
+    "type": "adam",
+    "learning_rate": 0.001
+    },
+    "sampler": {
+        "step_size": 0.5,
+        "chain_length": 100,
+        "thermalization_steps": 50
+    },
+    "hamiltonian": {
+        "name": "gross-struct-hamiltonian",
+        "params": {}
+    },
+    "output": {
+        "save_dir": "./results"
+    }
+}

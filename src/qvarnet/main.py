@@ -1,0 +1,200 @@
+import os
+
+from .models import MODEL_REGISTRY
+from .train import train
+import jax
+import jax.numpy as jnp
+import optax
+import time
+from .utils import (
+    save_flax_to_json,
+    save_energy_history,
+    save_metrics,
+    save_config,
+    create_output_directory,
+    load_custom_module,
+)
+from .hamiltonian import get_hamiltonian
+
+import json
+
+
+def run_experiment(args=None, profile=False):
+    """Run a quantum variational Monte Carlo experiment.
+    Args:
+
+        args: An object containing model, training, sampler, and optimizer arguments.
+        profile: Boolean flag to enable JAX profiling.
+    Returns:
+        None"""
+    if args is None:
+        raise ValueError("Arguments must be provided to run_experiment")
+
+    model_args = args.get_model_args()
+    train_args = args.get_training_args()
+    sampler_args = args.get_sampler_args()
+    optimizer_args = args.get_optimizer_args()
+    output_args = args.get_output_args()
+    master_seed = args.get_seed()
+    exp_info = args.get_info_experiment()
+    hami_args = args.get_hamiltonian_args()
+
+    output_base_path = output_args.get("save_dir", "tmp/qvarnet/results")
+    experiment_name = exp_info.get("name", None)
+    experiment_description = (
+        f"#{exp_info.get('description', 'No description provided.')}"
+    )
+
+    experiment_description += f"""
+
+Experiment info:
+- Model: {model_args.get('type', 'N/A')}
+- Hamiltonian: {hami_args.get('name', 'N/A')}
+- Sampler info: {sampler_args}
+- Optimizer info: {optimizer_args}
+- Training info: {train_args}
+"""
+
+    base_path = create_output_directory(
+        os.path.join(output_base_path, experiment_name), load_config=False
+    )
+    with open(os.path.join(base_path, "description.txt"), "w") as f:
+        f.write(experiment_description)
+
+    print("=" * 40)
+    print(f"Results will be saved to: {base_path}")
+    print("=" * 40)
+
+    # **************************************************
+    # ****                Choose model              ****
+    # **************************************************
+
+    # if model name is custom, load from custom path
+    if args.args.custom_model:
+        load_custom_module(args.args.custom_model)
+        print("Custom model loaded.")
+        from qvarnet.models.registry import MODEL_REGISTRY as _REG
+
+        print("Available models:", list(_REG.keys()))
+        model_name = "new_model"  # FIXME: custom_model name is hardcoded here
+    else:
+        model_name = model_args.get("type", "exponential-mlp-fourth-decay")
+
+    if model_name not in MODEL_REGISTRY:
+        raise ValueError(
+            f"Model '{model_name}' not found. Available models: {list(MODEL_REGISTRY.keys())}"
+        )
+    model_class = MODEL_REGISTRY[model_name]
+    model = model_class.from_config(model_args)
+    shape = model_class.get_input_shape(model_args, train_args["batch_size"])
+    print(f"Using {type(model).__name__}, input shape={shape}")
+    # **************************************************
+
+    # **************************************************
+    # ****             Choose hamiltonian           ****
+    # **************************************************
+    if args.args.custom_hamiltonian:
+        load_custom_module(args.args.custom_hamiltonian)
+        print("Custom hamiltonian loaded.")
+        hamiltonian_name = "local_potential"  # FIXME: local_potential is hardcoded here
+        # I propose that the name should be the name of the file without extension, but this is a quick fix for now
+    else:
+        hamiltonian_name = hami_args.get("name", "harmonic-oscillator")
+    if hamiltonian_name == "gross-struct-hamiltonian":
+        hamiltonian = get_hamiltonian(
+            hamiltonian_name,
+            **{"n_fermions": model_args["n_up"] + model_args["n_down"]},
+        )
+    else:
+        hamiltonian = get_hamiltonian(hamiltonian_name, **hami_args.get("params", {}))
+    # **************************************************
+
+    if optimizer_args["type"] == "adam":
+        optimizer = optax.adam(learning_rate=optimizer_args["learning_rate"])
+    elif optimizer_args["type"] == "sgd":
+        optimizer = optax.sgd(learning_rate=optimizer_args["learning_rate"])
+    else:
+        raise ValueError(f"Unsupported optimizer type: {optimizer_args['type']}")
+
+    if profile:
+        jax.profiler.start_trace("/tmp/profile-data")
+
+    time_start = time.perf_counter()
+    state_history = train(
+        n_epochs=train_args["num_epochs"],
+        shape=shape,
+        model=model,
+        optimizer=optimizer,
+        sampler_params=sampler_args,
+        rng_seed=master_seed,
+        hamiltonian=hamiltonian,
+        checkpoint_path=base_path,
+        save_checkpoints=output_args.get("save_checkpoints", False),
+    )
+    time_end = time.perf_counter()
+
+    if profile:
+        jax.profiler.stop_trace()
+
+    energy_hist = jnp.array([state.energy for state in state_history])
+    energy_std_hist = jnp.array([state.std for state in state_history])
+
+    # remove zeroes from energy_hist, to cut the histories if cutting the computation early (with ctrl+c for example)
+    energy_hist = energy_hist[energy_hist != 0.0]
+    energy_std_hist = energy_std_hist[energy_hist != 0.0]
+
+    print(f"Total training time: {time_end - time_start: <.4f} seconds")
+    print("=" * 40)
+    print("Saving results...")
+
+    # Save energy history
+    try:
+        save_energy_history(base_path, energy_hist, energy_std_hist)
+        print("Saved energy history to energy_history.csv")
+    except Exception as e:
+        print(f"Error saving energy history: {e}")
+
+    # Save final metrics
+    try:
+        save_metrics(
+            base_path,
+            {
+                "training_time_seconds": time_end - time_start,
+            },
+            name="computation_time.json",
+        )
+
+        print("Saved metrics to computation_time.json")
+    except Exception as e:
+        print(f"Error saving metrics: {e}")
+
+    # Save experiment configuration
+    try:
+        save_config(
+            base_path,
+            {
+                "model": model_args,
+                "training": train_args,
+                "sampler": sampler_args,
+                "optimizer": optimizer_args,
+                "hamiltonian": hami_args,
+                "seed": master_seed,
+            },
+        )
+        print("Saved config to config.json")
+    except Exception as e:
+        print(f"Error saving config: {e}")
+
+    # Save state history
+    try:
+        state_history_serializable = [
+            jax.tree.map(lambda x: jax.device_get(x), state.params)
+            for state in state_history
+        ]
+
+        save_flax_to_json(
+            state_history_serializable, os.path.join(base_path, "state_history.msgpack")
+        )
+        print("Saved state history to state_history.msgpack")
+    except Exception as e:
+        print(f"Error saving state history: {e}")

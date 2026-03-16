@@ -1,46 +1,49 @@
-import torch
-from torch import nn
+from .layers import CustomDense
+from flax import linen as nn
+from typing import Callable
+from .base import BaseModel
+
+from .registry import register_model
 
 
-class MLP(nn.Module):
-    """
-    MLP class for creating a multi-layer perceptron.
-    """
+@register_model("mlp")
+class MLP(BaseModel):
+    architecture: list
+    hidden_activation: Callable = nn.tanh
+    kernel_init: Callable = nn.initializers.lecun_normal()
+    bias_init: Callable = nn.initializers.zeros_init()
+    beta: float = 1.0  # scale factor for kernel
 
-    def __init__(self, layer_dims = [1,60,60,1], activation: str = "tanh", pretrained: bool = False, pretrained_path: str = None):
-        super().__init__()
-        self.input_dim = layer_dims[0]
-        self.output_dim = layer_dims[-1]
-        self.hidden_dims = layer_dims[1:-1]
-        self.activation = activation
+    @nn.compact
+    def __call__(self, x):
+        for i in range(len(self.architecture) - 1):
+            x = CustomDense(
+                features=self.architecture[i + 1],
+                kernel_init=self.kernel_init,
+                bias_init=self.bias_init,
+                beta=self.beta,
+            )(x)
+            if i < len(self.architecture) - 2:
+                x = self.hidden_activation(x)
+        return x
 
-        layers = []
-        for i in range(len(layer_dims) - 1):
-            layers.append(nn.Linear(layer_dims[i], layer_dims[i+1]))
-            if i < len(layer_dims) - 2:  # Adding activation function for all layers except the last lasyer
-                if activation == "relu":
-                    layers.append(nn.ReLU())
-                elif activation == "tanh":
-                    layers.append(nn.Tanh())
-                elif activation == "sigmoid":
-                    layers.append(nn.Sigmoid())
+    def build_from_params(self, params):
+        architecture = []
+        layers = params["params"]
+        for layer_name in layers:
+            layer_params = layers[layer_name]
+            if "kernel" in layer_params:
+                architecture.append(layer_params["kernel"].shape[0])
+        # Append output layer size
+        last_layer = list(layers.keys())[-1]
+        output_size = layers[last_layer]["kernel"].shape[1]
+        architecture.append(output_size)
+        return MLP(architecture=architecture)
 
-        self.model = nn.Sequential(*layers)
-        
-        
-        # https://docs.pytorch.org/tutorials/beginner/saving_loading_models.html
-        if pretrained and pretrained_path is not None:
-            self.model.load_state_dict(torch.load(pretrained_path))
-    
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Forward pass through the MLP.
-        """
-        return self.model(x)
-    
-    def __repr__(self):
-        """
-        String representation of the MLP.
-        """
-        return f"MLP(input_dim={self.input_dim}, output_dim={self.output_dim}, hidden_dims={self.hidden_dims}, activation={self.activation})"
-        
+    @classmethod
+    def from_config(cls, model_args: dict):
+        return cls(architecture=model_args["architecture"])
+
+    @classmethod
+    def get_input_shape(cls, model_args: dict, batch_size: int) -> tuple:
+        return (batch_size, model_args["architecture"][0])
