@@ -123,6 +123,7 @@ def train(
     warm_walkers=False,
     min_step=1e-5,
     max_step=5.0,
+    update_step_size=False,
 ):
     """Train a VMC model using Metropolis-Hastings sampling.
     Docs loaded from _docs/train.txt
@@ -143,7 +144,7 @@ def train(
         out_axes=0,
     )
 
-    params = model.init(key, jnp.ones(shape) * 0.1)  # Initialize parameters
+    params = model.init(key, jnp.ones(shape))  # Initialize parameters
     state = VMCState.create(apply_fn=model.apply, params=params, tx=optimizer)
     state = load_checkpoint(state, path=checkpoint_path, filename="checkpoint.msgpack")
 
@@ -236,6 +237,7 @@ def train(
             "thinning",
             "shape",
             "warm_walkers",
+            "update_step_size",
         ],
     )
     def full_update(
@@ -249,7 +251,8 @@ def train(
         burn_in,
         thinning,
         hamiltonian,
-        warm_walkers=warm_walkers,
+        warm_walkers=False,
+        update_step_size=False,
     ):
         """Performs Sampling + Training + Best State Tracking in one compiled block."""
         key, subkey = jax.random.split(key)
@@ -268,9 +271,10 @@ def train(
         )
 
         # Update step size
-        step_size = update_step_size(
-            step_size, acceptance_rate, min_step=min_step, max_step=max_step
-        )
+        if update_step_size:
+            step_size = update_step_size(
+                step_size, acceptance_rate, min_step=min_step, max_step=max_step
+            )
 
         # 2. Train
         new_state, E, sigma_e = train_step(state, batch, hamiltonian)
@@ -316,7 +320,8 @@ def train(
                 burn_in=burn_in_steps,
                 thinning=thinning_factor,
                 hamiltonian=hamiltonian,
-                warm_walkers=True,
+                warm_walkers=warm_walkers,
+                update_step_size=update_step_size,  # Enable adaptive step size adjustment
             )
         )
 
