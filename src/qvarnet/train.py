@@ -259,7 +259,7 @@ def train(
 
         # 1. Sample (and get new walker positions)
         if warm_walkers:
-            batch, current_positions, acceptance_rate = sample_and_process(
+            batch, current_pos, acceptance_rate = sample_and_process(
                 subkey,
                 state.params,
                 current_pos,
@@ -292,7 +292,7 @@ def train(
         # 2. Train
         new_state, E, sigma_e = train_step(state, batch, hamiltonian)
 
-        return new_state, key, current_positions, E, sigma_e, acceptance_rate, step_size
+        return new_state, key, current_pos, E, sigma_e, acceptance_rate, step_size
 
     # --------------------------------------------
     # ---          TRAINING LOOP              ---
