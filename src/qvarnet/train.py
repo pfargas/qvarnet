@@ -123,7 +123,7 @@ def train(
     warm_walkers=False,
     min_step=1e-5,
     max_step=5.0,
-    update_step_size=False,
+    is_update_step_size=False,
 ):
     """Train a VMC model using Metropolis-Hastings sampling.
     Docs loaded from _docs/train.txt
@@ -252,7 +252,7 @@ def train(
         thinning,
         hamiltonian,
         warm_walkers=False,
-        update_step_size=False,
+        is_update_step_size=False,
     ):
         """Performs Sampling + Training + Best State Tracking in one compiled block."""
         key, subkey = jax.random.split(key)
@@ -284,7 +284,7 @@ def train(
             )
 
         # Update step size
-        if update_step_size:
+        if is_update_step_size:
             step_size = update_step_size(
                 step_size, acceptance_rate, min_step=min_step, max_step=max_step
             )
