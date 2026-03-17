@@ -9,3 +9,5 @@ class VMCState(train_state.TrainState):
     acceptance_rate: jnp.ndarray = struct.field(default_factory=lambda: jnp.array(0.0))
     energy: float = float("inf")
     std: float = float("inf")
+    energy_num: float = float("inf")
+    std_num: float = float("inf")

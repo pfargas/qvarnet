@@ -63,7 +63,7 @@ def laplacian_autodiff_FULL_HESSIAN(params, xs, model_apply):
     return jax.vmap(laplacian_fn)(xs)
 
 
-def laplacian_central_difference(params, xs, model_apply, h=1e-4):
+def laplacian_central_difference(params, xs, model_apply, h=0.05):
     """
     Computes Laplacian using central difference, properly handling JAX batching.
     xs shape: (batch, DoF)

@@ -44,9 +44,10 @@ signal.signal(signal.SIGINT, signal_handler)
 
 
 def compute_local_energy(hamiltonian, params, samples, model_apply, is_log_model=False):
-    return hamiltonian.local_energy(
+    local_energy_AD, local_energy_num = hamiltonian.local_energy(
         params, samples, model_apply, is_log_model=is_log_model
-    ).reshape(-1, 1)
+    )
+    return local_energy_AD.reshape(-1, 1), local_energy_num.reshape(-1, 1)
 
 
 @partial(jax.jit, static_argnames=["model_apply"])
@@ -62,32 +63,34 @@ def grad_log_psi(params, x, model_apply):
 
 @partial(jax.jit, static_argnames=["model_apply", "is_log_model"])
 def energy_fn(hamiltonian, params, batch, model_apply, is_log_model=False):
-    local_energy_per_point = compute_local_energy(
+    local_energy_per_point_AD, local_energy_per_point_num = compute_local_energy(
         hamiltonian, params, batch, model_apply, is_log_model=is_log_model
     )
-    E = jnp.mean(local_energy_per_point)
-    sigma_e = jnp.std(local_energy_per_point)
-    return E, local_energy_per_point, sigma_e
+    E = jnp.mean(local_energy_per_point_AD)
+    sigma_e = jnp.std(local_energy_per_point_AD)
+    E_num = jnp.mean(local_energy_per_point_num)
+    sigma_e_num = jnp.std(local_energy_per_point_num)
+    return E, local_energy_per_point_AD, sigma_e, E_num, sigma_e_num
 
 
 @partial(jax.jit, static_argnames=["model_apply", "is_log_model"])
 def loss_and_grads(hamiltonian, params, batch, model_apply, is_log_model=False):
-    E, E_loc, sigma_e = energy_fn(
+    E, E_loc, sigma_e, E_num, sigma_e_num = energy_fn(
         hamiltonian, params, batch, model_apply, is_log_model=is_log_model
     )
     tv = 5.0
-    E_clipped = jnp.clip(E_loc, E - tv * sigma_e, E + tv * sigma_e)
+    # E_loc = jnp.clip(E_loc, E - tv * sigma_e, E + tv * sigma_e)
     if not is_log_model:
         loss = lambda p: 2 * jnp.mean(
-            jax.lax.stop_gradient(E_clipped - E)
+            jax.lax.stop_gradient(E_loc - E)
             * log_psi(batch, p, model_apply).reshape(-1, 1)
         )
     else:
         loss = lambda p: 2 * jnp.mean(
-            jax.lax.stop_gradient(E_clipped - E) * model_apply(p, batch).reshape(-1, 1)
+            jax.lax.stop_gradient(E_loc - E) * model_apply(p, batch).reshape(-1, 1)
         )
     grad_E = jax.grad(loss)(params)
-    return E, sigma_e, grad_E
+    return E, sigma_e, grad_E, E_num, sigma_e_num
 
 
 @partial(jax.jit, static_argnames=["is_log_model", "use_qgt", "qgt_config"])
@@ -99,7 +102,7 @@ def train_step(
     use_qgt=False,
     qgt_config=DEFAULT_QGT_CONFIG.to_dict(),
 ):
-    E, sigma_e, grads = loss_and_grads(
+    E, sigma_e, grads, E_num, sigma_e_num = loss_and_grads(
         hamiltonian, state.params, samples, state.apply_fn, is_log_model=is_log_model
     )
     if not use_qgt:
@@ -119,7 +122,7 @@ def train_step(
 
         # Create new state
         new_state = state.replace(params=new_params)
-    return new_state, E, sigma_e
+    return new_state, E, sigma_e, E_num, sigma_e_num
 
 
 @load_doc("train.txt")
@@ -256,8 +259,7 @@ def train(
         )
 
         # 2. Process batch for training (Burn-in & Thinning)
-        batch = raw_batch[:, burn_in:, :]
-        batch = batch[:, ::thinning, :]
+        batch = raw_batch[:, burn_in::thinning, :]
         last_positions = raw_batch[:, -1, :]
         batch_flat = batch.reshape(-1, DoF)
 
@@ -329,11 +331,21 @@ def train(
             )
 
         # 2. Train
-        new_state, E, sigma_e = train_step(
+        new_state, E, sigma_e, E_num, sigma_e_num = train_step(
             state, batch, hamiltonian, is_log_model=is_log_model
         )
 
-        return new_state, key, current_pos, E, sigma_e, acceptance_rate, step_size
+        return (
+            new_state,
+            key,
+            current_pos,
+            E,
+            sigma_e,
+            acceptance_rate,
+            step_size,
+            E_num,
+            sigma_e_num,
+        )
 
     # --------------------------------------------
     # ---          TRAINING LOOP              ---
@@ -357,26 +369,40 @@ def train(
             break
 
         # execute the "Mega-Step"
-        new_state, key, current_positions, E, sigma_e, acceptance_rate, step_size = (
-            full_update(
-                state=state,
-                key=key,
-                current_pos=current_positions,
-                shape=shape,
-                step_size=step_size,
-                PBC=PBC,
-                n_steps=n_steps_sampler,
-                burn_in=burn_in_steps,
-                thinning=thinning_factor,
-                hamiltonian=hamiltonian,
-                warm_walkers=warm_walkers,
-                is_update_step_size=is_update_step_size,  # Enable adaptive step size adjustment
-            )
+        (
+            new_state,
+            key,
+            current_positions,
+            E,
+            sigma_e,
+            acceptance_rate,
+            step_size,
+            E_num,
+            sigma_e_num,
+        ) = full_update(
+            state=state,
+            key=key,
+            current_pos=current_positions,
+            shape=shape,
+            step_size=step_size,
+            PBC=PBC,
+            n_steps=n_steps_sampler,
+            burn_in=burn_in_steps,
+            thinning=thinning_factor,
+            hamiltonian=hamiltonian,
+            warm_walkers=warm_walkers,
+            is_update_step_size=is_update_step_size,  # Enable adaptive step size adjustment
         )
 
         # Append state with energy evaluated for its parameters
         state_history.append(
-            state.replace(energy=E, std=sigma_e, acceptance_rate=acceptance_rate)
+            state.replace(
+                energy=E,
+                std=sigma_e,
+                acceptance_rate=acceptance_rate,
+                energy_num=E_num,
+                std_num=sigma_e_num,
+            )
         )
         state = new_state
 
@@ -384,7 +410,12 @@ def train(
 
         # Update progress bar only every 10 steps to reduce CPU-GPU sync overhead
         if tqdm_available and step % 10 == 0:
-            progress_bar.set_postfix(E=f"{E:.2f}", sigma_E=f"{sigma_e:.2f}")
+            progress_bar.set_postfix(
+                E=f"{E:.2f}",
+                sigma_E=f"{sigma_e:.2f}",
+                E_num=f"{E_num:.2f}",
+                sigma_E_num=f"{sigma_e_num:.2f}",
+            )
 
         # Save checkpoints rarely (e.g., every 50 steps)
         if save_checkpoints and step % 50 == 0:

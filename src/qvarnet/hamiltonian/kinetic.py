@@ -1,9 +1,10 @@
 import jax
 import jax.numpy as jnp
-from .laplacian import laplacian_autodiff_new as laplacian
+from .laplacian import laplacian_autodiff_new as laplacian_AD
+from .laplacian import laplacian_central_difference
 
 
-def kinetic_term(params, xs, model_apply, laplacian=laplacian):
+def kinetic_term(params, xs, model_apply, laplacian=laplacian_AD):
     def psi_fn(x):
         # ensure input has shape (1,) as model expects last-dim features
         x = jnp.atleast_1d(x).reshape(1, -1)  # (1, DoF)
