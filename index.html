@@ -12,6 +12,8 @@
     <script src="_static/documentation_options.js?v=01f34227"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script>window.MathJax = {"tex": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "displayMath": [["$$", "$$"], ["\\[", "\\]"]], "macros": {"ket": ["\\left|#1\\right\\rangle", 1], "bra": ["\\left\\langle#1\\right|", 1], "braket": ["\\left\\langle#1\\middle|#2\\right\\rangle", 2], "expval": ["\\left\\langle#1\\right\\rangle", 1], "psi": "\\psi", "Psi": "\\Psi", "hamiltonian": "\\hat{H}", "hbar": "\\hbar"}}}</script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="Installation" href="installation.html" />
@@ -35,6 +37,69 @@
   <section id="qvarnet-artificial-networks-for-quantum-variational-monte-carlo">
 <h1>qvarnet: Artificial Networks for Quantum Variational Monte Carlo<a class="headerlink" href="#qvarnet-artificial-networks-for-quantum-variational-monte-carlo" title="Link to this heading">¶</a></h1>
 <p>This documentation provides a user guide and an API reference for the <cite>qvarnet</cite> library.</p>
+<dl class="py function" id="module-qvarnet.train">
+<dt class="sig sig-object py" id="qvarnet.train.signal_handler">
+<span class="sig-prename descclassname"><span class="pre">qvarnet.train.</span></span><span class="sig-name descname"><span class="pre">signal_handler</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">signum</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">frame</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/qvarnet/train.html#signal_handler"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qvarnet.train.signal_handler" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="qvarnet.train.compute_local_energy">
+<span class="sig-prename descclassname"><span class="pre">qvarnet.train.</span></span><span class="sig-name descname"><span class="pre">compute_local_energy</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">hamiltonian</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">params</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">samples</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_apply</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">is_log_model</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/qvarnet/train.html#compute_local_energy"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qvarnet.train.compute_local_energy" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="qvarnet.train.log_psi">
+<span class="sig-prename descclassname"><span class="pre">qvarnet.train.</span></span><span class="sig-name descname"><span class="pre">log_psi</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">params</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_apply</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/qvarnet/train.html#log_psi"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qvarnet.train.log_psi" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="qvarnet.train.grad_log_psi">
+<span class="sig-prename descclassname"><span class="pre">qvarnet.train.</span></span><span class="sig-name descname"><span class="pre">grad_log_psi</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">params</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_apply</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/qvarnet/train.html#grad_log_psi"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qvarnet.train.grad_log_psi" title="Link to this definition">¶</a></dt>
+<dd><p>Compute the gradient of log(psi) with respect to parameters.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="qvarnet.train.energy_fn">
+<span class="sig-prename descclassname"><span class="pre">qvarnet.train.</span></span><span class="sig-name descname"><span class="pre">energy_fn</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">hamiltonian</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">params</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">batch</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_apply</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">is_log_model</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/qvarnet/train.html#energy_fn"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qvarnet.train.energy_fn" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="qvarnet.train.loss_and_grads">
+<span class="sig-prename descclassname"><span class="pre">qvarnet.train.</span></span><span class="sig-name descname"><span class="pre">loss_and_grads</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">hamiltonian</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">params</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">batch</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_apply</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">is_log_model</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/qvarnet/train.html#loss_and_grads"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qvarnet.train.loss_and_grads" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="qvarnet.train.train_step">
+<span class="sig-prename descclassname"><span class="pre">qvarnet.train.</span></span><span class="sig-name descname"><span class="pre">train_step</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">samples</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hamiltonian</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">is_log_model</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_qgt</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">qgt_config</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{'learning_rate':</span> <span class="pre">0.001,</span> <span class="pre">'regularization':</span> <span class="pre">1e-06,</span> <span class="pre">'solver':</span> <span class="pre">'cholesky',</span> <span class="pre">'solver_options':</span> <span class="pre">{}}</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/qvarnet/train.html#train_step"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qvarnet.train.train_step" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="qvarnet.train.train">
+<span class="sig-prename descclassname"><span class="pre">qvarnet.train.</span></span><span class="sig-name descname"><span class="pre">train</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">n_epochs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">shape</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">optimizer</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sampler_params</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hamiltonian</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng_seed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">checkpoint_path</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">save_checkpoints</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">init_positions</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'normal'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">warm_walkers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_step</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1e-05</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_step</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">is_update_step_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">is_log_model</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/qvarnet/train.html#train"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qvarnet.train.train" title="Link to this definition">¶</a></dt>
+<dd><p>Main function to optimize the wavefunction parameters using Variational Monte Carlo.</p>
+<p>The optimizer approach is based on gradient descent:</p>
+<div class="math notranslate nohighlight">
+\[\theta_{t+1} = \theta_t - \eta \nabla_\theta \mathcal{L}(\theta_t)\]</div>
+<p>Where $mathcal{L}$ is the loss function defined as:</p>
+<div class="math notranslate nohighlight">
+\[\Psi\]</div>
+<div class="math notranslate nohighlight">
+\[\mathcal{L}(\theta) = 2
+E_{x \sim |\psi_\theta(x)|^2}\Big[
+    (E_{\rm loc}(x) - \langle E \rangle)
+    \log |\psi_\theta(x)|
+\Big]\]</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>n_epochs</strong> – Number of training epochs.</p></li>
+<li><p><strong>init_params</strong> – Initial parameters of the wavefunction model.</p></li>
+<li><p><strong>shape</strong> – Shape of the input data (batch_size, DoF).</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
 <div class="toctree-wrapper compound">
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a><ul>
