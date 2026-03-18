@@ -32,7 +32,8 @@ def laplacian_autodiff_new(params, xs, model_apply):
 
         def body_fun(i, val):
             # Create unit vector e_i
-            e_i = jnp.eye(n_dims)[i]
+            # e_i = jnp.eye(n_dims)[i]
+            e_i = jnp.zeros(n_dims).at[i].set(1.0)
 
             # jvp(grad(psi), (primal,), (tangent,))
             # resulting tangent is (Hessian * e_i)

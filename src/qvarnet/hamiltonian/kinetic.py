@@ -62,7 +62,7 @@ def kinetic_term_log(params, samples, model_apply):
     return kinetic
 
 
-def kinetic_term_log_wavefunction(params, samples, model_apply):
+def kinetic_term_log_wavefunction(params, samples, model_apply, laplacian=laplacian_AD):
     # This computes: -0.5 * laplacian(log_psi) - 0.5 * (grad(log_psi))^2
     # This form is numerically much more stable than (nabla^2 psi) / psi
 
