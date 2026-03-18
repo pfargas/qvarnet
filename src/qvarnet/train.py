@@ -408,6 +408,10 @@ def train(
 
         # --- Logging & Checkpointing (Throttled) ---
 
+        if nan_callback(E):
+            print(f"NaN detected in energy at step {step}. Stopping training.")
+            break
+
         # Update progress bar only every 10 steps to reduce CPU-GPU sync overhead
         if tqdm_available and step % 10 == 0:
             progress_bar.set_postfix(
