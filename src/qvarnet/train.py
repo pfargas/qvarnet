@@ -206,7 +206,10 @@ def train(
 
     # --- JIT-COMPILED HELPER FUNCTIONS ---
 
-    @jax.jit
+    @partial(
+        jax.jit,
+        static_argnames=["target_acc", "adaptation_rate", "min_step", "max_step"],
+    )
     def update_step_size(
         step_size,
         acceptance_rate,
@@ -402,6 +405,7 @@ def train(
                 acceptance_rate=acceptance_rate,
                 energy_num=E_num,
                 std_num=sigma_e_num,
+                step_size=step_size,
             )
         )
         state = new_state

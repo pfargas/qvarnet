@@ -11,3 +11,4 @@ class VMCState(train_state.TrainState):
     std: float = float("inf")
     energy_num: float = float("inf")
     std_num: float = float("inf")
+    step_size: float = float("inf")
