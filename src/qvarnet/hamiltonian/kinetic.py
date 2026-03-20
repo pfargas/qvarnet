@@ -79,10 +79,11 @@ def kinetic_term_log_wavefunction(params, samples, model_apply, laplacian=laplac
     # 2. Compute Laplacian of Log Psi (Trace of Hessian)
     # Forward-mode AD is faster and safer for Laplacians
 
-    lap_val = jax.vmap(laplacian)(samples)
+    # lap_val = jax.vmap(laplacian)(samples)
+    lap_psi = laplacian(params, samples, model_apply)
 
     # 3. Kinetic Energy Formula (Log Domain)
     # T = -0.5 * ( Laplacian(ln Psi) + |Grad(ln Psi)|^2 )
-    kinetic = -0.5 * (lap_val + jnp.sum(grad_val**2, axis=-1))
+    kinetic = -0.5 * (lap_psi + jnp.sum(grad_val**2, axis=-1))
 
     return kinetic

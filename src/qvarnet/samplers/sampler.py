@@ -28,7 +28,7 @@ def mh_kernel_log(
     accept_log_prob = jnp.minimum(
         0.0, proposal_log_prob - prob
     )  # log(accept_prob) = min(0, log(proposal_prob) - log(current_prob))
-    accept = uniform_random_numbers[-1] < jnp.exp(accept_log_prob)
+    accept = jnp.log(uniform_random_numbers[-1]) < accept_log_prob
     new_position = jnp.where(accept, proposal, position)
     new_log_prob = jnp.where(accept, proposal_log_prob, prob)
     return new_position, new_log_prob, accept
