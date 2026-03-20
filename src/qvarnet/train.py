@@ -53,12 +53,7 @@ def compute_local_energy(hamiltonian, params, samples, model_apply, is_log_model
 @partial(jax.jit, static_argnames=["model_apply"])
 def log_psi(x, params, model_apply):
     psi = model_apply(params, x)
-    return jnp.log(jnp.abs(psi) + 1e-8).squeeze()  # Add small constant to avoid log(0)
-
-
-def grad_log_psi(params, x, model_apply):
-    """Compute the gradient of log(psi) with respect to parameters."""
-    return jax.grad(lambda p: log_psi(x, p, model_apply), argnums=0)(params)
+    return jnp.log(jnp.abs(psi) + 1e-8).squeeze()
 
 
 @partial(jax.jit, static_argnames=["model_apply", "is_log_model"])
@@ -74,12 +69,10 @@ def energy_fn(hamiltonian, params, batch, model_apply, is_log_model=False):
 
 
 @partial(jax.jit, static_argnames=["model_apply", "is_log_model"])
-def loss_and_grads(hamiltonian, params, batch, model_apply, is_log_model=False):
+def energy_and_grads(hamiltonian, params, batch, model_apply, is_log_model=False):
     E, E_loc, sigma_e, E_num, sigma_e_num = energy_fn(
         hamiltonian, params, batch, model_apply, is_log_model=is_log_model
     )
-    tv = 5.0
-    # E_loc = jnp.clip(E_loc, E - tv * sigma_e, E + tv * sigma_e)
     if not is_log_model:
         loss = lambda p: 2 * jnp.mean(
             jax.lax.stop_gradient(E_loc - E)
@@ -102,33 +95,42 @@ def train_step(
     use_qgt=False,
     qgt_config=DEFAULT_QGT_CONFIG.to_dict(),
 ):
-    E, sigma_e, grads, E_num, sigma_e_num = loss_and_grads(
+    E, sigma_e, grads, E_num, sigma_e_num = energy_and_grads(
         hamiltonian, state.params, samples, state.apply_fn, is_log_model=is_log_model
     )
     if not use_qgt:
-        new_state = state.apply_gradients(grads=grads)  # modifying the parameters!
+        new_state = state.apply_gradients(grads=grads)
     else:
-        # Compute natural gradient using QGT
         natural_grad_flat, unravel_fn = compute_natural_gradient(
             state.params, samples, state.apply_fn, grads, qgt_config
         )
-
-        # Apply natural gradient with learning rate
         learning_rate = qgt_config.get("learning_rate", 1e-3)
         new_params_flat = (
             ravel_pytree(state.params)[0] - learning_rate * natural_grad_flat
         )
         new_params = unravel_fn(new_params_flat)
-
-        # Create new state
         new_state = state.replace(params=new_params)
     return new_state, E, sigma_e, E_num, sigma_e_num
+
+
+@jax.jit
+def update_step_size(
+    step_size,
+    acceptance_rate,
+    min_step,
+    max_step,
+    target_acc=0.5,
+    adaptation_rate=0.1,
+):
+    factor = 1.0 + adaptation_rate * (jnp.mean(acceptance_rate) - target_acc)
+    new_step_size = jnp.clip(step_size * factor, min_step, max_step)
+    return new_step_size
 
 
 @load_doc("train.txt")
 def train(
     n_epochs,
-    shape,  # n_chains, DoF -> shape of the input to the network
+    shape,
     model,
     optimizer,
     sampler_params,
@@ -141,38 +143,35 @@ def train(
     min_step=1e-5,
     max_step=5.0,
     is_update_step_size=False,
-    is_log_model=False,  # FIXME: It still does not work. Energy is not ok and idk if it's sampling correctly when using log-probs.
+    is_log_model=False,
 ):
     """Train a VMC model using Metropolis-Hastings sampling.
     Docs loaded from _docs/train.txt
     """
     key = random.PRNGKey(rng_seed)
 
-    # Vmap the sampler chain over the batch dimension (n_chains)
-    sampler = jax.vmap(
+    sampler_fn = jax.vmap(
         mh_chain,
         in_axes=(
-            0,  # random_values (n_chains, n_steps, DoF + 1)
-            None,  # PBC
-            None,  # prob_fn
-            None,  # prob_params
-            0,  # init_position (n_chains, DoF)
-            None,  # step_size
-            None,  # is_log_prob
+            0,
+            None,
+            None,
+            None,
+            0,
+            None,
+            None,
         ),
         out_axes=0,
     )
 
-    params = model.init(key, jnp.ones(shape))  # Initialize parameters
+    params = model.init(key, jnp.ones(shape))
     state = VMCState.create(apply_fn=model.apply, params=params, tx=optimizer)
     state = load_checkpoint(state, path=checkpoint_path, filename="checkpoint.msgpack")
 
     init_steps = state.n_step if hasattr(state, "n_step") else 0
 
-    # Define prob_fn for the sampler
     if not is_log_model:
 
-        @jax.jit
         def prob_fn(x, params):
             forward = model.apply(params, x).flatten()
             out = jnp.square(forward)
@@ -180,17 +179,13 @@ def train(
 
     else:
 
-        @jax.jit
         def prob_fn(x, params):
             forward = model.apply(params, x).flatten()
             out = 2 * forward
             return jnp.squeeze(out)
 
-    # Use a standard list for history to avoid JAX array updates in loop
     state_history = []
 
-    # Initialize walkers at 0 (or load from checkpoint if you had them)
-    # This variable persists across loop iterations to keep chains "warm"
     if init_positions == "normal":
         current_positions = jax.random.normal(key, shape) * 0.5
     elif init_positions == "zeros":
@@ -203,31 +198,6 @@ def train(
     burn_in_steps = sampler_params.get("thermalization_steps", 50)
     thinning_factor = sampler_params.get("thinning_factor", 5)
     PBC = sampler_params.get("PBC", 40.0)
-
-    # --- JIT-COMPILED HELPER FUNCTIONS ---
-
-    @partial(
-        jax.jit,
-        static_argnames=["target_acc", "adaptation_rate", "min_step", "max_step"],
-    )
-    def update_step_size(
-        step_size,
-        acceptance_rate,
-        target_acc=0.5,
-        adaptation_rate=0.1,
-        min_step=1e-5,
-        max_step=5.0,
-    ):
-        """
-        Adjusts step_size based on the last recorded acceptance rate.
-        If acc > target, increase step_size.
-        If acc < target, decrease step_size.
-        """
-        # Simple multiplicative update
-        # We use jnp.clip to prevent the step size from exploding or hitting zero
-        factor = 1.0 + adaptation_rate * (jnp.mean(acceptance_rate) - target_acc)
-        new_step_size = jnp.clip(step_size * factor, min_step, max_step)
-        return new_step_size
 
     @partial(
         jax.jit,
@@ -244,7 +214,7 @@ def train(
         key,
         params,
         init_pos,
-        shape,  # n_chains, DoF -> shape of the input to the network
+        shape,
         step_size,
         PBC,
         n_steps,
@@ -252,20 +222,14 @@ def train(
         thinning,
         is_log_prob=False,
     ):
-        """Runs the sampler and processes the batch on-device."""
         n_chains, DoF = shape
         rand_nums = jax.random.uniform(key, (n_chains, n_steps, DoF + 1))
-
-        # Run sampler (returns shape: [n_chains, n_steps, DoF])
-        raw_batch, acceptance_rates = sampler(
+        raw_batch, acceptance_rates = sampler_fn(
             rand_nums, PBC, prob_fn, params, init_pos, step_size, is_log_prob
         )
-
-        # 2. Process batch for training (Burn-in & Thinning)
         batch = raw_batch[:, burn_in::thinning, :]
         last_positions = raw_batch[:, -1, :]
         batch_flat = batch.reshape(-1, DoF)
-
         return batch_flat, last_positions, acceptance_rates
 
     @partial(
@@ -292,14 +256,14 @@ def train(
         burn_in,
         thinning,
         hamiltonian,
+        min_step,
+        max_step,
         warm_walkers=False,
         is_update_step_size=False,
         is_log_model=False,
     ):
-        """Performs Sampling + Training + Best State Tracking in one compiled block."""
         key, subkey = jax.random.split(key)
 
-        # 1. Sample (and get new walker positions)
         if warm_walkers:
             batch, current_pos, acceptance_rate = sample_and_process(
                 subkey,
@@ -327,13 +291,11 @@ def train(
                 is_log_prob=is_log_model,
             )
 
-        # Update step size
         if is_update_step_size:
             step_size = update_step_size(
                 step_size, acceptance_rate, min_step=min_step, max_step=max_step
             )
 
-        # 2. Train
         new_state, E, sigma_e, E_num, sigma_e_num = train_step(
             state, batch, hamiltonian, is_log_model=is_log_model
         )
@@ -350,28 +312,12 @@ def train(
             sigma_e_num,
         )
 
-    # --------------------------------------------
-    # ---          TRAINING LOOP              ---
-    # --------------------------------------------
-
-    # _, current_positions, _ = sample_and_process(
-    #     key,
-    #     state.params,
-    #     current_positions,
-    #     shape,
-    #     step_size,
-    #     PBC,
-    #     n_steps_sampler * 10,
-    #     0,
-    #     1,
-    # )
     progress_bar = tqdm(range(init_steps, n_epochs), disable=not tqdm_available)
 
     for step in progress_bar:
         if stop_requested:
             break
 
-        # execute the "Mega-Step"
         (
             new_state,
             key,
@@ -394,10 +340,11 @@ def train(
             thinning=thinning_factor,
             hamiltonian=hamiltonian,
             warm_walkers=warm_walkers,
-            is_update_step_size=is_update_step_size,  # Enable adaptive step size adjustment
+            min_step=min_step,
+            max_step=max_step,
+            is_update_step_size=is_update_step_size,
         )
 
-        # Append state with energy evaluated for its parameters
         state_history.append(
             state.replace(
                 energy=E,
@@ -410,13 +357,10 @@ def train(
         )
         state = new_state
 
-        # --- Logging & Checkpointing (Throttled) ---
-
         if nan_callback(E):
             print(f"NaN detected in energy at step {step}. Stopping training.")
             break
 
-        # Update progress bar only every 10 steps to reduce CPU-GPU sync overhead
         if tqdm_available and step % 10 == 0:
             progress_bar.set_postfix(
                 E=f"{E:.2f}",
@@ -425,7 +369,6 @@ def train(
                 sigma_E_num=f"{sigma_e_num:.2f}",
             )
 
-        # Save checkpoints rarely (e.g., every 50 steps)
         if save_checkpoints and step % 50 == 0:
             save_checkpoint(
                 new_state, path=checkpoint_path, filename="checkpoint.msgpack"
