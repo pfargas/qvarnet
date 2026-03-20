@@ -14,7 +14,7 @@ def kinetic_term(params, xs, model_apply, laplacian=laplacian_AD):
 
     psi_vals = jax.vmap(lambda x: psi_fn(x))(xs)  # shape (batch,)
 
-    psi_safe = psi_vals + 1e-12
+    psi_safe = psi_vals  # + 1e-12
 
     return -0.5 * (d2psi / psi_safe)  # shape (batch,)
 

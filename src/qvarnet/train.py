@@ -53,7 +53,7 @@ def compute_local_energy(hamiltonian, params, samples, model_apply, is_log_model
 @partial(jax.jit, static_argnames=["model_apply"])
 def log_psi(x, params, model_apply):
     psi = model_apply(params, x)
-    return jnp.log(jnp.abs(psi) + 1e-8).squeeze()
+    return jnp.log(jnp.abs(psi)).squeeze()  # + 1e-8).squeeze()
 
 
 @partial(jax.jit, static_argnames=["model_apply", "is_log_model"])
