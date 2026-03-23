@@ -20,6 +20,7 @@ class ContinuousHamiltonian(BaseHamiltonian):
     """
 
     def kinetic_local_energy(self, params, samples, model_apply):
+        print("HI2")
         return kinetic_term(params, samples, model_apply, laplacian=laplacian_AD)
         # return kinetic_term_divergence_theorem(params, samples, model_apply)
 
@@ -29,6 +30,7 @@ class ContinuousHamiltonian(BaseHamiltonian):
         )
 
     def kinetic_local_energy_log_model(self, params, samples, model_apply):
+        print("HI")
         return kinetic_term_log_wavefunction(params, samples, model_apply)
 
     def potential_energy(self, samples):
@@ -36,19 +38,22 @@ class ContinuousHamiltonian(BaseHamiltonian):
             "Potential energy function must be implemented by subclass."
         )
 
-    def local_energy(self, params, samples, model_apply, is_log_model=False):
-        if not is_log_model:
+    def local_energy(self, params, samples, model_apply, is_log_model=False, use_AD=True):
+        print("is_log_model:", is_log_model)
+        if is_log_model and use_AD:
+            kinetic = self.kinetic_local_energy_log_model(params, samples, model_apply)
+        elif is_log_model and not use_AD:
+            raise NotImplementedError(
+                "Central difference for log model not implemented yet."
+            )
+        elif not is_log_model and use_AD:
             kinetic = self.kinetic_local_energy(params, samples, model_apply)
-            kinetic_numeric = self.kinetic_local_energy_central_difference(
+        else:
+            kinetic = self.kinetic_local_energy_central_difference(
                 params, samples, model_apply
             )
-        else:
-            kinetic = self.kinetic_local_energy_log_model(params, samples, model_apply)
         potential = self.potential_energy(samples)
-        return (
-            kinetic.squeeze() + potential.squeeze(),
-            kinetic_numeric.squeeze() + potential.squeeze(),
-        )
+        return kinetic.squeeze() + potential.squeeze()
 
 
 @register_hamiltonian("harmonic-oscillator")

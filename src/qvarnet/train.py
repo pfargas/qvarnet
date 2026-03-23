@@ -43,11 +43,11 @@ def signal_handler(signum, frame):
 signal.signal(signal.SIGINT, signal_handler)
 
 
-def compute_local_energy(hamiltonian, params, samples, model_apply, is_log_model=False):
-    local_energy_AD, local_energy_num = hamiltonian.local_energy(
+def compute_local_energy(hamiltonian, params, samples, model_apply, is_log_model):
+    local_energy = hamiltonian.local_energy(
         params, samples, model_apply, is_log_model=is_log_model
     )
-    return local_energy_AD.reshape(-1, 1), local_energy_num.reshape(-1, 1)
+    return local_energy.reshape(-1, 1)
 
 
 @partial(jax.jit, static_argnames=["model_apply"])
@@ -57,20 +57,18 @@ def log_psi(x, params, model_apply):
 
 
 @partial(jax.jit, static_argnames=["model_apply", "is_log_model"])
-def energy_fn(hamiltonian, params, batch, model_apply, is_log_model=False):
-    local_energy_per_point_AD, local_energy_per_point_num = compute_local_energy(
+def energy_fn(hamiltonian, params, batch, model_apply, is_log_model):
+    local_energy_per_point = compute_local_energy(
         hamiltonian, params, batch, model_apply, is_log_model=is_log_model
     )
-    E = jnp.mean(local_energy_per_point_AD)
-    sigma_e = jnp.std(local_energy_per_point_AD)
-    E_num = jnp.mean(local_energy_per_point_num)
-    sigma_e_num = jnp.std(local_energy_per_point_num)
-    return E, local_energy_per_point_AD, sigma_e, E_num, sigma_e_num
+    E = jnp.mean(local_energy_per_point)
+    sigma_e = jnp.std(local_energy_per_point)
+    return E, local_energy_per_point, sigma_e
 
 
 @partial(jax.jit, static_argnames=["model_apply", "is_log_model"])
-def energy_and_grads(hamiltonian, params, batch, model_apply, is_log_model=False):
-    E, E_loc, sigma_e, E_num, sigma_e_num = energy_fn(
+def energy_and_grads(hamiltonian, params, batch, model_apply, is_log_model):
+    E, E_loc, sigma_e = energy_fn(
         hamiltonian, params, batch, model_apply, is_log_model=is_log_model
     )
     if not is_log_model:
@@ -83,7 +81,7 @@ def energy_and_grads(hamiltonian, params, batch, model_apply, is_log_model=False
             jax.lax.stop_gradient(E_loc - E) * model_apply(p, batch).reshape(-1, 1)
         )
     grad_E = jax.grad(loss)(params)
-    return E, sigma_e, grad_E, E_num, sigma_e_num
+    return E, sigma_e, grad_E
 
 
 @partial(jax.jit, static_argnames=["is_log_model", "use_qgt", "qgt_config"])
@@ -95,7 +93,7 @@ def train_step(
     use_qgt=False,
     qgt_config=DEFAULT_QGT_CONFIG.to_dict(),
 ):
-    E, sigma_e, grads, E_num, sigma_e_num = energy_and_grads(
+    E, sigma_e, grads = energy_and_grads(
         hamiltonian, state.params, samples, state.apply_fn, is_log_model=is_log_model
     )
     if not use_qgt:
@@ -110,7 +108,7 @@ def train_step(
         )
         new_params = unravel_fn(new_params_flat)
         new_state = state.replace(params=new_params)
-    return new_state, E, sigma_e, E_num, sigma_e_num
+    return new_state, E, sigma_e
 
 
 @jax.jit
@@ -296,7 +294,7 @@ def train(
                 step_size, acceptance_rate, min_step=min_step, max_step=max_step
             )
 
-        new_state, E, sigma_e, E_num, sigma_e_num = train_step(
+        new_state, E, sigma_e = train_step(
             state, batch, hamiltonian, is_log_model=is_log_model
         )
 
@@ -308,8 +306,6 @@ def train(
             sigma_e,
             acceptance_rate,
             step_size,
-            E_num,
-            sigma_e_num,
         )
 
     progress_bar = tqdm(range(init_steps, n_epochs), disable=not tqdm_available)
@@ -326,8 +322,6 @@ def train(
             sigma_e,
             acceptance_rate,
             step_size,
-            E_num,
-            sigma_e_num,
         ) = full_update(
             state=state,
             key=key,
@@ -350,8 +344,6 @@ def train(
                 energy=E,
                 std=sigma_e,
                 acceptance_rate=acceptance_rate,
-                energy_num=E_num,
-                std_num=sigma_e_num,
                 step_size=step_size,
             )
         )
@@ -365,8 +357,6 @@ def train(
             progress_bar.set_postfix(
                 E=f"{E:.2f}",
                 sigma_E=f"{sigma_e:.2f}",
-                E_num=f"{E_num:.2f}",
-                sigma_E_num=f"{sigma_e_num:.2f}",
             )
 
         if save_checkpoints and step % 50 == 0:

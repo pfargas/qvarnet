@@ -16,6 +16,22 @@ class ExponentialWavefunction(nn.Module):
         alpha = self.param("alpha", nn.initializers.constant(1.0), ())
         return jnp.exp(-alpha * jnp.sum(x**2, axis=-1))
 
+@register_model("log-analytic")
+class LogAnalyticWavefunction(BaseModel):
+
+    @nn.compact
+    def __call__(self, x):
+        alpha = self.param("alpha", nn.initializers.constant(1.0), ())
+        return -alpha * jnp.sum(x**2, axis=-1)
+
+    @classmethod
+    def from_config(cls, model_args: dict):
+        return cls()
+    
+    @classmethod
+    def get_input_shape(cls, model_args: dict, batch_size: int) -> tuple:
+        return (batch_size, model_args["input_dim"])
+
 
 @register_model("exponential-mlp-fourth-decay")
 class ExponentialMLPwithPenalty(BaseModel):
