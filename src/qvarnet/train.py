@@ -337,6 +337,7 @@ def train(
             min_step=min_step,
             max_step=max_step,
             is_update_step_size=is_update_step_size,
+            is_log_model=is_log_model,
         )
 
         state_history.append(

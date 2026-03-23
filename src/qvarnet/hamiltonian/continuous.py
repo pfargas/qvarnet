@@ -20,7 +20,6 @@ class ContinuousHamiltonian(BaseHamiltonian):
     """
 
     def kinetic_local_energy(self, params, samples, model_apply):
-        print("HI2")
         return kinetic_term(params, samples, model_apply, laplacian=laplacian_AD)
         # return kinetic_term_divergence_theorem(params, samples, model_apply)
 
@@ -30,7 +29,6 @@ class ContinuousHamiltonian(BaseHamiltonian):
         )
 
     def kinetic_local_energy_log_model(self, params, samples, model_apply):
-        print("HI")
         return kinetic_term_log_wavefunction(params, samples, model_apply)
 
     def potential_energy(self, samples):
@@ -38,8 +36,7 @@ class ContinuousHamiltonian(BaseHamiltonian):
             "Potential energy function must be implemented by subclass."
         )
 
-    def local_energy(self, params, samples, model_apply, is_log_model=False, use_AD=True):
-        print("is_log_model:", is_log_model)
+    def local_energy(self, params, samples, model_apply, is_log_model, use_AD=True):
         if is_log_model and use_AD:
             kinetic = self.kinetic_local_energy_log_model(params, samples, model_apply)
         elif is_log_model and not use_AD:
