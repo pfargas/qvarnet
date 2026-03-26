@@ -65,17 +65,17 @@ class HarmonicOscillatorHamiltonian(ContinuousHamiltonian):
 @register_hamiltonian("nn-oscillator")
 @struct.dataclass
 class NN_OscillatorHamiltonian(ContinuousHamiltonian):
-    omega: float = 1.0
-    k: float = 0.1
+    omega_trap: float = 1.0
+    omega_interaction: float = 0.1
     with_pbc: bool = struct.field(pytree_node=False, default=True)
 
     def potential_energy(self, samples):
-        trap = 0.5 * (self.omega**2) * jnp.sum(samples**2, axis=-1)
+        trap = 0.5 * (self.omega_trap**2) * jnp.sum(samples**2, axis=-1)
         if self.with_pbc:
             diffs = samples - jnp.roll(samples, shift=1, axis=-1)
         else:
             diffs = samples[:, :-1] - samples[:, 1:]
-        nn_term = self.k * jnp.sum(diffs**2, axis=-1)
+        nn_term = self.omega_interaction**2 * jnp.sum(diffs**2, axis=-1)
         return trap + nn_term
 
 
