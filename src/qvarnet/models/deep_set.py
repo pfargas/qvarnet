@@ -126,6 +126,10 @@ class DeepSet(BaseModel):
         # 1. Cast everything to lists to ensure '+' works
         phi_hidden = list(self.phi_hidden_architecture)
         f_hidden = list(self.F_hidden_architecture)
+        # define envelope_param as a trainable parameter
+        self.envelope_param = self.param(
+            "envelope_param", nn.initializers.constant(1.0), ()
+        )
 
         # 2. Handle the internal dimension
         # If it's an int, wrap it: [20]. If it's a list/tuple, cast it: [20]
@@ -179,7 +183,7 @@ class DeepSet(BaseModel):
             output.shape[-1] == 1
         ), "Output dimension of F should be 1 for energy evaluation."
         # Exponential output for positive values, shape (Batch, F_out_dim)
-        return output
+        return output - self.envelope_param * jnp.sum(x**4, axis=-1, keepdims=True)
 
     @classmethod
     def from_config(cls, model_args: dict):
