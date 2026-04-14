@@ -7,6 +7,7 @@ from .vmc_state import VMCState
 from .callbacks import *
 from .samplers import mh_chain
 from .probability import build_prob_fn
+from .sampling_step import sample_and_process
 from .config.training_setup import parse_sampler_params, parse_training_params
 
 import signal
@@ -150,20 +151,6 @@ def train(
     """
     key = random.PRNGKey(rng_seed)
 
-    sampler_fn = jax.vmap(
-        mh_chain,
-        in_axes=(
-            0,
-            None,
-            None,
-            None,
-            0,
-            None,
-            None,
-        ),
-        out_axes=0,
-    )
-
     params = model.init(key, jnp.ones(shape))
     state = VMCState.create(apply_fn=model.apply, params=params, tx=optimizer)
     state = load_checkpoint(state, path=checkpoint_path, filename="checkpoint.msgpack")
@@ -185,53 +172,25 @@ def train(
     else:
         raise ValueError(f"Unknown init_positions: {init_positions}")
 
+    # Extract sampling parameters
     step_size = sampling_config.step_size
     n_steps_sampler = sampling_config.chain_length
     burn_in_steps = sampling_config.thermalization_steps
     thinning_factor = sampling_config.thinning_factor
     PBC = sampling_config.PBC
 
-    @partial(
-        jax.jit,
-        static_argnames=[
-            "PBC",
-            "n_steps",
-            "burn_in",
-            "thinning",
-            "shape",
-            "is_log_prob",
-        ],
-    )
-    def sample_and_process(
-        key,
-        params,
-        init_pos,
-        shape,
-        step_size,
-        PBC,
-        n_steps,
-        burn_in,
-        thinning,
-        is_log_prob=False,
-    ):
-        n_chains, DoF = shape
-        rand_nums = jax.random.uniform(key, (n_chains, n_steps, DoF + 1))
-        raw_batch, acceptance_rates = sampler_fn(
-            rand_nums, PBC, prob_fn, params, init_pos, step_size, is_log_prob
-        )
-        batch = raw_batch[:, burn_in::thinning, :]
-        last_positions = raw_batch[:, -1, :]
-        batch_flat = batch.reshape(-1, DoF)
-        return batch_flat, last_positions, acceptance_rates
+    # Get chain structure
+    n_chains, DoF = shape
 
     @partial(
         jax.jit,
         static_argnames=[
-            "PBC",
+            "n_chains",
+            "DoF",
             "n_steps",
             "burn_in",
             "thinning",
-            "shape",
+            "PBC",
             "warm_walkers",
             "is_update_step_size",
             "is_log_model",
@@ -241,12 +200,14 @@ def train(
         state,
         key,
         current_pos,
-        shape,
+        prob_fn,
         step_size,
-        PBC,
+        n_chains,
+        DoF,
         n_steps,
         burn_in,
         thinning,
+        PBC,
         hamiltonian,
         min_step,
         max_step,
@@ -256,32 +217,25 @@ def train(
     ):
         key, subkey = jax.random.split(key)
 
-        if warm_walkers:
-            batch, current_pos, acceptance_rate = sample_and_process(
-                subkey,
-                state.params,
-                current_pos,
-                shape,
-                step_size,
-                PBC,
-                n_steps,
-                burn_in,
-                thinning,
-                is_log_prob=is_log_model,
-            )
-        else:
-            batch, _, acceptance_rate = sample_and_process(
-                subkey,
-                state.params,
-                current_pos,
-                shape,
-                step_size,
-                PBC,
-                n_steps,
-                burn_in,
-                thinning,
-                is_log_prob=is_log_model,
-            )
+        # Sample from MCMC
+        batch, new_pos, acceptance_rate = sample_and_process(
+            key=subkey,
+            prob_fn=prob_fn,
+            prob_params=state.params,
+            init_positions=current_pos,
+            step_size=step_size,
+            n_chains=n_chains,
+            DoF=DoF,
+            n_steps=n_steps,
+            burn_in=burn_in,
+            thinning=thinning,
+            PBC=PBC,
+            is_log_prob=is_log_model,
+        )
+
+        # Update walker positions if requested
+        if not warm_walkers:
+            new_pos = current_pos  # Reset to initial positions
 
         if is_update_step_size:
             step_size = update_step_size(
@@ -295,7 +249,7 @@ def train(
         return (
             new_state,
             key,
-            current_pos,
+            new_pos,
             E,
             sigma_e,
             acceptance_rate,
@@ -320,16 +274,18 @@ def train(
             state=state,
             key=key,
             current_pos=current_positions,
-            shape=shape,
+            prob_fn=prob_fn,
             step_size=step_size,
-            PBC=PBC,
+            n_chains=n_chains,
+            DoF=DoF,
             n_steps=n_steps_sampler,
             burn_in=burn_in_steps,
             thinning=thinning_factor,
+            PBC=PBC,
             hamiltonian=hamiltonian,
-            warm_walkers=warm_walkers,
             min_step=min_step,
             max_step=max_step,
+            warm_walkers=warm_walkers,
             is_update_step_size=is_update_step_size,
             is_log_model=is_log_model,
         )
