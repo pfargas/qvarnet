@@ -1,13 +1,13 @@
 import jax
 import jax.numpy as jnp
 from jax import random
-from jax.flatten_util import ravel_pytree
 
 from .vmc_state import VMCState
 from .callbacks import *
 from .samplers import mh_chain
 from .probability import build_prob_fn
 from .sampling_step import sample_and_process
+from .training_step import compute_step
 from .config.training_setup import parse_sampler_params, parse_training_params
 
 import signal
@@ -29,10 +29,7 @@ except ImportError:
     tqdm_available = False
     print("tqdm not found, progress bars will not be displayed.")
 
-from .qgt import (
-    compute_natural_gradient,
-    DEFAULT_QGT_CONFIG,
-)
+# QGT functions are now imported in training_step.py
 
 stop_requested = False
 
@@ -45,73 +42,8 @@ def signal_handler(signum, frame):
 
 signal.signal(signal.SIGINT, signal_handler)
 
-
-def compute_local_energy(hamiltonian, params, samples, model_apply, is_log_model):
-    local_energy = hamiltonian.local_energy(
-        params, samples, model_apply, is_log_model=is_log_model
-    )
-    return local_energy.reshape(-1, 1)
-
-
-@partial(jax.jit, static_argnames=["model_apply"])
-def log_psi(x, params, model_apply):
-    psi = model_apply(params, x)
-    return jnp.log(jnp.abs(psi)).squeeze()  # + 1e-8).squeeze()
-
-
-@partial(jax.jit, static_argnames=["model_apply", "is_log_model"])
-def energy_fn(hamiltonian, params, batch, model_apply, is_log_model):
-    local_energy_per_point = compute_local_energy(
-        hamiltonian, params, batch, model_apply, is_log_model=is_log_model
-    )
-    E = jnp.mean(local_energy_per_point)
-    sigma_e = jnp.std(local_energy_per_point)
-    return E, local_energy_per_point, sigma_e
-
-
-@partial(jax.jit, static_argnames=["model_apply", "is_log_model"])
-def energy_and_grads(hamiltonian, params, batch, model_apply, is_log_model):
-    E, E_loc, sigma_e = energy_fn(
-        hamiltonian, params, batch, model_apply, is_log_model=is_log_model
-    )
-    if not is_log_model:
-        loss = lambda p: 2 * jnp.mean(
-            jax.lax.stop_gradient(E_loc - E)
-            * log_psi(batch, p, model_apply).reshape(-1, 1)
-        )
-    else:
-        loss = lambda p: 2 * jnp.mean(
-            jax.lax.stop_gradient(E_loc - E) * model_apply(p, batch).reshape(-1, 1)
-        )
-    grad_E = jax.grad(loss)(params)
-    return E, sigma_e, grad_E
-
-
-@partial(jax.jit, static_argnames=["is_log_model", "use_qgt", "qgt_config"])
-def train_step(
-    state,
-    samples,
-    hamiltonian,
-    is_log_model=False,
-    use_qgt=False,
-    qgt_config=DEFAULT_QGT_CONFIG.to_dict(),
-):
-    E, sigma_e, grads = energy_and_grads(
-        hamiltonian, state.params, samples, state.apply_fn, is_log_model=is_log_model
-    )
-    if not use_qgt:
-        new_state = state.apply_gradients(grads=grads)
-    else:
-        natural_grad_flat, unravel_fn = compute_natural_gradient(
-            state.params, samples, state.apply_fn, grads, qgt_config
-        )
-        learning_rate = qgt_config.get("learning_rate", 1e-3)
-        new_params_flat = (
-            ravel_pytree(state.params)[0] - learning_rate * natural_grad_flat
-        )
-        new_params = unravel_fn(new_params_flat)
-        new_state = state.replace(params=new_params)
-    return new_state, E, sigma_e
+# Note: Energy computation and training step functions have been moved to
+# training_step.py for better modularity. See compute_step() there.
 
 
 @jax.jit
@@ -242,8 +174,13 @@ def train(
                 step_size, acceptance_rate, min_step=min_step, max_step=max_step
             )
 
-        new_state, E, sigma_e = train_step(
-            state, batch, hamiltonian, is_log_model=is_log_model
+        new_state, E, sigma_e = compute_step(
+            state=state,
+            batch=batch,
+            hamiltonian=hamiltonian,
+            is_log_model=is_log_model,
+            use_qgt=False,  # TODO: make configurable
+            qgt_config=None,
         )
 
         return (
