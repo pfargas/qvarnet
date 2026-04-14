@@ -6,6 +6,8 @@ from jax.flatten_util import ravel_pytree
 from .vmc_state import VMCState
 from .callbacks import *
 from .samplers import mh_chain
+from .probability import build_prob_fn
+from .config.training_setup import parse_sampler_params, parse_training_params
 
 import signal
 
@@ -168,21 +170,13 @@ def train(
 
     init_steps = state.n_step if hasattr(state, "n_step") else 0
 
-    if not is_log_model:
-
-        def prob_fn(x, params):
-            forward = model.apply(params, x).flatten()
-            out = jnp.square(forward)
-            return jnp.squeeze(out)
-
-    else:
-
-        def prob_fn(x, params):
-            forward = model.apply(params, x).flatten()
-            out = 2 * forward
-            return jnp.squeeze(out)
+    # Build probability function based on model type
+    prob_fn = build_prob_fn(model.apply, is_log_model=is_log_model)
 
     state_history = []
+
+    # Parse configuration into typed dataclasses
+    sampling_config = parse_sampler_params(sampler_params, is_log_prob=is_log_model)
 
     if init_positions == "normal":
         current_positions = jax.random.normal(key, shape) * 0.5
@@ -191,11 +185,11 @@ def train(
     else:
         raise ValueError(f"Unknown init_positions: {init_positions}")
 
-    step_size = sampler_params.get("step_size", 1.0)
-    n_steps_sampler = sampler_params.get("chain_length", 500)
-    burn_in_steps = sampler_params.get("thermalization_steps", 50)
-    thinning_factor = sampler_params.get("thinning_factor", 5)
-    PBC = sampler_params.get("PBC", 40.0)
+    step_size = sampling_config.step_size
+    n_steps_sampler = sampling_config.chain_length
+    burn_in_steps = sampling_config.thermalization_steps
+    thinning_factor = sampling_config.thinning_factor
+    PBC = sampling_config.PBC
 
     @partial(
         jax.jit,
