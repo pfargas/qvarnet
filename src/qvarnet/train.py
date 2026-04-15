@@ -8,7 +8,6 @@ from .samplers import mh_chain
 from .probability import build_prob_fn
 from .sampling_step import sample_and_process
 from .training_step import compute_step
-from .training_state import StateManager
 from .config.training_setup import parse_sampler_params, parse_training_params
 
 import signal
@@ -86,15 +85,14 @@ def train(
 
     params = model.init(key, jnp.ones(shape))
     state = VMCState.create(apply_fn=model.apply, params=params, tx=optimizer)
-
-    # Initialize state manager for checkpointing and history tracking
-    state_manager = StateManager(checkpoint_path=checkpoint_path)
-    state = state_manager.load_checkpoint(state)
+    state = load_checkpoint(state, path=checkpoint_path, filename="checkpoint.msgpack")
 
     init_steps = state.n_step if hasattr(state, "n_step") else 0
 
     # Build probability function based on model type
     prob_fn = build_prob_fn(model.apply, is_log_model=is_log_model)
+
+    state_history = []
 
     # Parse configuration into typed dataclasses
     sampling_config = parse_sampler_params(sampler_params, is_log_prob=is_log_model)
@@ -119,6 +117,8 @@ def train(
     @partial(
         jax.jit,
         static_argnames=[
+            "prob_fn",
+            "hamiltonian",
             "n_chains",
             "DoF",
             "n_steps",
@@ -229,12 +229,13 @@ def train(
             is_log_model=is_log_model,
         )
 
-        # Record training metrics
-        state_manager.record_epoch(
-            energy=float(E),
-            std=float(sigma_e),
-            acceptance_rate=float(jnp.mean(acceptance_rate)),
-            step_size=float(step_size),
+        state_history.append(
+            state.replace(
+                energy=E,
+                std=sigma_e,
+                acceptance_rate=acceptance_rate,
+                step_size=step_size,
+            )
         )
         state = new_state
 
@@ -249,6 +250,7 @@ def train(
             )
 
         if save_checkpoints and step % 50 == 0:
-            state_manager.save_checkpoint(new_state)
-
-    return state_manager.history.energies
+            save_checkpoint(
+                new_state, path=checkpoint_path, filename="checkpoint.msgpack"
+            )
+    return state_history

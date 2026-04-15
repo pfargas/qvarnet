@@ -29,11 +29,11 @@ def create_sampler_fn(
         mh_chain,
         in_axes=(
             0,      # random_values: vectorize over chains (axis 0)
+            None,   # PBC: same for all chains
             None,   # prob_fn: same function for all chains
             None,   # prob_params: same parameters for all chains
             0,      # init_position: different position per chain
             None,   # step_size: same for all chains
-            None,   # PBC: same for all chains
             None,   # is_log_prob: same for all chains
         ),
         out_axes=0,  # Output: result for each chain (axis 0)
@@ -44,6 +44,7 @@ def create_sampler_fn(
 @partial(
     jax.jit,
     static_argnames=[
+        "prob_fn",
         "n_chains",
         "DoF",
         "n_steps",
@@ -115,14 +116,15 @@ def sample_and_process(
     # Run all chains in parallel
     # raw_batch shape: (n_chains, n_steps, DoF)
     # acceptance_rates shape: (n_chains,)
+    # Note: argument order must match mh_chain signature
     raw_batch, acceptance_rates = sampler_fn(
-        rand_nums,
-        prob_fn,
-        prob_params,
-        init_positions,
-        step_size,
-        PBC,
-        is_log_prob,
+        rand_nums,      # random_values
+        PBC,            # PBC
+        prob_fn,        # prob_fn
+        prob_params,    # prob_params
+        init_positions, # init_position
+        step_size,      # step_size
+        is_log_prob,    # is_log_prob
     )
 
     # Post-processing: thermalization and thinning
