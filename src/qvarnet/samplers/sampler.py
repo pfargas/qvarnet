@@ -22,7 +22,6 @@ def mh_kernel(
         proposal = position + step_size * random.normal(
             random.PRNGKey(0), shape=position.shape
         )
-        jax.debug.print("Proposal normal")
     # proposal = ((proposal + 0.5 * PBC) % PBC) - 0.5 * PBC # apply PBC in the samples
     proposal_prob = prob_fn(proposal, prob_params)
     accept_prob = jnp.minimum(1.0, proposal_prob / (prob))  # + 1e-12))
@@ -47,7 +46,6 @@ def mh_kernel_log(
         proposal = position + step_size * (2 * uniform_random_numbers[:-1] - 1)
     else:
         proposal = position + step_size * uniform_random_numbers[:-1]  # standard normal
-        jax.debug.print("Proposal normal")
     proposal_log_prob = prob_fn(proposal, prob_params)
     accept_log_prob = jnp.minimum(
         0.0, proposal_log_prob - prob
