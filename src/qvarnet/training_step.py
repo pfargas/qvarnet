@@ -174,7 +174,7 @@ def compute_step(
         # Natural gradient descent using QGT
         new_state = _apply_natural_gradient_step(state, grads, batch, qgt_config)
 
-    return new_state, E, sigma_e
+    return new_state, E, sigma_e, grads
 
 
 def _apply_natural_gradient_step(

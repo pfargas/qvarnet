@@ -176,7 +176,7 @@ def train(
                 step_size, acceptance_rate, min_step=min_step, max_step=max_step
             )
 
-        new_state, E, sigma_e = compute_step(
+        new_state, E, sigma_e, grads = compute_step(
             state=state,
             batch=batch,
             hamiltonian=hamiltonian,

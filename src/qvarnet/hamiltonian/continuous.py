@@ -66,7 +66,7 @@ class HarmonicOscillatorHamiltonian(ContinuousHamiltonian):
 @struct.dataclass
 class NN_OscillatorHamiltonian(ContinuousHamiltonian):
     omega_trap: float = 1.0
-    omega_interaction: float = 0.1
+    omega_interaction: float = 1.0
     with_pbc: bool = struct.field(pytree_node=False, default=True)
 
     def potential_energy(self, samples):
@@ -75,8 +75,18 @@ class NN_OscillatorHamiltonian(ContinuousHamiltonian):
             diffs = samples - jnp.roll(samples, shift=1, axis=-1)
         else:
             diffs = samples[:, :-1] - samples[:, 1:]
-        nn_term = self.omega_interaction**2 * jnp.sum(diffs**2, axis=-1)
+        nn_term = 0.5*self.omega_interaction**2 * jnp.sum(diffs**2, axis=-1)
         return trap + nn_term
+
+@register_hamiltonian("soft-core")
+@struct.dataclass
+class SoftCoreHamiltonian(ContinuousHamiltonian):
+    R: float = 1.0
+    V0: float = 1.0
+    def potential_energy(self, samples):
+        r = jnp.linalg.norm(samples, axis=-1)
+        mask = r < self.R
+        return jnp.where(mask, self.V0, 0.0)
 
 
 @register_hamiltonian("gross-struct-hamiltonian")
