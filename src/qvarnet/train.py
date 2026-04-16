@@ -193,6 +193,7 @@ def train(
             sigma_e,
             acceptance_rate,
             step_size,
+            grads,
         )
 
     progress_bar = tqdm(range(init_steps, n_epochs), disable=not tqdm_available)
@@ -209,6 +210,7 @@ def train(
             sigma_e,
             acceptance_rate,
             step_size,
+            grads,
         ) = full_update(
             state=state,
             key=key,
@@ -235,6 +237,7 @@ def train(
                 std=sigma_e,
                 acceptance_rate=acceptance_rate,
                 step_size=step_size,
+                grads=grads,
             )
         )
         state = new_state
