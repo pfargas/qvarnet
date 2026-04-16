@@ -5,14 +5,24 @@ from jax import numpy as jnp
 from matplotlib.pyplot import hist
 
 
-@partial(jax.jit, static_argnames=("prob_fn"))
+@partial(jax.jit, static_argnames=("prob_fn", "uniform"))
 def mh_kernel(
-    uniform_random_numbers, prob_fn, prob_params, position, prob, step_size, PBC, uniform=False
-):  
+    uniform_random_numbers,
+    prob_fn,
+    prob_params,
+    position,
+    prob,
+    step_size,
+    PBC,
+    uniform=False,
+):
     if uniform:
         proposal = position + step_size * (2 * uniform_random_numbers[:-1] - 1)
     else:
-        proposal = position + step_size * random.normal(random.PRNGKey(0), shape=position.shape)
+        proposal = position + step_size * random.normal(
+            random.PRNGKey(0), shape=position.shape
+        )
+        jax.debug.print("Proposal normal")
     # proposal = ((proposal + 0.5 * PBC) % PBC) - 0.5 * PBC # apply PBC in the samples
     proposal_prob = prob_fn(proposal, prob_params)
     accept_prob = jnp.minimum(1.0, proposal_prob / (prob))  # + 1e-12))
@@ -22,11 +32,22 @@ def mh_kernel(
     return new_position, new_prob, accept
 
 
-@partial(jax.jit, static_argnames=("prob_fn"))
+@partial(jax.jit, static_argnames=("prob_fn", "uniform"))
 def mh_kernel_log(
-    uniform_random_numbers, prob_fn, prob_params, position, prob, step_size, PBC
+    uniform_random_numbers,
+    prob_fn,
+    prob_params,
+    position,
+    prob,
+    step_size,
+    PBC,
+    uniform=False,
 ):
-    proposal = position + step_size * (2 * uniform_random_numbers[:-1] - 1)
+    if uniform:
+        proposal = position + step_size * (2 * uniform_random_numbers[:-1] - 1)
+    else:
+        proposal = position + step_size * uniform_random_numbers[:-1]  # standard normal
+        jax.debug.print("Proposal normal")
     proposal_log_prob = prob_fn(proposal, prob_params)
     accept_log_prob = jnp.minimum(
         0.0, proposal_log_prob - prob
@@ -37,7 +58,7 @@ def mh_kernel_log(
     return new_position, new_log_prob, accept
 
 
-@partial(jax.jit, static_argnames=("prob_fn", "is_log_prob"))
+@partial(jax.jit, static_argnames=("prob_fn", "is_log_prob", "uniform"))
 def mh_chain(
     random_values,
     PBC,
@@ -46,6 +67,7 @@ def mh_chain(
     init_position,
     step_size,
     is_log_prob=False,
+    uniform=False,
 ):
     """
     Single MH chain using pre-generated step keys.
@@ -71,6 +93,7 @@ def mh_chain(
             prob=prob,
             step_size=step_size,
             PBC=PBC,
+            uniform=uniform,
         )
         new_count = count + accepted
         return (new_position, new_prob, step_size, new_count), (new_position, accepted)
