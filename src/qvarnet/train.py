@@ -108,7 +108,7 @@ def train_step(
         )
         new_params = unravel_fn(new_params_flat)
         new_state = state.replace(params=new_params)
-    return new_state, E, sigma_e
+    return new_state, E, sigma_e, grads
 
 
 @jax.jit
@@ -294,7 +294,7 @@ def train(
                 step_size, acceptance_rate, min_step=min_step, max_step=max_step
             )
 
-        new_state, E, sigma_e = train_step(
+        new_state, E, sigma_e, grads = train_step(
             state, batch, hamiltonian, is_log_model=is_log_model
         )
 
@@ -306,6 +306,7 @@ def train(
             sigma_e,
             acceptance_rate,
             step_size,
+            grads,
         )
 
     progress_bar = tqdm(range(init_steps, n_epochs), disable=not tqdm_available)
@@ -322,6 +323,7 @@ def train(
             sigma_e,
             acceptance_rate,
             step_size,
+            grads,
         ) = full_update(
             state=state,
             key=key,
@@ -346,6 +348,7 @@ def train(
                 std=sigma_e,
                 acceptance_rate=acceptance_rate,
                 step_size=step_size,
+                grads=grads,
             )
         )
         state = new_state

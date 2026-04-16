@@ -12,3 +12,4 @@ class VMCState(train_state.TrainState):
     energy_num: float = float("inf")
     std_num: float = float("inf")
     step_size: float = float("inf")
+    grads: jnp.ndarray = struct.field(default_factory=lambda: jnp.array([]))
