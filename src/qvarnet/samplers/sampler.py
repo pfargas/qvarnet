@@ -7,9 +7,12 @@ from matplotlib.pyplot import hist
 
 @partial(jax.jit, static_argnames=("prob_fn"))
 def mh_kernel(
-    uniform_random_numbers, prob_fn, prob_params, position, prob, step_size, PBC
-):
-    proposal = position + step_size * (2 * uniform_random_numbers[:-1] - 1)
+    uniform_random_numbers, prob_fn, prob_params, position, prob, step_size, PBC, uniform=False
+):  
+    if uniform:
+        proposal = position + step_size * (2 * uniform_random_numbers[:-1] - 1)
+    else:
+        proposal = position + step_size * random.normal(random.PRNGKey(0), shape=position.shape)
     # proposal = ((proposal + 0.5 * PBC) % PBC) - 0.5 * PBC # apply PBC in the samples
     proposal_prob = prob_fn(proposal, prob_params)
     accept_prob = jnp.minimum(1.0, proposal_prob / (prob))  # + 1e-12))

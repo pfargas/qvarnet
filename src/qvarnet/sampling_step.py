@@ -2,6 +2,8 @@
 
 from functools import partial
 from typing import Callable, Tuple
+
+from matplotlib.pylab import uniform
 import jax
 import jax.numpy as jnp
 from jax import random
@@ -67,6 +69,7 @@ def sample_and_process(
     thinning: int,
     PBC: float,
     is_log_prob: bool,
+    uniform: bool = False,
 ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     """
     Generate one batch of samples from MCMC and process them.
@@ -108,7 +111,13 @@ def sample_and_process(
     # Generate random numbers for all chains
     # Shape: (n_chains, n_steps, DoF+1)
     # The extra dimension is used for accept/reject decision in MH kernel
-    rand_nums = random.uniform(key, (n_chains, n_steps, DoF + 1))
+    if uniform:
+        rand_nums = random.uniform(key, (n_chains, n_steps, DoF + 1))
+    else:
+        rand_nums_normal = random.normal(key, (n_chains, n_steps, DoF))
+        rand_nums_uniform = random.uniform(key, (n_chains, n_steps, 1))
+        rand_nums = jnp.concatenate([rand_nums_normal, rand_nums_uniform], axis=-1)
+
 
     # Create vectorized sampler
     sampler_fn = create_sampler_fn(mh_chain_fn)
