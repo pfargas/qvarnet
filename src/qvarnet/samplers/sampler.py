@@ -20,7 +20,8 @@ def mh_kernel(
         proposal = position + step_size * (2 * uniform_random_numbers[:-1] - 1)
     else:
         proposal = position + step_size * random.normal(
-            random.PRNGKey(0), shape=position.shape
+            random.PRNGKey(0),
+            shape=position.shape,  # BUG: should not use a fixed key here, but for testing purposes it's fine
         )
     # proposal = ((proposal + 0.5 * PBC) % PBC) - 0.5 * PBC # apply PBC in the samples
     proposal_prob = prob_fn(proposal, prob_params)

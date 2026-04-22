@@ -30,13 +30,13 @@ def create_sampler_fn(
     sampler_fn = jax.vmap(
         mh_chain,
         in_axes=(
-            0,      # random_values: vectorize over chains (axis 0)
-            None,   # PBC: same for all chains
-            None,   # prob_fn: same function for all chains
-            None,   # prob_params: same parameters for all chains
-            0,      # init_position: different position per chain
-            None,   # step_size: same for all chains
-            None,   # is_log_prob: same for all chains
+            0,  # random_values: vectorize over chains (axis 0)
+            None,  # PBC: same for all chains
+            None,  # prob_fn: same function for all chains
+            None,  # prob_params: same parameters for all chains
+            0,  # init_position: different position per chain
+            None,  # step_size: same for all chains
+            None,  # is_log_prob: same for all chains
         ),
         out_axes=0,  # Output: result for each chain (axis 0)
     )
@@ -114,10 +114,10 @@ def sample_and_process(
     if uniform:
         rand_nums = random.uniform(key, (n_chains, n_steps, DoF + 1))
     else:
-        rand_nums_normal = random.normal(key, (n_chains, n_steps, DoF))
-        rand_nums_uniform = random.uniform(key, (n_chains, n_steps, 1))
+        uniform_key, normal_key = random.split(key)
+        rand_nums_normal = random.normal(normal_key, (n_chains, n_steps, DoF))
+        rand_nums_uniform = random.uniform(uniform_key, (n_chains, n_steps, 1))
         rand_nums = jnp.concatenate([rand_nums_normal, rand_nums_uniform], axis=-1)
-
 
     # Create vectorized sampler
     sampler_fn = create_sampler_fn(mh_chain_fn)
@@ -127,13 +127,13 @@ def sample_and_process(
     # acceptance_rates shape: (n_chains,)
     # Note: argument order must match mh_chain signature
     raw_batch, acceptance_rates = sampler_fn(
-        rand_nums,      # random_values
-        PBC,            # PBC
-        prob_fn,        # prob_fn
-        prob_params,    # prob_params
-        init_positions, # init_position
-        step_size,      # step_size
-        is_log_prob,    # is_log_prob
+        rand_nums,  # random_values
+        PBC,  # PBC
+        prob_fn,  # prob_fn
+        prob_params,  # prob_params
+        init_positions,  # init_position
+        step_size,  # step_size
+        is_log_prob,  # is_log_prob
     )
 
     # Post-processing: thermalization and thinning
