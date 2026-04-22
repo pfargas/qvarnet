@@ -133,7 +133,7 @@ class DeepSet(BaseModel):
             self.envelope_param = self.param(
                 "envelope_param", nn.initializers.constant(0.1), ()
             )
-            print("Using trainable envelope term with initial value 0.1.")
+            print("Using trainable envelope term with initial value 0.1. not squared")
         else:
             print(
                 "Using fixed envelope term with constant 0.013052774 for better performance."
@@ -191,7 +191,7 @@ class DeepSet(BaseModel):
             output.shape[-1] == 1
         ), "Output dimension of F should be 1 for energy evaluation."
         # Exponential output for positive values, shape (Batch, F_out_dim)
-        return output - self.envelope_param**2 * jnp.sum(
+        return output - self.envelope_param * jnp.sum(
             x**4, axis=-1, keepdims=True
         )  # FIXME: This is the original!!!
         # return output - 0.013052774 * jnp.sum(
