@@ -127,9 +127,17 @@ class DeepSet(BaseModel):
         phi_hidden = list(self.phi_hidden_architecture)
         f_hidden = list(self.F_hidden_architecture)
         # define envelope_param as a trainable parameter
-        self.envelope_param = self.param(
-            "envelope_param", nn.initializers.constant(1.0), ()
-        )
+        if (
+            True
+        ):  # FIXME: This is the original code, but we are fixing the envelope term to a constant for better performance
+            self.envelope_param = self.param(
+                "envelope_param", nn.initializers.constant(0.1), ()
+            )
+            print("Using trainable envelope term with initial value 0.1.")
+        else:
+            print(
+                "Using fixed envelope term with constant 0.013052774 for better performance."
+            )
 
         # 2. Handle the internal dimension
         # If it's an int, wrap it: [20]. If it's a list/tuple, cast it: [20]
@@ -183,7 +191,12 @@ class DeepSet(BaseModel):
             output.shape[-1] == 1
         ), "Output dimension of F should be 1 for energy evaluation."
         # Exponential output for positive values, shape (Batch, F_out_dim)
-        return output - self.envelope_param**2 * jnp.sum(x**4, axis=-1, keepdims=True)
+        return output - self.envelope_param**2 * jnp.sum(
+            x**4, axis=-1, keepdims=True
+        )  # FIXME: This is the original!!!
+        # return output - 0.013052774 * jnp.sum(
+        #     x**4, axis=-1, keepdims=True
+        # )  # This is the fixed envelope term with the best found constant
 
     @classmethod
     def from_config(cls, model_args: dict):
