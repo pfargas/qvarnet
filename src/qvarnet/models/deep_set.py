@@ -1,25 +1,13 @@
-from flax import linen as nn
-from jax import numpy as jnp
-from pyparsing import Callable
-
-from .layers.custom_dense import CustomDense
-from .mlp import MLP
-from .base import BaseModel
-
-from .registry import register_model
-
-
-from flax import linen as nn
-from jax import numpy as jnp
-from pyparsing import Callable
-
-from .layers.custom_dense import CustomDense
-from .mlp import MLP
-from .base import BaseModel
-
-from .registry import register_model
+from typing import Callable
 
 import jax
+from flax import linen as nn
+from jax import numpy as jnp
+
+from .base import BaseModel
+from .layers.custom_dense import CustomDense
+from .mlp import MLP
+from .registry import register_model
 
 
 @register_model("exponential-deep-set")

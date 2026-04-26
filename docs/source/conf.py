@@ -26,20 +26,9 @@ templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 # -- Options for HTML output -------------------------------------------------
-html_theme = "alabaster"
-# html_static_path = ['_static']
+html_theme = "furo"
 
-# html_theme_options = {
-#     "collapse_navigation": False,
-#     "navigation_depth": 4,
-#     "sticky_navigation": True,
-#     "titles_only": False,
-#     "includehidden": True,
-# }
-
-# -- Extension configuration -------------------------------------------------
-
-# Napoleon settings for docstring parsing
+# -- Napoleon settings for docstring parsing ---------------------------------
 napoleon_google_docstring = True
 napoleon_numpy_docstring = True
 napoleon_include_init_with_doc = False
@@ -52,24 +41,27 @@ napoleon_use_ivar = False
 napoleon_use_param = True
 napoleon_use_rtype = True
 
-# Autodoc settings
+# -- Autodoc settings --------------------------------------------------------
 autodoc_default_options = {
     "members": True,
     "member-order": "bysource",
     "special-members": "__init__",
     "undoc-members": True,
     "exclude-members": "__weakref__",
+    "show-inheritance": True,
 }
+autodoc_typehints = "description"
+autodoc_typehints_format = "short"
 
-# Intersphinx mapping for external documentation
+# -- Intersphinx mapping for external documentation -------------------------
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3/", None),
     "numpy": ("https://numpy.org/doc/stable/", None),
-    "torch": ("https://pytorch.org/docs/stable/", None),
-    "matplotlib": ("https://matplotlib.org/stable/", None),
+    "jax": ("https://jax.readthedocs.io/en/latest/", None),
+    "flax": ("https://flax.readthedocs.io/en/latest/", None),
 }
 
-# MathJax configuration for quantum mechanics notation
+# -- MathJax configuration for quantum mechanics notation -------------------
 mathjax3_config = {
     "tex": {
         "inlineMath": [["$", "$"], ["\\(", "\\)"]],
@@ -79,18 +71,8 @@ mathjax3_config = {
             "bra": [r"\left\langle#1\right|", 1],
             "braket": [r"\left\langle#1\middle|#2\right\rangle", 2],
             "expval": [r"\left\langle#1\right\rangle", 1],
-            "psi": r"\psi",
-            "Psi": r"\Psi",
             "hamiltonian": r"\hat{H}",
             "hbar": r"\hbar",
         },
     }
 }
-
-# Add debugging print to verify path
-print(f"Python path for Sphinx: {sys.path[0]}")
-print(f"Current working directory: {os.getcwd()}")
-print(f"Source path exists: {os.path.exists(os.path.abspath('../../src'))}")
-print(
-    f"Source contents: {os.listdir(os.path.abspath('../../src')) if os.path.exists(os.path.abspath('../../src')) else 'Not found'}"
-)

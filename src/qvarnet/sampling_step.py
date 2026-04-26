@@ -15,17 +15,17 @@ def create_sampler_fn(
     """
     Create a vectorized sampler function over multiple MCMC chains.
 
-    This function wraps the single-chain Metropolis-Hastings kernel with
-    jax.vmap to parallelize sampling across multiple chains.
+    Wraps a single-chain MH kernel with :func:`jax.vmap` to parallelise
+    sampling across all chains simultaneously.
 
     Args:
-        mh_chain: Single-chain MH kernel function with signature:
-                  (random_values, prob_fn, prob_params, init_position,
-                   step_size, PBC, is_log_prob) -> (positions, acceptance_rate)
+        mh_chain: Single-chain MH kernel with signature
+            ``(random_values, PBC, prob_fn, prob_params, init_position,
+            step_size, is_log_prob) -> (positions, acceptance_rate)``.
 
     Returns:
-        sampler_fn: Vectorized function that samples from all chains in parallel.
-                   Expects random_values of shape (n_chains, n_steps, DoF+1)
+        sampler_fn: Vectorised function that samples all chains in parallel.
+            Expects ``random_values`` of shape ``(n_chains, n_steps, DoF+1)``.
     """
     sampler_fn = jax.vmap(
         mh_chain,
@@ -96,15 +96,14 @@ def sample_and_process(
         is_log_prob: If True, prob_fn outputs log(P). If False, outputs P.
 
     Returns:
-        samples: Processed batch, shape (n_chains * n_samples_effective, DoF)
-                where n_samples_effective = (n_steps - burn_in) // thinning
-        last_positions: Final positions of all chains, shape (n_chains, DoF)
-        acceptance_rates: Acceptance rate per chain, shape (n_chains,)
+        samples: Flattened batch of shape ``(n_chains * n_effective, DoF)``, where ``n_effective = (n_steps - burn_in) // thinning``.
+        last_positions: Final walker positions, shape ``(n_chains, DoF)``.
+        acceptance_rates: Per-chain acceptance rate, shape ``(n_chains,)``.
 
-    Notes:
-        - All operations are JIT-compiled for speed
-        - The vmap over chains is handled internally by create_sampler_fn
-        - Samples are in log-space if is_log_prob=True (not exp-transformed)
+    Note:
+        All operations are JIT-compiled. The vmap over chains is handled inside
+        :func:`create_sampler_fn`. Samples remain in log-space when
+        ``is_log_prob=True``.
     """
     from .samplers import mh_chain as mh_chain_fn
 

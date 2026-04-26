@@ -92,21 +92,27 @@ def energy_and_grads(
     Compute energy and gradients using variance minimization loss.
 
     The loss function is:
-        L(θ) = 2⟨(E_loc(x) - ⟨E⟩) log|ψ(x)|⟩
+
+    .. math::
+
+        \\mathcal{L}(\\theta) = 2\\left\\langle
+            (E_\\mathrm{loc}(x) - \\langle E \\rangle)\\,
+            \\log|\\psi_\\theta(x)|
+        \\right\\rangle
 
     This biases the optimization toward low-energy states.
 
     Args:
-        hamiltonian: Energy operator
-        params: Model parameters (PyTree)
-        batch: Training samples, shape (batch_size, DoF)
-        model_apply: Model forward pass function
-        is_log_model: If True, model outputs log(|ψ|)
+        hamiltonian: Energy operator.
+        params: Model parameters (PyTree).
+        batch: Training samples, shape ``(batch_size, DoF)``.
+        model_apply: Model forward pass function.
+        is_log_model: If True, model outputs ``log(|psi|)``.
 
     Returns:
-        E: Energy expectation value
-        sigma_e: Standard error of energy
-        grads: Gradients w.r.t. parameters (PyTree, same shape as params)
+        E: Energy expectation value.
+        sigma_e: Standard error of energy.
+        grads: Gradients w.r.t. parameters (PyTree, same shape as params).
     """
     E, E_loc, sigma_e = energy_fn(
         hamiltonian, params, batch, model_apply, is_log_model=is_log_model
