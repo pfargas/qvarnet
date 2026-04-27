@@ -114,6 +114,10 @@ def train(
     # Get chain structure
     n_chains, DoF = shape
 
+    # CM
+    cm_mean = [] # center of mass for each epoch, mean of all the chains
+    cm_std = []
+
     @partial(
         jax.jit,
         static_argnames=[
@@ -167,6 +171,10 @@ def train(
             is_log_prob=is_log_model,
         )
 
+        cm = jnp.sum(new_pos, axis = 1)/new_pos.shape[-1]
+        cm_mean = jnp.mean(cm, axis = 0)
+        cm_std = jnp.std(cm, axis = 0)
+
         # Update walker positions if requested
         if not warm_walkers:
             new_pos = current_pos  # Reset to initial positions
@@ -194,6 +202,8 @@ def train(
             acceptance_rate,
             step_size,
             grads,
+            cm_mean,
+            cm_std
         )
 
     progress_bar = tqdm(range(init_steps, n_epochs), disable=not tqdm_available)
@@ -211,6 +221,8 @@ def train(
             acceptance_rate,
             step_size,
             grads,
+            cm_mean_single,
+            cm_std_single
         ) = full_update(
             state=state,
             key=key,
@@ -242,6 +254,9 @@ def train(
         )
         state = new_state
 
+        cm_mean.append(cm_mean_single)
+        cm_std.append(cm_std_single)
+
         if nan_callback(E):
             print(f"NaN detected in energy at step {step}. Stopping training.")
             break
@@ -256,4 +271,4 @@ def train(
             save_checkpoint(
                 new_state, path=checkpoint_path, filename="checkpoint.msgpack"
             )
-    return state_history
+    return state_history, cm_mean, cm_std
