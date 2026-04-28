@@ -115,17 +115,10 @@ class DeepSet(BaseModel):
         phi_hidden = list(self.phi_hidden_architecture)
         f_hidden = list(self.F_hidden_architecture)
         # define envelope_param as a trainable parameter
-        if (
-            True
-        ):  # FIXME: This is the original code, but we are fixing the envelope term to a constant for better performance
-            self.envelope_param = self.param(
-                "envelope_param", nn.initializers.constant(0.1), ()
-            )
-            print("Using trainable envelope term with initial value 0.1. not squared")
-        else:
-            print(
-                "Using fixed envelope term with constant 0.013052774 for better performance."
-            )
+
+        self.envelope_param = self.param(
+            "envelope_param", nn.initializers.constant(0.1), ()
+        )
 
         # 2. Handle the internal dimension
         # If it's an int, wrap it: [20]. If it's a list/tuple, cast it: [20]
