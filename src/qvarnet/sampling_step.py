@@ -148,3 +148,80 @@ def sample_and_process(
     # Shape: (n_chains * n_samples_effective, DoF)
 
     return batch_flat, last_positions, acceptance_rates
+
+
+def batched_sample_and_process(
+    key: jax.random.PRNGKey,
+    prob_fn: Callable,
+    prob_params,
+    DoF: int,
+    n_samples: int,
+    step_size: float,
+    n_steps: int,
+    burn_in: int,
+    thinning: int,
+    PBC: float,
+    is_log_prob: bool,
+    chunk_size: int = 5_000,
+) -> jnp.ndarray:
+    """
+    Memory-safe wrapper around :func:`sample_and_process` that splits sampling
+    into chunks of ``chunk_size`` chains.
+
+    The random-number matrix inside :func:`sample_and_process` has shape
+    ``(n_chains, n_steps, DoF+1)``.  For large ``n_samples`` this can exceed
+    available memory; running smaller independent chunks keeps peak allocation
+    bounded at ``(chunk_size, n_steps, DoF+1)`` per call.
+
+    Because ``n_chains`` is a ``static_argname`` in the underlying JIT, every
+    full chunk reuses the same compiled kernel.  A remainder chunk
+    (``n_samples % chunk_size != 0``) is compiled once separately and cached.
+
+    Args:
+        key: JAX random key.
+        prob_fn: Probability function ``(x, params) -> R``.
+        prob_params: Model parameters passed to ``prob_fn``.
+        DoF: Degrees of freedom per sample.
+        n_samples: Total number of samples to collect.
+        step_size: MH proposal step size.
+        n_steps: Total chain length (including burn-in).
+        burn_in: Number of initial steps to discard.
+        thinning: Keep every ``thinning``-th post-burn-in step.
+        PBC: Periodic boundary size (0 for none).
+        is_log_prob: Whether ``prob_fn`` returns log-probability.
+        chunk_size: Number of chains per call. Defaults to 5 000.
+
+    Returns:
+        samples: Concatenated samples, shape ``(n_samples_eff, DoF)`` where
+            ``n_samples_eff = n_samples * (n_steps - burn_in) // thinning``.
+    """
+    n_full_chunks = n_samples // chunk_size
+    remainder     = n_samples  % chunk_size
+
+    def _chunk(key, n_chains):
+        samples, _, _ = sample_and_process(
+            key=key,
+            prob_fn=prob_fn,
+            prob_params=prob_params,
+            init_positions=jnp.zeros((n_chains, DoF)),
+            step_size=step_size,
+            n_chains=n_chains,
+            DoF=DoF,
+            n_steps=n_steps,
+            burn_in=burn_in,
+            thinning=thinning,
+            PBC=PBC,
+            is_log_prob=is_log_prob,
+        )
+        return samples
+
+    all_samples = []
+    for _ in range(n_full_chunks):
+        key, subkey = random.split(key)
+        all_samples.append(_chunk(subkey, chunk_size))
+
+    if remainder > 0:
+        key, subkey = random.split(key)
+        all_samples.append(_chunk(subkey, remainder))
+
+    return jnp.concatenate(all_samples, axis=0)
