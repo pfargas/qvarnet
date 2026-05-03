@@ -34,6 +34,13 @@ except ImportError:
 stop_requested = False
 
 
+def _cm_relative(x, n_particles, n_dim):
+    shape = x.shape[:-1]
+    r = x.reshape(*shape, n_particles, n_dim)
+    cm = r.mean(axis=-2, keepdims=True)
+    return (r - cm).reshape(*shape, n_particles * n_dim)
+
+
 def signal_handler(signum, frame):
     global stop_requested
     stop_requested = True
@@ -77,6 +84,9 @@ def train(
     max_step=5.0,
     is_update_step_size=False,
     is_log_model=False,
+    use_cm_coords=False,
+    n_particles=None,
+    n_dim=None,
 ):
     """Train a VMC model using Metropolis-Hastings sampling.
     Docs loaded from _docs/train.txt
@@ -84,13 +94,23 @@ def train(
     key = random.PRNGKey(rng_seed)
 
     params = model.init(key, jnp.ones(shape))
-    state = VMCState.create(apply_fn=model.apply, params=params, tx=optimizer)
+
+    if use_cm_coords:
+        assert n_particles is not None and n_dim is not None, \
+            "n_particles and n_dim are required when use_cm_coords=True"
+        _base_apply = model.apply
+        def effective_apply(params, x):
+            return _base_apply(params, _cm_relative(x, n_particles, n_dim))
+    else:
+        effective_apply = model.apply
+
+    state = VMCState.create(apply_fn=effective_apply, params=params, tx=optimizer)
     state = load_checkpoint(state, path=checkpoint_path, filename="checkpoint.msgpack")
 
     init_steps = state.n_step if hasattr(state, "n_step") else 0
 
     # Build probability function based on model type
-    prob_fn = build_prob_fn(model.apply, is_log_model=is_log_model)
+    prob_fn = build_prob_fn(effective_apply, is_log_model=is_log_model)
 
     state_history = []
 
