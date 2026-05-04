@@ -1,6 +1,7 @@
+from typing import Callable
+
 from flax import linen as nn
 from jax import numpy as jnp
-from pyparsing import Callable
 
 from .layers.custom_dense import CustomDense
 from .mlp import MLP
