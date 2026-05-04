@@ -5,85 +5,74 @@ from .laplacian import laplacian_central_difference
 
 
 def kinetic_term(params, xs, model_apply, laplacian=laplacian_AD):
+    """T = -0.5 * ∇²ψ / ψ for direct (non-log) models.
+
+    xs: (batch, DoF)
+    returns: (batch,)  — kinetic energy per sample
+    """
     def psi_fn(x):
-        # ensure input has shape (1,) as model expects last-dim features
-        x = jnp.atleast_1d(x).reshape(1, -1)  # (1, DoF)
-        return model_apply(params, x).squeeze()
+        # x: (DoF,) → reshape to (1, DoF) for model's expected batch dim
+        x = jnp.atleast_1d(x).reshape(1, -1)
+        return model_apply(params, x).squeeze()  # scalar
 
-    d2psi = laplacian(params, xs, model_apply)
-
-    psi_vals = jax.vmap(lambda x: psi_fn(x))(xs)  # shape (batch,)
-
-    psi_safe = psi_vals  # + 1e-12
-
-    return -0.5 * (d2psi / psi_safe)  # shape (batch,)
+    d2psi = laplacian(params, xs, model_apply)  # (batch,)
+    psi_vals = jax.vmap(lambda x: psi_fn(x))(xs)  # (batch,)
+    return -0.5 * (d2psi / psi_vals)  # (batch,)
 
 
 def kinetic_term_divergence_theorem(params, xs, model_apply):
+    """T ≈ +0.5 * |∇ log ψ|² (gradient-only approximation, no laplacian).
+
+    xs: (batch, DoF)
+    returns: (batch,)
+    """
     def log_psi_fn(x):
-        x = jnp.atleast_1d(x).reshape(1, -1)  # (1, DoF)
+        x = jnp.atleast_1d(x).reshape(1, -1)
         psi = model_apply(params, x).squeeze()
-        return jnp.log(jnp.abs(psi) + 1e-12)
+        return jnp.log(jnp.abs(psi) + 1e-12)  # scalar
 
-    # Compute Gradient of Log Psi
     grad_log_psi_fn = jax.grad(log_psi_fn)
-    grad_val = jax.vmap(grad_log_psi_fn)(xs)  # shape: (batch, n_dim)
-
-    return 0.5 * jnp.sum(grad_val**2, axis=-1)
+    grad_val = jax.vmap(grad_log_psi_fn)(xs)  # (batch, DoF)
+    return 0.5 * jnp.sum(grad_val**2, axis=-1)  # (batch,)
 
 
 def kinetic_term_log(params, samples, model_apply):
-    # This computes: -0.5 * laplacian(log_psi) - 0.5 * (grad(log_psi))^2
-    # This form is numerically much more stable than (nabla^2 psi) / psi
+    """T = -0.5 * (Δ log ψ + |∇ log ψ|²) for direct models converted to log-space.
 
+    samples: (batch, DoF)
+    returns: (batch,)
+    """
     def log_psi_fn(x):
         psi = model_apply(params, x)
-        # Sign trick: work in log domain to avoid underflow
-        return jnp.log(jnp.abs(psi) + 1e-12).squeeze()
+        return jnp.log(jnp.abs(psi) + 1e-12).squeeze()  # scalar
 
-    # 1. Compute Gradient of Log Psi
-    # shape: (batch, n_dim)
     grad_log_psi_fn = jax.grad(log_psi_fn)
-    grad_val = jax.vmap(grad_log_psi_fn)(samples)
+    grad_val = jax.vmap(grad_log_psi_fn)(samples)  # (batch, DoF)
 
-    # 2. Compute Laplacian of Log Psi (Trace of Hessian)
-    # Forward-mode AD is faster and safer for Laplacians
     def laplacian_log_psi(x):
-        # We want trace of hessian.
-        # Efficient trick: divergence of gradient
-        return jnp.trace(jax.hessian(log_psi_fn)(x))
+        return jnp.trace(jax.hessian(log_psi_fn)(x))  # scalar — O(DoF²) memory
 
-    lap_val = jax.vmap(laplacian_log_psi)(samples)
+    lap_val = jax.vmap(laplacian_log_psi)(samples)  # (batch,)
 
-    # 3. Kinetic Energy Formula (Log Domain)
-    # T = -0.5 * ( Laplacian(ln Psi) + |Grad(ln Psi)|^2 )
-    kinetic = -0.5 * (lap_val + jnp.sum(grad_val**2, axis=-1))
-
-    return kinetic
+    return -0.5 * (lap_val + jnp.sum(grad_val**2, axis=-1))  # (batch,)
 
 
 def kinetic_term_log_wavefunction(params, samples, model_apply, laplacian=laplacian_AD):
-    # This computes: -0.5 * laplacian(log_psi) - 0.5 * (grad(log_psi))^2
-    # This form is numerically much more stable than (nabla^2 psi) / psi
+    """T = -0.5 * (Δ log ψ + |∇ log ψ|²) for log-space models (model outputs log|ψ|).
 
+    samples: (batch, DoF)
+    returns: (batch,)
+
+    Uses the AD-based laplacian (memory-efficient O(DoF) vs full Hessian O(DoF²)).
+    """
     def log_psi_fn(x):
+        # model already returns log|ψ|; x is a single sample (DoF,)
         psi = model_apply(params, x)
-        # Sign trick: work in log domain to avoid underflow
-        return psi.squeeze()
+        return psi.squeeze()  # scalar
 
-    # 1. Compute Gradient of Log Psi
-    # shape: (batch, n_dim)
     grad_log_psi_fn = jax.grad(log_psi_fn)
-    grad_val = jax.vmap(grad_log_psi_fn)(samples)
+    grad_val = jax.vmap(grad_log_psi_fn)(samples)  # (batch, DoF)
 
-    # 2. Compute Laplacian of Log Psi (Trace of Hessian)
-    # Forward-mode AD is faster and safer for Laplacians
+    lap_psi = laplacian(params, samples, model_apply)  # (batch,)
 
-    # lap_val = jax.vmap(laplacian)(samples)
-    lap_psi = laplacian(params, samples, model_apply)
-
-    # 3. Kinetic Energy Formula (Log Domain)
-    # T = -0.5 * ( Laplacian(ln Psi) + |Grad(ln Psi)|^2 )
-    kinetic = -0.5 * (lap_psi + jnp.sum(grad_val**2, axis=-1))
-
-    return kinetic
+    return -0.5 * (lap_psi + jnp.sum(grad_val**2, axis=-1))  # (batch,)

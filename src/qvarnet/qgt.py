@@ -5,12 +5,19 @@ in Variational Monte Carlo (VMC) calculations.
 This module provides functions to compute the QGT and use it as a preconditioner
 for energy minimization, implementing the stochastic reconfiguration method.
 
-Mathematical foundation:
-    S_ij(θ) = ⟨O_i* O_j⟩ - ⟨O_i*⟩⟨O_j⟩
-where O_i = ∂/∂θ_i log|ψ(θ,x)⟩
+The QGT is defined as:
 
-Natural gradient update:
-    θ_{t+1} = θ_t - η S^{-1}(θ_t) ∇_θ E(θ_t)
+.. math::
+
+    S_{ij}(\\theta) = \\langle O_i^* O_j \\rangle - \\langle O_i^* \\rangle \\langle O_j \\rangle
+
+where :math:`O_i = \\partial / \\partial\\theta_i \\log|\\psi(\\theta, x)|`.
+
+The natural gradient update (stochastic reconfiguration) is:
+
+.. math::
+
+    \\theta_{t+1} = \\theta_t - \\eta\\, S^{-1}(\\theta_t)\\, \\nabla_\\theta E(\\theta_t)
 """
 
 import jax

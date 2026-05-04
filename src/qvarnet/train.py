@@ -1,11 +1,14 @@
 import jax
 import jax.numpy as jnp
 from jax import random
-from jax.flatten_util import ravel_pytree
 
 from .vmc_state import VMCState
 from .callbacks import *
 from .samplers import mh_chain
+from .probability import build_prob_fn
+from .sampling_step import sample_and_process
+from .training_step import compute_step
+from .config.training_setup import parse_sampler_params, parse_training_params
 
 import signal
 
@@ -26,12 +29,23 @@ except ImportError:
     tqdm_available = False
     print("tqdm not found, progress bars will not be displayed.")
 
-from .qgt import (
-    compute_natural_gradient,
-    DEFAULT_QGT_CONFIG,
-)
+# QGT functions are now imported in training_step.py
 
 stop_requested = False
+
+
+def _cm_relative(x, n_particles, n_dim):
+    """Subtract center-of-mass from particle coordinates.
+
+    x:      (..., n_particles * n_dim)
+    r:      (..., n_particles, n_dim)
+    cm:     (..., 1, n_dim)
+    return: (..., n_particles * n_dim)  — same shape as input, CM-subtracted
+    """
+    shape = x.shape[:-1]
+    r = x.reshape(*shape, n_particles, n_dim)  # (..., n_particles, n_dim)
+    cm = r.mean(axis=-2, keepdims=True)        # (..., 1, n_dim)
+    return (r - cm).reshape(*shape, n_particles * n_dim)
 
 
 def signal_handler(signum, frame):
@@ -42,73 +56,8 @@ def signal_handler(signum, frame):
 
 signal.signal(signal.SIGINT, signal_handler)
 
-
-def compute_local_energy(hamiltonian, params, samples, model_apply, is_log_model):
-    local_energy = hamiltonian.local_energy(
-        params, samples, model_apply, is_log_model=is_log_model
-    )
-    return local_energy.reshape(-1, 1)
-
-
-@partial(jax.jit, static_argnames=["model_apply"])
-def log_psi(x, params, model_apply):
-    psi = model_apply(params, x)
-    return jnp.log(jnp.abs(psi)).squeeze()  # + 1e-8).squeeze()
-
-
-@partial(jax.jit, static_argnames=["model_apply", "is_log_model"])
-def energy_fn(hamiltonian, params, batch, model_apply, is_log_model):
-    local_energy_per_point = compute_local_energy(
-        hamiltonian, params, batch, model_apply, is_log_model=is_log_model
-    )
-    E = jnp.mean(local_energy_per_point)
-    sigma_e = jnp.std(local_energy_per_point)
-    return E, local_energy_per_point, sigma_e
-
-
-@partial(jax.jit, static_argnames=["model_apply", "is_log_model"])
-def energy_and_grads(hamiltonian, params, batch, model_apply, is_log_model):
-    E, E_loc, sigma_e = energy_fn(
-        hamiltonian, params, batch, model_apply, is_log_model=is_log_model
-    )
-    if not is_log_model:
-        loss = lambda p: 2 * jnp.mean(
-            jax.lax.stop_gradient(E_loc - E)
-            * log_psi(batch, p, model_apply).reshape(-1, 1)
-        )
-    else:
-        loss = lambda p: 2 * jnp.mean(
-            jax.lax.stop_gradient(E_loc - E) * model_apply(p, batch).reshape(-1, 1)
-        )
-    grad_E = jax.grad(loss)(params)
-    return E, sigma_e, grad_E
-
-
-@partial(jax.jit, static_argnames=["is_log_model", "use_qgt", "qgt_config"])
-def train_step(
-    state,
-    samples,
-    hamiltonian,
-    is_log_model=False,
-    use_qgt=False,
-    qgt_config=DEFAULT_QGT_CONFIG.to_dict(),
-):
-    E, sigma_e, grads = energy_and_grads(
-        hamiltonian, state.params, samples, state.apply_fn, is_log_model=is_log_model
-    )
-    if not use_qgt:
-        new_state = state.apply_gradients(grads=grads)
-    else:
-        natural_grad_flat, unravel_fn = compute_natural_gradient(
-            state.params, samples, state.apply_fn, grads, qgt_config
-        )
-        learning_rate = qgt_config.get("learning_rate", 1e-3)
-        new_params_flat = (
-            ravel_pytree(state.params)[0] - learning_rate * natural_grad_flat
-        )
-        new_params = unravel_fn(new_params_flat)
-        new_state = state.replace(params=new_params)
-    return new_state, E, sigma_e, grads
+# Note: Energy computation and training step functions have been moved to
+# training_step.py for better modularity. See compute_step() there.
 
 
 @jax.jit
@@ -142,47 +91,38 @@ def train(
     max_step=5.0,
     is_update_step_size=False,
     is_log_model=False,
+    use_cm_coords=False,
+    n_particles=None,
+    n_dim=None,
 ):
     """Train a VMC model using Metropolis-Hastings sampling.
     Docs loaded from _docs/train.txt
     """
     key = random.PRNGKey(rng_seed)
 
-    sampler_fn = jax.vmap(
-        mh_chain,
-        in_axes=(
-            0,
-            None,
-            None,
-            None,
-            0,
-            None,
-            None,
-        ),
-        out_axes=0,
-    )
-
     params = model.init(key, jnp.ones(shape))
-    state = VMCState.create(apply_fn=model.apply, params=params, tx=optimizer)
+
+    if use_cm_coords:
+        assert n_particles is not None and n_dim is not None, \
+            "n_particles and n_dim are required when use_cm_coords=True"
+        _base_apply = model.apply
+        def effective_apply(params, x):
+            return _base_apply(params, _cm_relative(x, n_particles, n_dim))
+    else:
+        effective_apply = model.apply
+
+    state = VMCState.create(apply_fn=effective_apply, params=params, tx=optimizer)
     state = load_checkpoint(state, path=checkpoint_path, filename="checkpoint.msgpack")
 
     init_steps = state.n_step if hasattr(state, "n_step") else 0
 
-    if not is_log_model:
-
-        def prob_fn(x, params):
-            forward = model.apply(params, x).flatten()
-            out = jnp.square(forward)
-            return jnp.squeeze(out)
-
-    else:
-
-        def prob_fn(x, params):
-            forward = model.apply(params, x).flatten()
-            out = 2 * forward
-            return jnp.squeeze(out)
+    # Build probability function based on model type
+    prob_fn = build_prob_fn(effective_apply, is_log_model=is_log_model)
 
     state_history = []
+
+    # Parse configuration into typed dataclasses
+    sampling_config = parse_sampler_params(sampler_params, is_log_prob=is_log_model)
 
     if init_positions == "normal":
         current_positions = jax.random.normal(key, shape) * 0.5
@@ -191,53 +131,31 @@ def train(
     else:
         raise ValueError(f"Unknown init_positions: {init_positions}")
 
-    step_size = sampler_params.get("step_size", 1.0)
-    n_steps_sampler = sampler_params.get("chain_length", 500)
-    burn_in_steps = sampler_params.get("thermalization_steps", 50)
-    thinning_factor = sampler_params.get("thinning_factor", 5)
-    PBC = sampler_params.get("PBC", 40.0)
+    # Extract sampling parameters
+    step_size = sampling_config.step_size
+    n_steps_sampler = sampling_config.chain_length
+    burn_in_steps = sampling_config.thermalization_steps
+    thinning_factor = sampling_config.thinning_factor
+    PBC = sampling_config.PBC
+
+    # shape = (n_chains, DoF)  — n_chains walkers, each with DoF = n_particles * n_dim degrees of freedom
+    n_chains, DoF = shape
+
+    # CM
+    cm_mean = [] # center of mass for each epoch, mean of all the chains
+    cm_std = []
 
     @partial(
         jax.jit,
         static_argnames=[
-            "PBC",
+            "prob_fn",
+            "hamiltonian",
+            "n_chains",
+            "DoF",
             "n_steps",
             "burn_in",
             "thinning",
-            "shape",
-            "is_log_prob",
-        ],
-    )
-    def sample_and_process(
-        key,
-        params,
-        init_pos,
-        shape,
-        step_size,
-        PBC,
-        n_steps,
-        burn_in,
-        thinning,
-        is_log_prob=False,
-    ):
-        n_chains, DoF = shape
-        rand_nums = jax.random.uniform(key, (n_chains, n_steps, DoF + 1))
-        raw_batch, acceptance_rates = sampler_fn(
-            rand_nums, PBC, prob_fn, params, init_pos, step_size, is_log_prob
-        )
-        batch = raw_batch[:, burn_in::thinning, :]
-        last_positions = raw_batch[:, -1, :]
-        batch_flat = batch.reshape(-1, DoF)
-        return batch_flat, last_positions, acceptance_rates
-
-    @partial(
-        jax.jit,
-        static_argnames=[
             "PBC",
-            "n_steps",
-            "burn_in",
-            "thinning",
-            "shape",
             "warm_walkers",
             "is_update_step_size",
             "is_log_model",
@@ -247,12 +165,14 @@ def train(
         state,
         key,
         current_pos,
-        shape,
+        prob_fn,
         step_size,
-        PBC,
+        n_chains,
+        DoF,
         n_steps,
         burn_in,
         thinning,
+        PBC,
         hamiltonian,
         min_step,
         max_step,
@@ -262,51 +182,58 @@ def train(
     ):
         key, subkey = jax.random.split(key)
 
-        if warm_walkers:
-            batch, current_pos, acceptance_rate = sample_and_process(
-                subkey,
-                state.params,
-                current_pos,
-                shape,
-                step_size,
-                PBC,
-                n_steps,
-                burn_in,
-                thinning,
-                is_log_prob=is_log_model,
-            )
-        else:
-            batch, _, acceptance_rate = sample_and_process(
-                subkey,
-                state.params,
-                current_pos,
-                shape,
-                step_size,
-                PBC,
-                n_steps,
-                burn_in,
-                thinning,
-                is_log_prob=is_log_model,
-            )
+        # Sample from MCMC
+        batch, new_pos, acceptance_rate = sample_and_process(
+            key=subkey,
+            prob_fn=prob_fn,
+            prob_params=state.params,
+            init_positions=current_pos,
+            step_size=step_size,
+            n_chains=n_chains,
+            DoF=DoF,
+            n_steps=n_steps,
+            burn_in=burn_in,
+            thinning=thinning,
+            PBC=PBC,
+            is_log_prob=is_log_model,
+        )
+
+        # new_pos: (n_chains, DoF)
+        # cm: average position across DoF — NOTE: this mixes particles and dims,
+        #     only meaningful for 1D (n_dim=1) where DoF = n_particles
+        cm = jnp.sum(new_pos, axis=1) / new_pos.shape[-1]  # (n_chains,)
+        cm_mean = jnp.mean(cm, axis=0)  # scalar
+        cm_std = jnp.std(cm, axis=0)    # scalar
+
+        # Update walker positions if requested
+        if not warm_walkers:
+            new_pos = current_pos  # Reset to initial positions
 
         if is_update_step_size:
             step_size = update_step_size(
                 step_size, acceptance_rate, min_step=min_step, max_step=max_step
             )
 
-        new_state, E, sigma_e, grads = train_step(
-            state, batch, hamiltonian, is_log_model=is_log_model
+        new_state, E, sigma_e, grads = compute_step(
+            state=state,
+            batch=batch,
+            hamiltonian=hamiltonian,
+            is_log_model=is_log_model,
+            use_qgt=False,  # TODO: make configurable
+            qgt_config=None,
         )
 
         return (
             new_state,
             key,
-            current_pos,
+            new_pos,
             E,
             sigma_e,
             acceptance_rate,
             step_size,
             grads,
+            cm_mean,
+            cm_std
         )
 
     progress_bar = tqdm(range(init_steps, n_epochs), disable=not tqdm_available)
@@ -324,20 +251,24 @@ def train(
             acceptance_rate,
             step_size,
             grads,
+            cm_mean_single,
+            cm_std_single
         ) = full_update(
             state=state,
             key=key,
             current_pos=current_positions,
-            shape=shape,
+            prob_fn=prob_fn,
             step_size=step_size,
-            PBC=PBC,
+            n_chains=n_chains,
+            DoF=DoF,
             n_steps=n_steps_sampler,
             burn_in=burn_in_steps,
             thinning=thinning_factor,
+            PBC=PBC,
             hamiltonian=hamiltonian,
-            warm_walkers=warm_walkers,
             min_step=min_step,
             max_step=max_step,
+            warm_walkers=warm_walkers,
             is_update_step_size=is_update_step_size,
             is_log_model=is_log_model,
         )
@@ -353,6 +284,9 @@ def train(
         )
         state = new_state
 
+        cm_mean.append(cm_mean_single)
+        cm_std.append(cm_std_single)
+
         if nan_callback(E):
             print(f"NaN detected in energy at step {step}. Stopping training.")
             break
@@ -367,4 +301,4 @@ def train(
             save_checkpoint(
                 new_state, path=checkpoint_path, filename="checkpoint.msgpack"
             )
-    return state_history
+    return state_history, cm_mean, cm_std

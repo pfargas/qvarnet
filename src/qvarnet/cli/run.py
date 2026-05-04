@@ -17,21 +17,9 @@ class CLI:
     The loaded configuration and parsed arguments can be accessed via getter methods.
 
     Attributes:
-        parser (argparse.ArgumentParser): The argument parser instance.
-        args (argparse.Namespace): Parsed command line arguments.
-        config (ExperimentConfig): Loaded configuration object.
-    Methods:
-        parse_args(argv=None): Parse command line arguments and load configuration.
-        get_args(): Get all parsed arguments as a dictionary.
-        get_config(): Get the loaded configuration object.
-        get_optimizer_args(): Get optimizer configuration.
-        get_training_args(): Get training configuration.
-        get_model_args(): Get model configuration.
-        get_sampler_args(): Get sampler configuration.
-        get_hamiltonian_args(): Get hamiltonian configuration.
-        get_output_args(): Get output configuration.
-        get_seed(): Get experiment seed.
-
+        parser: The argument parser instance.
+        args: Parsed command line arguments.
+        config: Loaded :class:`~qvarnet.cli.cli_config.base.ExperimentConfig` object.
     """
 
     def __init__(self):
