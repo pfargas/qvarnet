@@ -15,8 +15,12 @@ import jax.numpy as jnp
 
 
 class ContinuousHamiltonian(BaseHamiltonian):
-    """
-    samples has shape (batch, DoF). The computation has to be vectorized over the batch dimension.
+    """Base class for continuous-space Hamiltonians.
+
+    Convention throughout this hierarchy:
+        samples: (batch, DoF)
+        kinetic/potential returns: (batch,)  — local value per sample
+        local_energy returns: (batch,)       — after squeeze on both terms
     """
 
     def kinetic_local_energy(self, params, samples, model_apply):
@@ -59,24 +63,32 @@ class HarmonicOscillatorHamiltonian(ContinuousHamiltonian):
     omega: float = 1.0
 
     def potential_energy(self, samples):
+        # samples: (batch, DoF)  →  V: (batch,)
         return 0.5 * (self.omega**2) * jnp.sum(samples**2, axis=-1)
 
 
 @register_hamiltonian("nn-oscillator")
 @struct.dataclass
 class NN_OscillatorHamiltonian(ContinuousHamiltonian):
+    """Nearest-neighbour harmonic oscillator.  DoF = n_particles (1D per particle).
+
+    samples: (batch, n_particles) — flat particle coordinates
+    diffs:   (batch, n_particles) [PBC] or (batch, n_particles-1) [no PBC]
+    """
+
     omega_trap: float = 1.0
     omega_interaction: float = 1.0
     with_pbc: bool = struct.field(pytree_node=False, default=True)
 
     def potential_energy(self, samples):
-        trap = 0.5 * (self.omega_trap**2) * jnp.sum(samples**2, axis=-1)
+        # samples: (batch, n_particles)
+        trap = 0.5 * (self.omega_trap**2) * jnp.sum(samples**2, axis=-1)  # (batch,)
         if self.with_pbc:
-            diffs = samples - jnp.roll(samples, shift=1, axis=-1)
+            diffs = samples - jnp.roll(samples, shift=1, axis=-1)  # (batch, n_particles)
         else:
-            diffs = samples[:, :-1] - samples[:, 1:]
-        nn_term = 0.5*self.omega_interaction**2 * jnp.sum(diffs**2, axis=-1)
-        return trap + nn_term
+            diffs = samples[:, :-1] - samples[:, 1:]               # (batch, n_particles-1)
+        nn_term = 0.5*self.omega_interaction**2 * jnp.sum(diffs**2, axis=-1)  # (batch,)
+        return trap + nn_term  # (batch,)
 
 @register_hamiltonian("soft-core")
 @struct.dataclass
@@ -84,25 +96,26 @@ class SoftCoreHamiltonian(ContinuousHamiltonian):
     R: float = 1.0
     V0: float = 1.0
     def potential_energy(self, samples):
-        r = jnp.linalg.norm(samples, axis=-1)
+        # samples: (batch, DoF)
+        r = jnp.linalg.norm(samples, axis=-1)  # (batch,)
         mask = r < self.R
-        return jnp.where(mask, self.V0, 0.0)
+        return jnp.where(mask, self.V0, 0.0)   # (batch,)
 
 
 @register_hamiltonian("gross-struct-hamiltonian")
 @struct.dataclass
 class GrossStructHamiltonian(ContinuousHamiltonian):
+    """Electron-nuclear attraction for atoms.  DoF = n_fermions * 3 (3D positions)."""
+
     Z: int = struct.field(pytree_node=False, default=1)
     n_fermions: int = struct.field(pytree_node=False, default=1)
 
     def potential_energy(self, samples):
-        # samples shape: (batch, n_fermions * 3)
-        # Reshape to (batch, n_fermions, 3)
-        pos = samples.reshape(-1, self.n_fermions, 3)
+        # samples: (batch, n_fermions * 3)
+        pos = samples.reshape(-1, self.n_fermions, 3)  # (batch, n_fermions, 3)
 
-        # 1. Electron-Nuclear Attraction: -Z / |r_i|
-        r_i = jnp.linalg.norm(pos, axis=-1)
-        v_en = -self.Z * jnp.sum(1.0 / (r_i + 1e-12), axis=-1)
+        r_i = jnp.linalg.norm(pos, axis=-1)           # (batch, n_fermions)
+        v_en = -self.Z * jnp.sum(1.0 / (r_i + 1e-12), axis=-1)  # (batch,)
 
         v_ee = 0.0
         # # 2. Electron-Electron Repulsion: 1 / |r_i - r_j|

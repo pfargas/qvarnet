@@ -35,9 +35,16 @@ stop_requested = False
 
 
 def _cm_relative(x, n_particles, n_dim):
+    """Subtract center-of-mass from particle coordinates.
+
+    x:      (..., n_particles * n_dim)
+    r:      (..., n_particles, n_dim)
+    cm:     (..., 1, n_dim)
+    return: (..., n_particles * n_dim)  — same shape as input, CM-subtracted
+    """
     shape = x.shape[:-1]
-    r = x.reshape(*shape, n_particles, n_dim)
-    cm = r.mean(axis=-2, keepdims=True)
+    r = x.reshape(*shape, n_particles, n_dim)  # (..., n_particles, n_dim)
+    cm = r.mean(axis=-2, keepdims=True)        # (..., 1, n_dim)
     return (r - cm).reshape(*shape, n_particles * n_dim)
 
 
@@ -131,7 +138,7 @@ def train(
     thinning_factor = sampling_config.thinning_factor
     PBC = sampling_config.PBC
 
-    # Get chain structure
+    # shape = (n_chains, DoF)  — n_chains walkers, each with DoF = n_particles * n_dim degrees of freedom
     n_chains, DoF = shape
 
     # CM
@@ -191,9 +198,12 @@ def train(
             is_log_prob=is_log_model,
         )
 
-        cm = jnp.sum(new_pos, axis = 1)/new_pos.shape[-1]
-        cm_mean = jnp.mean(cm, axis = 0)
-        cm_std = jnp.std(cm, axis = 0)
+        # new_pos: (n_chains, DoF)
+        # cm: average position across DoF — NOTE: this mixes particles and dims,
+        #     only meaningful for 1D (n_dim=1) where DoF = n_particles
+        cm = jnp.sum(new_pos, axis=1) / new_pos.shape[-1]  # (n_chains,)
+        cm_mean = jnp.mean(cm, axis=0)  # scalar
+        cm_std = jnp.std(cm, axis=0)    # scalar
 
         # Update walker positions if requested
         if not warm_walkers:

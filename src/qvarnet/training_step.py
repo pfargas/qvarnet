@@ -119,20 +119,15 @@ def energy_and_grads(
     )
 
     # Construct loss function based on model type
+    # E_loc: (batch, 1),  log_psi_vals: (batch, 1)  → element-wise product → scalar mean
     if not is_log_model:
-        # For direct models: use log|ψ|
         def loss(p):
-            log_psi_vals = log_psi(batch, p, model_apply).reshape(-1, 1)
-            return 2 * jnp.mean(
-                jax.lax.stop_gradient(E_loc - E) * log_psi_vals
-            )
+            log_psi_vals = log_psi(batch, p, model_apply).reshape(-1, 1)  # (batch, 1)
+            return 2 * jnp.mean(jax.lax.stop_gradient(E_loc - E) * log_psi_vals)
     else:
-        # For log models: model output is already log|ψ|
         def loss(p):
-            log_psi_vals = model_apply(p, batch).reshape(-1, 1)
-            return 2 * jnp.mean(
-                jax.lax.stop_gradient(E_loc - E) * log_psi_vals
-            )
+            log_psi_vals = model_apply(p, batch).reshape(-1, 1)  # (batch, 1) — model already outputs log|ψ|
+            return 2 * jnp.mean(jax.lax.stop_gradient(E_loc - E) * log_psi_vals)
 
     # Compute gradients
     grads = jax.grad(loss)(params)

@@ -10,6 +10,21 @@ from .registry import register_model
 
 @register_model("fermionic-mlp")
 class FermionicMLP(BaseModel):
+    """Slater determinant wavefunction using a shared orbital network.
+
+    Dimension contract:
+        get_input_shape → (batch, n_fermions * n_dim)
+
+        __call__ input:  (..., n_fermions * n_dim)
+        After reshape:   (..., n_fermions, n_dim)
+        After hidden:    (..., n_fermions, architecture[-1])
+        After output:    (..., n_fermions, n_fermions)   ← orbital matrix
+        After det:       (...)                            ← one scalar per config
+
+    architecture: hidden layer widths only (NOT including input/output sizes).
+    output_layer always has features=n_fermions to form square orbital matrix.
+    """
+
     architecture: list
     n_fermions: int
     hidden_activation: Callable = nn.tanh
@@ -40,35 +55,21 @@ class FermionicMLP(BaseModel):
         )
 
     def __call__(self, x):
-        # x input shape is either:
-        #   (Batch, N*Dim) -> e.g., (1000, 3) # in the energy evaluation
-        #   (N*Dim,)       -> e.g., (3,) # in the sampler
-
-        # 1. ROBUST RESHAPE
-        # We take all leading dimensions (*x.shape[:-1]) as the batch/grouping dims
-        # and explicitly split ONLY the last dimension into (N, Dim).
-        # This works for shape (1000, 3) -> (1000, N, Dim)
-        # AND for shape (3,) -> (N, Dim)
-
-        n_dim = getattr(self, "n_dim", 1)  # Default to 1D if not specified
+        # x: (..., n_fermions * n_dim)
+        n_dim = getattr(self, "n_dim", 1)
         h = x.reshape(*x.shape[:-1], self.n_fermions, n_dim)
-        # *shape[:-1] captures all leading dimensions,
-        # then we split the last dim into (N, Dim) where N is n_fermions and Dim is n_dim.
+        # h: (..., n_fermions, n_dim)
 
-        # 2. RUN NETWORK
-        # CustomDense automatically broadcasts over the extra dimensions.
         for layer in self.hidden_layers:
             h = layer(h)
             h = self.hidden_activation(h)
+        # h: (..., n_fermions, architecture[-1])
 
-        # Output shape: (..., N, N)
-        # (Batch, Particle i, Orbital j)
         orbitals = self.output_layer(h)
+        # orbitals: (..., n_fermions, n_fermions)  ← [particle i, orbital j]
 
-        # 3. DETERMINANT
-        # jnp.linalg.det handles the last two dimensions (NxN) correctly
-        # regardless of how many batch dimensions precede them.
         psi = jnp.linalg.det(orbitals)
+        # psi: (...)  ← det over last two dims; one scalar per config
 
         return psi
 
@@ -232,6 +233,21 @@ class HalfSpinNonInteractingFermion(BaseModel):
 
 @register_model("fermionic-mlp-2")
 class FermionicMLP2ferms(BaseModel):
+    """Hard-coded 2-fermion Slater determinant (1D only, no n_dim param).
+
+    Dimension contract:
+        get_input_shape → (batch, 2)   ← one coordinate per fermion
+
+        __call__ input:  (..., 2)
+        x[..., :1]  → (..., 1)   fermion 1 position
+        x[..., 1:]  → (..., 1)   fermion 2 position
+
+        Each through orbital_net (shared weights):
+            (..., 1) → (..., n_fermions)   ← two orbital values
+
+        Manual 2×2 det: phi1_A*phi2_B - phi1_B*phi2_A → (...)
+    """
+
     architecture: list
     n_fermions: int = 2
     hidden_activation: Callable = nn.tanh
@@ -239,16 +255,12 @@ class FermionicMLP2ferms(BaseModel):
     bias_init: Callable = nn.initializers.zeros_init()
 
     def setup(self):
-        # 1. DEFINITION PHASE
-        # We create the layers here. They are assigned to 'self',
-        # so Flax knows these are the parameters of the model.
-
         self.hidden_layers = [
             CustomDense(
                 features=feat,
                 kernel_init=self.kernel_init,
                 bias_init=self.bias_init,
-                name=f"hidden_{i}",  # Optional, but good for debugging
+                name=f"hidden_{i}",
             )
             for i, feat in enumerate(self.architecture)
         ]
@@ -261,30 +273,28 @@ class FermionicMLP2ferms(BaseModel):
         )
 
     def __call__(self, x):
-        # 2. COMPUTATION PHASE
-        # We just use the layers we defined above.
+        # x: (..., 2)  — one scalar coord per fermion
 
         def orbital_net(pos):
+            # pos: (..., 1) → (..., n_fermions)
             y = pos
             for layer in self.hidden_layers:
                 y = layer(y)
                 y = self.hidden_activation(y)
             y = self.output_layer(y)
-            return y
+            return y  # (..., n_fermions)
 
-        # Apply the exact same network functions to both inputs
-        # (This is mathematically guaranteed to use shared weights)
-        orb_1 = orbital_net(x[..., :1])
-        orb_2 = orbital_net(x[..., 1:])
+        # shared weights applied to each fermion's coordinate
+        orb_1 = orbital_net(x[..., :1])  # (..., 2): [φ_A(x1), φ_B(x1)]
+        orb_2 = orbital_net(x[..., 1:])  # (..., 2): [φ_A(x2), φ_B(x2)]
 
-        # Determinant Logic
-        phi1_A = orb_1[..., 0]
-        phi1_B = orb_1[..., 1]
-
-        phi2_A = orb_2[..., 0]
-        phi2_B = orb_2[..., 1]
+        phi1_A = orb_1[..., 0]  # (...)
+        phi1_B = orb_1[..., 1]  # (...)
+        phi2_A = orb_2[..., 0]  # (...)
+        phi2_B = orb_2[..., 1]  # (...)
 
         return phi1_A * phi2_B - phi1_B * phi2_A
+        # det([[φ_A(x1), φ_B(x1)], [φ_A(x2), φ_B(x2)]]) → (...)
 
     @classmethod
     def from_config(cls, model_args: dict):
@@ -295,4 +305,5 @@ class FermionicMLP2ferms(BaseModel):
 
     @classmethod
     def get_input_shape(cls, model_args: dict, batch_size: int) -> tuple:
+        # → (batch, n_fermions)  — one 1D coord per fermion
         return (batch_size, model_args.get("n_fermions", 2))

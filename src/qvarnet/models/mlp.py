@@ -8,6 +8,17 @@ from .registry import register_model
 
 @register_model("mlp")
 class MLP(BaseModel):
+    """Multi-layer perceptron using CustomDense layers.
+
+    Input:  (..., architecture[0])   — arbitrary leading dims preserved
+    Output: (..., architecture[-1])
+
+    When used standalone as a wavefunction:
+        shape = (batch, architecture[0])  → output (batch, architecture[-1])
+    When used as phi/F subnet inside DeepSet:
+        shape = (batch, n_particles, n_dim) → output (batch, n_particles, features)
+    """
+
     architecture: list
     hidden_activation: Callable = nn.tanh
     kernel_init: Callable = nn.initializers.lecun_normal()
@@ -16,6 +27,7 @@ class MLP(BaseModel):
 
     @nn.compact
     def __call__(self, x):
+        # x: (..., architecture[0]) → (..., architecture[-1])
         for i in range(len(self.architecture) - 1):
             x = CustomDense(
                 features=self.architecture[i + 1],
