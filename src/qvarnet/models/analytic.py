@@ -20,11 +20,12 @@ class CalogeroSutherlandAnalyticModel(BaseModel):
     Input:  (..., n_particles)  — 1D particles, batched or unbatched
     Output: (...)               — log|ψ₀|, one scalar per configuration
     """
+    lambda_init: float = 0.5  # Initial value for λ, learnable parameter
     @nn.compact
     def __call__(self, x):
         # x: (..., n_particles)  — works for (batch, N) and bare (N,)
-        lam   = self.param("lam",   nn.initializers.constant(2.0), ())
-        omega = self.param("omega", nn.initializers.constant(1.0), ())
+        lam   = self.param("lam",   nn.initializers.constant(self.lambda_init), ())
+        # omega = self.param("omega", nn.initializers.constant(1.0), ())
 
         n = x.shape[-1]  # n_particles lives in the LAST dim, not dim 0
 
@@ -38,6 +39,7 @@ class CalogeroSutherlandAnalyticModel(BaseModel):
         log_jastrow = lam * jnp.sum(mask * jnp.log(diffs), axis=(-1, -2))
 
         # Harmonic envelope: -ω/2 · Σᵢ xᵢ²  →  (...)
-        log_gaussian = -omega / 2 * jnp.sum(x**2, axis=-1)
+        # log_gaussian = -omega / 2 * jnp.sum(x**2, axis=-1)
+        log_gaussian = -0.5 * jnp.sum(x**2, axis=-1)
 
         return log_jastrow + log_gaussian  # (...) — log|ψ₀|

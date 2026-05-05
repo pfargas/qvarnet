@@ -129,3 +129,35 @@ class LogExponentialMLPwithGaussianPenalty(BaseModel):
     @classmethod
     def get_input_shape(cls, model_args: dict, batch_size: int) -> tuple:
         return (batch_size, model_args["architecture"][0])
+    
+@register_model("pair-exponential-mlp-gaussian-decay")
+class PairLogExponentialMLPwithGaussianPenalty(BaseModel):
+    hidden_arch: list
+    hidden_activation: Callable = nn.tanh
+    kernel_init: Callable = nn.initializers.lecun_normal()
+    bias_init: Callable = nn.initializers.zeros_init()
+
+    @nn.compact
+    def __call__(self, x):
+        mlp = MLP(
+            architecture=self.hidden_arch, # Nope, should have N(N-1)/2 input features, not DoF
+            hidden_activation=self.hidden_activation,
+            kernel_init=self.kernel_init,
+            bias_init=self.bias_init,
+        )
+        envelope_param = self.param("envelope_param", nn.initializers.constant(1.0), ())
+        mlp_output = mlp(x)
+        pairwise_distances = jnp.sum((x[:, None, :] - x[None, :, :])**2, axis=-1)
+        log_wf = mlp_output - envelope_param * jnp.sum(pairwise_distances, axis=(-2, -1), keepdims=True)
+        return log_wf
+
+    def build_from_params(self, params):
+        pass
+
+    @classmethod
+    def from_config(cls, model_args: dict):
+        return cls(hidden_arch=model_args["hidden_arch"])
+
+    @classmethod
+    def get_input_shape(cls, model_args: dict, batch_size: int) -> tuple:
+        return (batch_size, model_args["hidden_arch"][0])

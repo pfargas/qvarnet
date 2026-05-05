@@ -144,10 +144,14 @@ class CalogeroSutherlandHamiltonian(ContinuousHamiltonian):
     epsilon: float = struct.field(pytree_node=False, default=0.0)
     omega_trap: float = struct.field(pytree_node=False, default=1.0)
 
+    def kinetic_local_energy_log_model(self, params, samples, model_apply):
+        return 2*kinetic_term_log_wavefunction(params, samples, model_apply)
+
     def potential_energy(self, samples):
         # samples: (batch, n_particles)
         diffs = samples[:, :, jnp.newaxis] - samples[:, jnp.newaxis, :]  # (batch, n_particles, n_particles)
         mask = jnp.triu(jnp.ones(diffs.shape[1:]), k=1)  # upper triangle mask i<j
         inv_square = jnp.where(mask, self.L*(self.L-1) / (diffs**2 + self.epsilon), 0.0)  # (batch, n_particles, n_particles)
-        trap = 0.5 * (self.omega_trap**2) * jnp.sum(samples**2, axis=-1)  # (batch,)
-        return jnp.sum(inv_square, axis=(-1, -2)) + trap  # (batch,)
+        # trap = 0.5 * (self.omega_trap**2) * jnp.sum(samples**2, axis=-1)  # (batch,)
+        trap = jnp.sum(samples**2, axis=-1)
+        return 2*jnp.sum(inv_square, axis=(-1, -2)) + trap  # (batch,)

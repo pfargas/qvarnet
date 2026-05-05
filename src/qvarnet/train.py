@@ -289,6 +289,8 @@ def train(
 
         if nan_callback(E):
             print(f"NaN detected in energy at step {step}. Stopping training.")
+            with open(f"{checkpoint_path}/nan_checkpoint.msgpack", "wb") as f:
+                save_checkpoint(state, path=checkpoint_path, filename="nan_checkpoint.msgpack")
             break
 
         if tqdm_available and step % 10 == 0:
