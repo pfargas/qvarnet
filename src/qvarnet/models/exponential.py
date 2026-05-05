@@ -2,6 +2,7 @@ from typing import Callable
 
 from flax import linen as nn
 from jax import numpy as jnp
+import jax
 
 from .layers.custom_dense import CustomDense
 from .mlp import MLP
@@ -103,8 +104,11 @@ class LogExponentialMLPwithPenalty(BaseModel):
 class LogExponentialMLPwithGaussianPenalty(BaseModel):
     architecture: list
     hidden_activation: Callable = nn.tanh
-    kernel_init: Callable = nn.initializers.lecun_normal()
-    bias_init: Callable = nn.initializers.zeros_init()
+    kernel_init: Callable = nn.initializers.normal(1.0)
+    # kernel_init: Callable = nn.initializers.lecun_normal()
+    # bias_init: Callable = nn.initializers.zeros_init()
+    jax.debug.print("Using log model with Gaussian penalty and kernel init {k}", k=kernel_init)  # DEBUG
+    bias_init: Callable = nn.initializers.normal(stddev=1.0)
 
     @nn.compact
     def __call__(self, x):
