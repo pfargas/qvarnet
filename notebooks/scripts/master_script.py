@@ -9,34 +9,57 @@ import matplotlib.pyplot as plt
 
 from qvarnet.train import train
 from qvarnet.models.exponential import LogExponentialMLPwithPenalty
+from qvarnet.models.deep_set import DeepSet
 from qvarnet.hamiltonian.continuous import HarmonicOscillatorHamiltonian
 
 # ── System ────────────────────────────────────────────────────────────────────
-N_PARTICLES = 50
-DIM         = 1
-N_CHAINS    = 5_000
-DoF         = N_PARTICLES * DIM
-SHAPE       = (N_CHAINS, DoF)
+# N_PARTICLES = 50
+# DIM         = 1
+# N_CHAINS    = 5_000
+# DoF         = N_PARTICLES * DIM
+# SHAPE       = (N_CHAINS, DoF)
 
-# ── Model: mlp-fourth-decay ───────────────────────────────────────────────────
-ARCHITECTURE = [DoF, 150, 1]   # [input, hidden..., output]
-IS_LOG_MODEL = True
+# # ── Model: mlp-fourth-decay ───────────────────────────────────────────────────
+# ARCHITECTURE = [DoF, 150, 1]   # [input, hidden..., output]
+# IS_LOG_MODEL = True
 
-model = LogExponentialMLPwithPenalty(architecture=ARCHITECTURE, 
-                                     hidden_activation=jax.nn.tanh,
-                                    #  kernel_init=jax.nn.initializers.normal(stddev=0.01),
-                                    #  bias_init=jax.nn.initializers.normal(stddev=0.01),
-                                    )
+# model = LogExponentialMLPwithPenalty(architecture=ARCHITECTURE, 
+#                                      hidden_activation=jax.nn.tanh,
+#                                      kernel_init=jax.nn.initializers.normal(stddev=0.01),
+#                                      bias_init=jax.nn.initializers.normal(stddev=0.01),
+#                                     )
 
-# ── Hamiltonian: Harmonic Oscillator ──────────────────────────────────────────
+# # ── Hamiltonian: Harmonic Oscillator ──────────────────────────────────────────
 OMEGA = 1.0
+
+# hamiltonian = HarmonicOscillatorHamiltonian(omega=OMEGA)
+
+# # ── Optimizer ─────────────────────────────────────────────────────────────────
+# LEARNING_RATE = 0.025
+
+# optimizer = optax.adam(learning_rate=LEARNING_RATE)
+
+N_PARTICLES = 50
+DIM = 1
+N_CHAINS = 5000
+DoF = N_PARTICLES * DIM
+SHAPE = (N_CHAINS, DoF)
+CHAIN_LENGTH = 10
+
+model = DeepSet(
+    phi_hidden_architecture=[2],
+    F_hidden_architecture=[1],
+    hidden_internal_dimension=1,
+    n_particles=N_PARTICLES,
+    kernel_init=jax.nn.initializers.normal(stddev=0.01),
+    bias_init=jax.nn.initializers.normal(stddev=0.01),
+)
+IS_LOG_MODEL = True  # Code works for log models.
 
 hamiltonian = HarmonicOscillatorHamiltonian(omega=OMEGA)
 
-# ── Optimizer ─────────────────────────────────────────────────────────────────
-LEARNING_RATE = 0.025
+optimizer = optax.adam(learning_rate=0.025)
 
-optimizer = optax.adam(learning_rate=LEARNING_RATE)
 
 # ── Sampler ───────────────────────────────────────────────────────────────────
 STEP_SIZE            = 0.5
@@ -137,5 +160,15 @@ ax.axhline(0.0, color='red', ls='--', label='expected 0')
 ax.set_xlabel('Epoch'); ax.set_ylabel('R_cm'); ax.set_title('Centre of mass'); ax.legend()
 
 plt.tight_layout()
-plt.savefig('training_results.png', dpi=150, bbox_inches='tight')
+# plt.savefig('training_results_deep_set_lecun_10000_epoch.png', dpi=150, bbox_inches='tight')
 plt.show()
+
+from plot_param_dashboard import compute_stats, plot_dashboard
+
+stats = compute_stats(history, target="params")
+
+plot_dashboard(stats)
+
+stats_grad = compute_stats(history, target="grads")
+
+plot_dashboard(stats_grad)

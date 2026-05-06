@@ -142,7 +142,7 @@ class DeepSet(BaseModel):
         # define envelope_param as a trainable parameter
 
         self.envelope_param = self.param(
-            "envelope_param", nn.initializers.constant(0.1), ()
+            "envelope_param", nn.initializers.constant(0.0), ()
         )
 
         # 2. Handle the internal dimension
@@ -160,6 +160,7 @@ class DeepSet(BaseModel):
             hidden_activation=self.phi_hidden_activation,
             kernel_init=self.kernel_init,
             bias_init=self.bias_init,
+            has_output_activation=True,  # Apply activation to output of phi for better expressivity
         )
 
         self.F = MLP(
@@ -178,7 +179,7 @@ class DeepSet(BaseModel):
         h = self.phi(h)
         # h: (..., n_particles, hidden_internal_dimension)
 
-        h = jnp.sum(h, axis=-2)
+        h = jnp.sum(h, axis=-2)/self.n_particles
         # h: (..., hidden_internal_dimension)  — permutation invariant
 
         output = self.F(h)

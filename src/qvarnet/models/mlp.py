@@ -24,6 +24,7 @@ class MLP(BaseModel):
     kernel_init: Callable = nn.initializers.lecun_normal()
     bias_init: Callable = nn.initializers.zeros_init()
     beta: float = 1.0  # scale factor for kernel
+    has_output_activation: bool = False  # whether to apply hidden_activation to output layer
 
     @nn.compact
     def __call__(self, x):
@@ -37,6 +38,8 @@ class MLP(BaseModel):
             )(x)
             if i < len(self.architecture) - 2:
                 x = self.hidden_activation(x)
+        if self.has_output_activation:
+            x = self.hidden_activation(x)
         return x
 
     def build_from_params(self, params):
