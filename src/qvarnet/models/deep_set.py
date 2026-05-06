@@ -83,7 +83,9 @@ class ExponentialDeepSet(BaseModel):
 
         output = self.F(h)
         # output: (..., 1)
-        assert output.shape[-1] == 1, "Output dimension of F should be 1 for energy evaluation."
+        assert (
+            output.shape[-1] == 1
+        ), "Output dimension of F should be 1 for energy evaluation."
 
         return jnp.exp(output)
         # return: (..., 1)
@@ -134,6 +136,7 @@ class DeepSet(BaseModel):
     bias_init: Callable = nn.initializers.zeros_init()
     n_dim: int = 1
     hidden_internal_dimension: int = 20
+    envelope_init: float = 0.1
 
     def setup(self):
         # 1. Cast everything to lists to ensure '+' works
@@ -142,7 +145,7 @@ class DeepSet(BaseModel):
         # define envelope_param as a trainable parameter
 
         self.envelope_param = self.param(
-            "envelope_param", nn.initializers.constant(0.0), ()
+            "envelope_param", nn.initializers.constant(self.envelope_init), ()
         )
 
         # 2. Handle the internal dimension
@@ -179,20 +182,16 @@ class DeepSet(BaseModel):
         h = self.phi(h)
         # h: (..., n_particles, hidden_internal_dimension)
 
-        h = jnp.sum(h, axis=-2)/self.n_particles
+        h = jnp.sum(h, axis=-2) / self.n_particles
         # h: (..., hidden_internal_dimension)  — permutation invariant
 
         output = self.F(h)
         # output: (..., 1)
-        assert output.shape[-1] == 1, "Output dimension of F should be 1 for energy evaluation."
+        assert (
+            output.shape[-1] == 1
+        ), "Output dimension of F should be 1 for energy evaluation."
 
-        return output - self.envelope_param * jnp.sum(
-            x**4, axis=-1, keepdims=True
-        )
-        # return: (..., 1)  — log|ψ| minus envelope; keepdims preserves (..., 1) shape  # FIXME: This is the original!!!
-        # return output - 0.013052774 * jnp.sum(
-        #     x**4, axis=-1, keepdims=True
-        # )  # This is the fixed envelope term with the best found constant
+        return output - self.envelope_param**2 * jnp.sum(x**4, axis=-1, keepdims=True)
 
     @classmethod
     def from_config(cls, model_args: dict):
