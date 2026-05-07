@@ -139,6 +139,7 @@ class PairLogExponentialMLPwithGaussianPenalty(BaseModel):
     hidden_activation: Callable = nn.tanh
     kernel_init: Callable = nn.initializers.lecun_normal()
     bias_init: Callable = nn.initializers.zeros_init()
+    jax.debug.print("NOT IMPLEMENTED YET: PairLogExponentialMLPwithGaussianPenalty") # TODO
 
     @nn.compact
     def __call__(self, x):
