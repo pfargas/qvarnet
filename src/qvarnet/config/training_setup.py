@@ -21,10 +21,16 @@ class TrainingConfig:
     """Immutable training configuration."""
 
     n_epochs: int
-    init_positions: str  # "normal" or "zeros"
-    is_update_step_size: bool
-    min_step: float
-    max_step: float
+    rng_seed: int = 0
+    init_positions: str = "normal"       # "normal" | "zeros"
+    warm_walkers: bool = False
+    is_update_step_size: bool = False
+    min_step: float = 1e-5
+    max_step: float = 5.0
+    is_log_model: bool = False
+    use_qgt: bool = False
+    checkpoint_path: str = "./"
+    save_checkpoints: bool = False
     target_acceptance: float = 0.5
     adaptation_rate: float = 0.1
 
@@ -51,21 +57,19 @@ def parse_sampler_params(sampler_args: Dict[str, Any], is_log_prob: bool = False
 
 
 def parse_training_params(train_args: Dict[str, Any]) -> TrainingConfig:
-    """
-    Convert dict-based training configuration to typed dataclass.
-
-    Args:
-        train_args: Dictionary with training parameters
-
-    Returns:
-        TrainingConfig: Typed, immutable configuration
-    """
+    """Convert dict-based training configuration to typed dataclass."""
     return TrainingConfig(
         n_epochs=int(train_args.get("num_epochs", 3000)),
+        rng_seed=int(train_args.get("rng_seed", 0)),
         init_positions=str(train_args.get("init_positions", "normal")),
+        warm_walkers=bool(train_args.get("warm_walkers", False)),
         is_update_step_size=bool(train_args.get("is_update_step_size", False)),
         min_step=float(train_args.get("min_step", 1e-5)),
         max_step=float(train_args.get("max_step", 5.0)),
+        is_log_model=bool(train_args.get("is_log_model", False)),
+        use_qgt=bool(train_args.get("use_qgt", False)),
+        checkpoint_path=str(train_args.get("checkpoint_path", "./")),
+        save_checkpoints=bool(train_args.get("save_checkpoints", False)),
         target_acceptance=float(train_args.get("target_acceptance", 0.5)),
         adaptation_rate=float(train_args.get("adaptation_rate", 0.1)),
     )
