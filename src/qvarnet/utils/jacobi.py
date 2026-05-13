@@ -28,15 +28,14 @@ def jacobi_transformation(n_particles: int):
     # assert jnp.allclose(C @ C.T, jnp.eye(n_particles), atol=1e-6), "Jacobi transformation matrix is not orthogonal"
     return C
 
-@partial(jax.jit, static_argnames=["n_particles", "dim", "C"])
+@partial(jax.jit, static_argnames=["n_particles", "dim"])
 def apply_transformation(x, C, n_particles, dim):
     # x has shape (..., n_particles * dim)
-    # Reshape x to (..., n_particles, dim)
-    x = x.reshape(*x.shape[:-1], n_particles, dim)
-    # Apply the transformation
-    transformed = jnp.einsum('ij,...jk->...ik', C, x)
-    # Reshape back to (..., n_particles * dim)
-    return transformed.reshape(*x.shape[:-2], -1)
+    batch_shape = x.shape[:-1]  # save before rebinding x
+    x_r = x.reshape(*batch_shape, n_particles, dim)
+    transformed = jnp.einsum('ij,...jk->...ik', C, x_r)
+    # n_particles and dim are static, so this product is a concrete int
+    return transformed.reshape(*batch_shape, n_particles * dim)
 
 @partial(jax.jit, static_argnames=["n_particles", "dim"])
 def from_lab_to_jacobi(x, n_particles, dim):

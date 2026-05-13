@@ -12,6 +12,7 @@ from .laplacian import laplacian_autodiff_new as laplacian_AD
 from .laplacian import laplacian_central_difference
 
 import jax.numpy as jnp
+from qvarnet.utils.jacobi import from_jacobi_to_lab
 
 
 class ContinuousHamiltonian(BaseHamiltonian):
@@ -61,9 +62,20 @@ class ContinuousHamiltonian(BaseHamiltonian):
 @struct.dataclass
 class HarmonicOscillatorHamiltonian(ContinuousHamiltonian):
     omega: float = 1.0
+    # Jacobi path: when use_jacobi=True, samples are N Jacobi relative coords.
+    # The potential pads with 0 (CM=0), reconstructs N+1 lab coords, and evaluates V(X).
+    # n_particles is the number of PHYSICAL particles (N+1), not simulation DoFs (N).
+    use_jacobi: bool = struct.field(pytree_node=False, default=False)
+    n_particles: int = struct.field(pytree_node=False, default=1)
 
     def potential_energy(self, samples):
         # samples: (batch, DoF)  →  V: (batch,)
+        if self.use_jacobi:
+            # samples: (batch, N) Jacobi relative coords, N = n_particles - 1
+            zeros = jnp.zeros((*samples.shape[:-1], 1))
+            u_tilde = jnp.concatenate([samples, zeros], axis=-1)   # (batch, N+1)
+            X = from_jacobi_to_lab(u_tilde, self.n_particles, 1)   # (batch, N+1) lab coords
+            return 0.5 * (self.omega**2) * jnp.sum(X**2, axis=-1)
         return 0.5 * (self.omega**2) * jnp.sum(samples**2, axis=-1)
 
 

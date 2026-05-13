@@ -19,6 +19,7 @@ from .utils import (
     save_checkpoint,
     load_checkpoint,
     numerical_parameter_gradients,
+    from_jacobi_to_lab,
 )
 
 try:
@@ -94,13 +95,25 @@ def train(
     use_cm_coords=False,
     n_particles=None,
     n_dim=None,
+    use_jacobi=False,
+    n_dim_jacobi=1,
 ):
     """Train a VMC model using Metropolis-Hastings sampling.
     Docs loaded from _docs/train.txt
     """
     key = random.PRNGKey(rng_seed)
 
-    params = model.init(key, jnp.ones(shape))
+    if use_jacobi:
+        # shape is (n_chains, N) — N Jacobi relative coords.
+        # Model is psi(x_1,...,x_{N+1}) and must be init'd with N+1 lab coords.
+        # n_particles_physical = N + 1 = shape[-1] // n_dim_jacobi + 1
+        N = shape[-1] // n_dim_jacobi
+        assert n_dim_jacobi == 1, "Jacobi path currently only implemented for n_dim_jacobi=1"
+        n_particles_physical = N + 1
+        init_shape = (*shape[:-1], n_particles_physical * n_dim_jacobi)
+        params = model.init(key, jnp.ones(init_shape))
+    else:
+        params = model.init(key, jnp.ones(shape))
 
     if use_cm_coords:
         assert n_particles is not None and n_dim is not None, \
@@ -108,6 +121,19 @@ def train(
         _base_apply = model.apply
         def effective_apply(params, x):
             return _base_apply(params, _cm_relative(x, n_particles, n_dim))
+    elif use_jacobi:
+        # Jacobi path: sampler works in N-dimensional Jacobi relative coord space
+        # (shape = (n_chains, N)), but the model is psi(x_1,...,x_{N+1}) and
+        # receives N+1 reconstructed lab coords.
+        # effective_apply wraps the pad-and-reconstruct step transparently so that
+        # kinetic energy, prob_fn, and the loss function all see the correct model.
+        _base_apply = model.apply
+        def effective_apply(params, x):
+            # x: (..., N) Jacobi relative coords
+            zeros = jnp.zeros((*x.shape[:-1], 1))
+            u_tilde = jnp.concatenate([x, zeros], axis=-1)                         # (..., N+1)
+            x_lab = from_jacobi_to_lab(u_tilde, n_particles_physical, n_dim_jacobi) # (..., N+1)
+            return _base_apply(params, x_lab)
     else:
         effective_apply = model.apply
 
