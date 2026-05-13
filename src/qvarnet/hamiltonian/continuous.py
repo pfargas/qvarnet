@@ -149,5 +149,5 @@ class CalogeroSutherlandHamiltonian(ContinuousHamiltonian):
         inv_square = jnp.where(
             mask, self.L * (self.L - 1) / (diffs**2 + self.epsilon), 0.0
         )
-        trap = jnp.sum(samples**2, axis=-1)
+        trap = (self.omega_trap**2) * jnp.sum(samples**2, axis=-1)
         return 2 * jnp.sum(inv_square, axis=(-1, -2)) + trap
