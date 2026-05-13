@@ -22,9 +22,7 @@ The natural gradient update (stochastic reconfiguration) is:
 
 import jax
 import jax.numpy as jnp
-from jax import random
 from functools import partial
-import warnings
 
 
 def compute_log_derivatives(params, batch, model_apply):
@@ -257,110 +255,6 @@ def compute_natural_gradient(params, batch, model_apply, energy_grads, qgt_confi
         raise ValueError(f"Unknown QGT solver: {solver}")
 
     return natural_grad, unravel_fn
-
-
-def train_step_qgt(state, batch, qgt_config):
-    """
-    Single training step using QGT-preconditioned natural gradient.
-
-    Args:
-        state: Flax TrainState
-        batch: Batch of configurations
-        qgt_config: QGT configuration dictionary
-
-    Returns:
-        new_state: Updated TrainState
-        energy: Current energy value
-    """
-    # Import here to avoid circular imports
-    from .train import loss_and_grads
-
-    # Compute energy and its gradient
-    energy, grads = loss_and_grads(state.params, batch, state.apply_fn)
-
-    # Compute natural gradient using QGT
-    natural_grad_flat, unravel_fn = compute_natural_gradient(
-        state.params, batch, state.apply_fn, grads, qgt_config
-    )
-
-    # Apply natural gradient with learning rate
-    learning_rate = qgt_config.get("learning_rate", 1e-3)
-    new_params_flat = (
-        flatten_params(state.params)[0] - learning_rate * natural_grad_flat
-    )
-    new_params = unflatten_params(new_params_flat, unravel_fn)
-
-    # Create new state
-    new_state = state.replace(params=new_params)
-    return new_state, energy
-
-
-def compute_qgt_block_diagonal(
-    params, batch, model_apply, layer_sizes, regularization=1e-6
-):
-    """
-    Compute block-diagonal approximation of QGT based on network layers.
-    Reduces computational cost for large networks (K-FAC style).
-
-    Args:
-        params: Model parameters (PyTree)
-        batch: Batch of configurations
-        model_apply: Model application function
-        layer_sizes: List of parameter counts per layer
-        regularization: Regularization parameter
-
-    Returns:
-        S_block: Block-diagonal QGT matrix
-    """
-    # Flatten parameters for easier indexing
-    flat_params, unravel_fn = flatten_params(params)
-    O_i = compute_log_derivatives(params, batch, model_apply)
-
-    # Compute full QGT first
-    S_full, _ = compute_qgt(params, batch, model_apply, 0.0)
-
-    # Create block-diagonal matrix
-    n_params = flat_params.shape[0]
-    S_block = jnp.zeros((n_params, n_params))
-
-    start_idx = 0
-    for layer_size in layer_sizes:
-        end_idx = start_idx + layer_size
-        # Extract and copy block
-        S_block = S_block.at[start_idx:end_idx, start_idx:end_idx].set(
-            S_full[start_idx:end_idx, start_idx:end_idx]
-        )
-        start_idx = end_idx
-
-    # Add regularization
-    S_block = S_block + regularization * jnp.eye(n_params)
-    return S_block
-
-
-def compute_qgt_statistics(S):
-    """
-    Compute diagnostic statistics for QGT matrix.
-
-    Args:
-        S: QGT matrix
-
-    Returns:
-        stats: Dictionary with condition number, eigenvalue distribution, etc.
-    """
-    try:
-        eigenvals = jnp.linalg.eigvalsh(S)
-        stats = {
-            "condition_number": jnp.max(eigenvals) / (jnp.min(eigenvals) + 1e-12),
-            "max_eigenvalue": jnp.max(eigenvals),
-            "min_eigenvalue": jnp.min(eigenvals),
-            "rank": jnp.sum(eigenvals > 1e-12),
-            "trace": jnp.trace(S),
-            "determinant": jnp.linalg.det(S),
-        }
-        return stats
-    except Exception as e:
-        warnings.warn(f"QGT statistics computation failed: {e}")
-        return {}
 
 
 class QGTConfig:

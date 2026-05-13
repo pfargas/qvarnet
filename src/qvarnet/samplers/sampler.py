@@ -1,13 +1,11 @@
 from functools import partial
 import jax
-from jax import random
 from jax import numpy as jnp
-from matplotlib.pyplot import hist
 
 
 @partial(jax.jit, static_argnames=("prob_fn", "uniform"))
 def mh_kernel(
-    uniform_random_numbers,
+    step_rand,
     prob_fn,
     prob_params,
     position,
@@ -22,8 +20,9 @@ def mh_kernel(
     :math:`A = \\min(1, P(x') / P(x))`.
 
     Args:
-        uniform_random_numbers: Pre-drawn random numbers, shape ``(DoF + 1,)``.
-            First ``DoF`` values drive the proposal; the last is for accept/reject.
+        step_rand: Pre-drawn random numbers for this step, shape ``(DoF + 1,)``.
+            ``step_rand[:-1]`` is the proposal noise (Gaussian or uniform).
+            ``step_rand[-1]`` is the uniform accept/reject draw.
         prob_fn: Callable ``(x, params) -> P(x)``, unnormalised probability density.
         prob_params: Parameters passed to ``prob_fn``.
         position: Current configuration, shape ``(DoF,)``.
@@ -37,17 +36,17 @@ def mh_kernel(
         new_prob: Probability at ``new_position``.
         accept: Boolean indicating whether the proposal was accepted.
     """
+    proposal_noise = step_rand[:-1]
+    accept_draw = step_rand[-1]
+
     if uniform:
-        proposal = position + step_size * (2 * uniform_random_numbers[:-1] - 1)
+        proposal = position + step_size * (2 * proposal_noise - 1)
     else:
-        proposal = position + step_size * random.normal(
-            random.PRNGKey(0),
-            shape=position.shape,  # BUG: should not use a fixed key here, but for testing purposes it's fine
-        )
+        proposal = position + step_size * proposal_noise  # standard normal
     # proposal = ((proposal + 0.5 * PBC) % PBC) - 0.5 * PBC # apply PBC in the samples
     proposal_prob = prob_fn(proposal, prob_params)
-    accept_prob = jnp.minimum(1.0, proposal_prob / (prob))  # + 1e-12))
-    accept = uniform_random_numbers[-1] < accept_prob
+    accept_prob = jnp.minimum(1.0, proposal_prob / prob)
+    accept = accept_draw < accept_prob
     new_position = jnp.where(accept, proposal, position)
     new_prob = jnp.where(accept, proposal_prob, prob)
     return new_position, new_prob, accept
@@ -55,7 +54,7 @@ def mh_kernel(
 
 @partial(jax.jit, static_argnames=("prob_fn", "uniform"))
 def mh_kernel_log(
-    uniform_random_numbers,
+    step_rand,
     prob_fn,
     prob_params,
     position,
@@ -71,8 +70,9 @@ def mh_kernel_log(
     :math:`A = \\min(1, e^{\\log P(x') - \\log P(x)})`.
 
     Args:
-        uniform_random_numbers: Pre-drawn random numbers, shape ``(DoF + 1,)``.
-            First ``DoF`` values are Gaussian proposals; the last is uniform for accept/reject.
+        step_rand: Pre-drawn random numbers for this step, shape ``(DoF + 1,)``.
+            ``step_rand[:-1]`` is the proposal noise (Gaussian or uniform).
+            ``step_rand[-1]`` is the uniform accept/reject draw.
         prob_fn: Callable ``(x, params) -> log P(x)``, log-unnormalised probability.
         prob_params: Parameters passed to ``prob_fn``.
         position: Current configuration, shape ``(DoF,)``.
@@ -86,15 +86,16 @@ def mh_kernel_log(
         new_log_prob: Log-probability at ``new_position``.
         accept: Boolean indicating whether the proposal was accepted.
     """
+    proposal_noise = step_rand[:-1]
+    accept_draw = step_rand[-1]
+
     if uniform:
-        proposal = position + step_size * (2 * uniform_random_numbers[:-1] - 1)
+        proposal = position + step_size * (2 * proposal_noise - 1)
     else:
-        proposal = position + step_size * uniform_random_numbers[:-1]  # standard normal
+        proposal = position + step_size * proposal_noise  # standard normal
     proposal_log_prob = prob_fn(proposal, prob_params)
-    accept_log_prob = jnp.minimum(
-        0.0, proposal_log_prob - prob
-    )  # log(accept_prob) = min(0, log(proposal_prob) - log(current_prob))
-    accept = jnp.log(uniform_random_numbers[-1]) < accept_log_prob
+    accept_log_prob = jnp.minimum(0.0, proposal_log_prob - prob)
+    accept = jnp.log(accept_draw) < accept_log_prob
     new_position = jnp.where(accept, proposal, position)
     new_log_prob = jnp.where(accept, proposal_log_prob, prob)
     return new_position, new_log_prob, accept
@@ -119,6 +120,8 @@ def mh_chain(
 
     Args:
         random_values: Pre-generated random numbers, shape ``(n_steps, DoF + 1)``.
+            Each row is one ``step_rand`` buffer: first ``DoF`` values are proposal
+            noise, last value is the accept/reject draw.
         PBC: Periodic boundary size passed through to the kernel.
         prob_fn: Probability (or log-probability) function ``(x, params) -> P(x)``.
         prob_params: Parameters for ``prob_fn``.
@@ -131,7 +134,6 @@ def mh_chain(
         positions: All sampled positions, shape ``(n_steps, DoF)``.
         acceptance_rate: Fraction of accepted proposals over all steps.
     """
-
     init_prob = prob_fn(init_position, prob_params)
     carry0 = (init_position, init_prob, step_size, 0)
 
@@ -140,10 +142,10 @@ def mh_chain(
     else:
         mh_kernel_fn = mh_kernel
 
-    def body_fn(carry, random_values):
+    def body_fn(carry, step_rand):
         position, prob, step_size, count = carry
         new_position, new_prob, accepted = mh_kernel_fn(
-            uniform_random_numbers=random_values,
+            step_rand=step_rand,
             prob_fn=prob_fn,
             prob_params=prob_params,
             position=position,

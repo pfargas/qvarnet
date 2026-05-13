@@ -1,78 +1,70 @@
+"""Kinetic energy functions for VMC.
+
+Two physically distinct formulas, both exact:
+
+  kinetic_log    — for log-space models (model outputs log|psi|)
+                   T = -1/2 (Delta log|psi| + |grad log|psi||^2)
+
+  kinetic_direct — for direct models (model outputs psi)
+                   T = -1/2  Delta psi / psi
+
+The Laplacian is pluggable: pass any function from laplacian.py as laplacian_fn.
+Default is laplacian_forward_ad (O(DoF), exact, recommended).
+"""
+
 import jax
 import jax.numpy as jnp
-from .laplacian import laplacian_autodiff_new as laplacian_AD
-from .laplacian import laplacian_central_difference
+
+from .laplacian import laplacian_forward_ad
 
 
-def kinetic_term(params, xs, model_apply, laplacian=laplacian_AD):
-    """T = -0.5 * ∇²ψ / ψ for direct (non-log) models.
+def kinetic_log(params, samples, model_apply, laplacian_fn=laplacian_forward_ad):
+    """T = -1/2 (Delta log|psi| + |grad log|psi||^2).
 
-    xs: (batch, DoF)
-    returns: (batch,)  — kinetic energy per sample
-    """
-    def psi_fn(x):
-        # x: (DoF,) → reshape to (1, DoF) for model's expected batch dim
-        x = jnp.atleast_1d(x).reshape(1, -1)
-        return model_apply(params, x).squeeze()  # scalar
+    For models that output log|psi| directly.
 
-    d2psi = laplacian(params, xs, model_apply)  # (batch,)
-    psi_vals = jax.vmap(lambda x: psi_fn(x))(xs)  # (batch,)
-    return -0.5 * (d2psi / psi_vals)  # (batch,)
-
-
-def kinetic_term_divergence_theorem(params, xs, model_apply):
-    """T ≈ +0.5 * |∇ log ψ|² (gradient-only approximation, no laplacian).
-
-    xs: (batch, DoF)
+    samples: (batch, DoF)
     returns: (batch,)
+    """
+    def log_psi(x):
+        # x: (DoF,) — model expects (1, DoF)
+        return model_apply(params, x[None]).squeeze()  # scalar
+
+    grad_log_psi = jax.vmap(jax.grad(log_psi))(samples)   # (batch, DoF)
+    lap = laplacian_fn(log_psi, samples)                    # (batch,)
+    return -0.5 * (lap + jnp.sum(grad_log_psi**2, axis=-1))
+
+
+def kinetic_direct(params, samples, model_apply, laplacian_fn=laplacian_forward_ad):
+    """T = -1/2 Delta psi / psi.
+
+    For models that output psi directly (non-log).
+
+    samples: (batch, DoF)
+    returns: (batch,)
+    """
+    def psi(x):
+        # x: (DoF,) — model expects (1, DoF)
+        return model_apply(params, x[None]).squeeze()  # scalar
+
+    lap = laplacian_fn(psi, samples)          # (batch,)
+    psi_vals = jax.vmap(psi)(samples)         # (batch,)
+    return -0.5 * lap / psi_vals
+
+
+# ---------------------------------------------------------------------------
+# DEPRECATED — kept for reference only, not used in the training workflow.
+# This is NOT the kinetic energy: it is missing the Delta log|psi| term.
+# ---------------------------------------------------------------------------
+def kinetic_term_divergence_theorem(params, xs, model_apply):
+    """DEPRECATED. Gradient-only approximation: T ~ +1/2 |grad log psi|^2.
+
+    Omits the Laplacian term — physically incomplete.
     """
     def log_psi_fn(x):
         x = jnp.atleast_1d(x).reshape(1, -1)
         psi = model_apply(params, x).squeeze()
-        return jnp.log(jnp.abs(psi) + 1e-12)  # scalar
+        return jnp.log(jnp.abs(psi) + 1e-12)
 
-    grad_log_psi_fn = jax.grad(log_psi_fn)
-    grad_val = jax.vmap(grad_log_psi_fn)(xs)  # (batch, DoF)
-    return 0.5 * jnp.sum(grad_val**2, axis=-1)  # (batch,)
-
-
-def kinetic_term_log(params, samples, model_apply):
-    """T = -0.5 * (Δ log ψ + |∇ log ψ|²) for direct models converted to log-space.
-
-    samples: (batch, DoF)
-    returns: (batch,)
-    """
-    def log_psi_fn(x):
-        psi = model_apply(params, x)
-        return jnp.log(jnp.abs(psi) + 1e-12).squeeze()  # scalar
-
-    grad_log_psi_fn = jax.grad(log_psi_fn)
-    grad_val = jax.vmap(grad_log_psi_fn)(samples)  # (batch, DoF)
-
-    def laplacian_log_psi(x):
-        return jnp.trace(jax.hessian(log_psi_fn)(x))  # scalar — O(DoF²) memory
-
-    lap_val = jax.vmap(laplacian_log_psi)(samples)  # (batch,)
-
-    return -0.5 * (lap_val + jnp.sum(grad_val**2, axis=-1))  # (batch,)
-
-
-def kinetic_term_log_wavefunction(params, samples, model_apply, laplacian=laplacian_AD):
-    """T = -0.5 * (Δ log ψ + |∇ log ψ|²) for log-space models (model outputs log|ψ|).
-
-    samples: (batch, DoF)
-    returns: (batch,)
-
-    Uses the AD-based laplacian (memory-efficient O(DoF) vs full Hessian O(DoF²)).
-    """
-    def log_psi_fn(x):
-        # model already returns log|ψ|; x is a single sample (DoF,)
-        psi = model_apply(params, x)
-        return psi.squeeze()  # scalar
-
-    grad_log_psi_fn = jax.grad(log_psi_fn)
-    grad_val = jax.vmap(grad_log_psi_fn)(samples)  # (batch, DoF)
-
-    lap_psi = laplacian(params, samples, model_apply)  # (batch,)
-
-    return -0.5 * (lap_psi + jnp.sum(grad_val**2, axis=-1))  # (batch,)
+    grad_val = jax.vmap(jax.grad(log_psi_fn))(xs)    # (batch, DoF)
+    return 0.5 * jnp.sum(grad_val**2, axis=-1)

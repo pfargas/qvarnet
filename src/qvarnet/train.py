@@ -1,3 +1,4 @@
+import collections
 import signal
 from functools import partial
 
@@ -44,6 +45,10 @@ def train(
     if coord_mode is None:
         coord_mode = LabCoords()
 
+    # Inject coord_mode into the hamiltonian so potential_energy always
+    # receives lab coordinates regardless of which sampler space is used.
+    hamiltonian = hamiltonian.replace(coord_mode=coord_mode)
+
     key = random.PRNGKey(training_config.rng_seed)
 
     init_shape = init_shape_for_model(shape, coord_mode)
@@ -65,8 +70,6 @@ def train(
 
     step_size = sampling_config.step_size
     state_history = []
-    cm_mean = []
-    cm_std = []
 
     @partial(
         jax.jit,
@@ -166,11 +169,11 @@ def train(
                     acceptance_rate=acceptance_rate,
                     step_size=step_size,
                     grads=grads,
+                    cm_mean=float(cm_mean_single),
+                    cm_std=float(cm_std_single),
                 )
             )
             state = new_state
-            cm_mean.append(cm_mean_single)
-            cm_std.append(cm_std_single)
 
             if nan_callback(E):
                 print(f"NaN detected at step {step}. Stopping.")
@@ -186,4 +189,10 @@ def train(
     finally:
         signal.signal(signal.SIGINT, original_handler)
 
-    return state_history, cm_mean, cm_std
+    # TrainResult unpacks as (history, cm_mean, cm_std) for backward compatibility
+    TrainResult = collections.namedtuple("TrainResult", ["history", "cm_mean", "cm_std"])
+    return TrainResult(
+        history=state_history,
+        cm_mean=[s.cm_mean for s in state_history],
+        cm_std=[s.cm_std for s in state_history],
+    )

@@ -3,7 +3,6 @@
 from functools import partial
 from typing import Callable, Tuple
 
-from matplotlib.pylab import uniform
 import jax
 import jax.numpy as jnp
 from jax import random
@@ -54,6 +53,7 @@ def create_sampler_fn(
         "thinning",
         "PBC",
         "is_log_prob",
+        "uniform",
     ],
 )
 def sample_and_process(
