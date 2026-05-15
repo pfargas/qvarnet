@@ -26,7 +26,7 @@ def laplacian_forward_ad(fn, xs):
         n = x.shape[0]
 
         def body(i, acc):
-            e_i = jnp.eye(n)[i]
+            e_i = jnp.zeros(n).at[i].set(1.0) # e_i = jnp.eye(n)[i]  # (DoF,)
             # JVP of grad(fn): tangent output is i-th column of Hessian
             _, hess_col = jax.jvp(jax.grad(fn), (x,), (e_i,))
             return acc + hess_col[i]

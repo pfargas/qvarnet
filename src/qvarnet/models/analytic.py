@@ -30,7 +30,7 @@ class CalogeroSutherlandAnalyticModel(BaseModel):
         n = x.shape[-1]  # n_particles lives in the LAST dim, not dim 0
 
         # Pairwise |xᵢ - xⱼ|: (..., N, 1) vs (..., 1, N) → (..., N, N)
-        diffs = jnp.abs(x[..., :, None] - x[..., None, :]) + 1e-12
+        diffs = jnp.abs(x[..., :, None] - x[..., None, :]) + 1e-6
 
         # Upper-triangle mask: selects i<j only (excludes diagonal and lower half)
         mask = jnp.triu(jnp.ones((n, n)), k=1)  # (N, N)
