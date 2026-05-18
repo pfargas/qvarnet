@@ -33,6 +33,11 @@ class TrainingConfig:
     save_checkpoints: bool = False
     target_acceptance: float = 0.5
     adaptation_rate: float = 0.1
+    use_cusp_condition: bool = False
+    cusp_alpha: float = 0.01
+    cusp_epsilon: float = 1e-2
+    cusp_n_configs_per_pair: int = 5
+    cusp_rng_seed: int = 42
 
 
 def parse_sampler_params(sampler_args: Dict[str, Any], is_log_prob: bool = False) -> SamplingConfig:
@@ -72,4 +77,9 @@ def parse_training_params(train_args: Dict[str, Any]) -> TrainingConfig:
         save_checkpoints=bool(train_args.get("save_checkpoints", False)),
         target_acceptance=float(train_args.get("target_acceptance", 0.5)),
         adaptation_rate=float(train_args.get("adaptation_rate", 0.1)),
+        use_cusp_condition=bool(train_args.get("use_cusp_condition", False)),
+        cusp_alpha=float(train_args.get("cusp_alpha", 0.01)),
+        cusp_epsilon=float(train_args.get("cusp_epsilon", 1e-2)),
+        cusp_n_configs_per_pair=int(train_args.get("cusp_n_configs_per_pair", 5)),
+        cusp_rng_seed=int(train_args.get("cusp_rng_seed", 42)),
     )

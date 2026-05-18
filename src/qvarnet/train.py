@@ -15,6 +15,7 @@ from .config.training_setup import parse_sampler_params, TrainingConfig, Samplin
 from .config.coord_mode import CoordMode, LabCoords
 from .utils.coord_transforms import build_effective_apply, init_shape_for_model
 from .utils import load_doc, save_checkpoint, load_checkpoint
+from .cusp import make_cusp_configs
 
 try:
     from tqdm import tqdm
@@ -71,6 +72,18 @@ def train(
     step_size = sampling_config.step_size
     state_history = []
 
+    cusp_configs = None
+    if training_config.use_cusp_condition:
+        n_particles = shape[-1]
+        L = getattr(hamiltonian, "L", sampling_config.PBC)
+        cusp_configs = make_cusp_configs(
+            n_particles=n_particles,
+            L=L,
+            epsilon=training_config.cusp_epsilon,
+            n_configs_per_pair=training_config.cusp_n_configs_per_pair,
+            rng_seed=training_config.cusp_rng_seed,
+        )
+
     @partial(
         jax.jit,
         static_argnames=["prob_fn", "hamiltonian", "sampling_config", "training_config"],
@@ -119,6 +132,9 @@ def train(
             is_log_model=training_config.is_log_model,
             use_qgt=training_config.use_qgt,
             qgt_config=qgt_config,
+            use_cusp_condition=training_config.use_cusp_condition,
+            cusp_configs=cusp_configs,
+            cusp_alpha=training_config.cusp_alpha,
         )
 
         return new_state, key, new_pos, E, sigma_e, acceptance_rate, step_size, grads, cm_mean_val, cm_std_val

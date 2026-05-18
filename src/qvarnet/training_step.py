@@ -44,17 +44,23 @@ def energy_fn(
     return E, E_loc, sigma_e
 
 
-@partial(jax.jit, static_argnames=["model_apply", "is_log_model"])
+
+
+@partial(jax.jit, static_argnames=["model_apply", "is_log_model", "use_cusp_condition"])
 def energy_and_grads(
     hamiltonian,
     params,
     batch: jnp.ndarray,
     model_apply: Callable,
     is_log_model: bool,
+    use_cusp_condition: bool = False,
+    cusp_configs: jnp.ndarray = None,
+    cusp_alpha: float = 0.01,
 ) -> Tuple[jnp.ndarray, jnp.ndarray, dict]:
     """Compute energy and parameter gradients via variance-minimization loss.
 
     Loss: L(θ) = 2⟨(E_loc - ⟨E⟩) log|ψ_θ|⟩
+                + cusp_alpha * mean_{x∈cusp_configs}[ E_L(x;θ)² ]  (if use_cusp_condition)
     """
     E, E_loc, sigma_e = energy_fn(hamiltonian, params, batch, model_apply, is_log_model)
 
@@ -63,13 +69,21 @@ def energy_and_grads(
         return out if is_log_model else jnp.log(jnp.abs(out))
 
     def loss(p):
-        return 2 * jnp.mean(jax.lax.stop_gradient(E_loc - E) * _log_psi(p))
+        vmc = 2 * jnp.mean(jax.lax.stop_gradient(E_loc - E) * _log_psi(p))
+        if use_cusp_condition:
+            E_cusp = hamiltonian.local_energy(p, cusp_configs, model_apply, is_log_model)
+            # Normalize by stop-gradient RMS so the cusp loss is O(1) regardless of
+            # epsilon. Without this, E_cusp ~ L(L-1)/epsilon^2 ~ 10^4 at the cusp,
+            # making the gradient ~10^8 and blowing up the model.
+            E_cusp_rms = jax.lax.stop_gradient(jnp.sqrt(jnp.mean(E_cusp ** 2)) + 1.0)
+            return vmc + cusp_alpha * jnp.mean((E_cusp / E_cusp_rms) ** 2)
+        return vmc
 
     grads = jax.grad(loss)(params)
     return E, sigma_e, grads
 
 
-@partial(jax.jit, static_argnames=["is_log_model", "use_qgt"])
+@partial(jax.jit, static_argnames=["is_log_model", "use_qgt", "use_cusp_condition"])
 def compute_step(
     state: VMCState,
     batch: jnp.ndarray,
@@ -77,13 +91,20 @@ def compute_step(
     is_log_model: bool = False,
     use_qgt: bool = False,
     qgt_config: dict = None,
+    use_cusp_condition: bool = False,
+    cusp_configs: jnp.ndarray = None,
+    cusp_alpha: float = 0.01,
 ) -> Tuple[VMCState, jnp.ndarray, jnp.ndarray]:
     """Perform one training step: compute energy/gradients and update parameters."""
     if qgt_config is None:
         qgt_config = DEFAULT_QGT_CONFIG.to_dict()
 
     E, sigma_e, grads = energy_and_grads(
-        hamiltonian, state.params, batch, state.apply_fn, is_log_model=is_log_model
+        hamiltonian, state.params, batch, state.apply_fn,
+        is_log_model=is_log_model,
+        use_cusp_condition=use_cusp_condition,
+        cusp_configs=cusp_configs,
+        cusp_alpha=cusp_alpha,
     )
 
     if not use_qgt:
