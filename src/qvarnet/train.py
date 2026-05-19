@@ -50,6 +50,10 @@ def train(
     # receives lab coordinates regardless of which sampler space is used.
     hamiltonian = hamiltonian.replace(coord_mode=coord_mode)
 
+    assert len(shape) == 2, f"shape must be (n_chains, dof), got {shape}"
+    n_chains, dof = shape
+    assert n_chains > 0 and dof > 0, f"shape dimensions must be positive, got {shape}"
+
     key = random.PRNGKey(training_config.rng_seed)
 
     init_shape = init_shape_for_model(shape, coord_mode)
@@ -59,8 +63,8 @@ def train(
     state = VMCState.create(apply_fn=effective_apply, params=params, tx=optimizer)
     state = load_checkpoint(state, path=training_config.checkpoint_path, filename="checkpoint.msgpack")
 
-    prob_fn = build_prob_fn(effective_apply, is_log_model=training_config.is_log_model)
-    sampling_config = parse_sampler_params(sampler_params, is_log_prob=training_config.is_log_model)
+    prob_fn = build_prob_fn(effective_apply)
+    sampling_config = parse_sampler_params(sampler_params)
 
     if training_config.init_positions == "normal":
         current_positions = jax.random.normal(key, shape) * 0.5
@@ -68,6 +72,11 @@ def train(
         current_positions = jnp.zeros(shape)
     else:
         raise ValueError(f"Unknown init_positions: {training_config.init_positions!r}")
+
+    assert current_positions.shape == (n_chains, dof), (
+        f"init_positions shape mismatch: expected {(n_chains, dof)}, "
+        f"got {current_positions.shape}"
+    )
 
     step_size = sampling_config.step_size
     state_history = []
@@ -96,7 +105,7 @@ def train(
     )
     def full_update(state, key, current_pos, prob_fn, step_size, hamiltonian, sampling_config, training_config):
         key, subkey = jax.random.split(key)
-        n_chains, DoF = current_pos.shape
+        n_chains, dof = current_pos.shape  # dof = n_particles * n_dim
 
         batch, new_pos, acceptance_rate = sample_and_process(
             key=subkey,
@@ -105,12 +114,11 @@ def train(
             init_positions=current_pos,
             step_size=step_size,
             n_chains=n_chains,
-            DoF=DoF,
+            dof=dof,
             n_steps=sampling_config.chain_length,
             burn_in=sampling_config.thermalization_steps,
             thinning=sampling_config.thinning_factor,
             PBC=sampling_config.PBC,
-            is_log_prob=sampling_config.is_log_prob,
         )
 
         # Centre-of-mass diagnostic (meaningful for 1D, n_dim=1)
@@ -135,7 +143,6 @@ def train(
             state=state,
             batch=batch,
             hamiltonian=hamiltonian,
-            is_log_model=training_config.is_log_model,
             use_qgt=training_config.use_qgt,
             qgt_config=qgt_config,
             use_cusp_condition=training_config.use_cusp_condition,

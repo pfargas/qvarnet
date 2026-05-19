@@ -1,6 +1,6 @@
 from .base import BaseHamiltonian
 from .hamiltonian_registry import register_hamiltonian
-from .kinetic import kinetic_log, kinetic_direct
+from .kinetic import kinetic_log
 from .laplacian import laplacian_forward_ad, laplacian_full_hessian, laplacian_central_difference
 from flax import struct
 
@@ -59,19 +59,13 @@ class ContinuousHamiltonian(BaseHamiltonian):
         raise TypeError(f"Unknown CoordMode: {type(self.coord_mode)}")
 
     def kinetic_local_energy(self, params, samples, model_apply):
-        return kinetic_direct(params, samples, model_apply, self._get_laplacian_fn())
-
-    def kinetic_local_energy_log_model(self, params, samples, model_apply):
         return kinetic_log(params, samples, model_apply, self._get_laplacian_fn())
 
     def potential_energy(self, samples):
         raise NotImplementedError("Subclass must implement potential_energy().")
 
-    def local_energy(self, params, samples, model_apply, is_log_model):
-        if is_log_model:
-            kinetic = self.kinetic_local_energy_log_model(params, samples, model_apply)
-        else:
-            kinetic = self.kinetic_local_energy(params, samples, model_apply)
+    def local_energy(self, params, samples, model_apply):
+        kinetic = self.kinetic_local_energy(params, samples, model_apply)
         lab_samples = self._samples_to_lab(samples)
         return kinetic.squeeze() + self.potential_energy(lab_samples).squeeze()
 
@@ -138,9 +132,8 @@ class CalogeroSutherlandHamiltonian(ContinuousHamiltonian):
     epsilon: float = struct.field(pytree_node=False, default=0.0)
     omega_trap: float = struct.field(pytree_node=False, default=1.0)
 
-    def kinetic_local_energy_log_model(self, params, samples, model_apply):
-        # Factor of 2: the CS paper uses the convention H = -d^2/dx^2 + V
-        # (i.e. ℏ²/m = 1 rather than ℏ²/2m = 1).
+    def kinetic_local_energy(self, params, samples, model_apply):
+        # Factor of 2: CS convention is H = -d²/dx² + V (ℏ²/m = 1, not ℏ²/2m = 1).
         return 2 * kinetic_log(params, samples, model_apply, self._get_laplacian_fn())
 
     def potential_energy(self, samples):

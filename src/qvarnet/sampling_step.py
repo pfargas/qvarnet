@@ -20,24 +20,23 @@ def create_sampler_fn(
     Args:
         mh_chain: Single-chain MH kernel with signature
             ``(random_values, PBC, prob_fn, prob_params, init_position,
-            step_size, is_log_prob) -> (positions, acceptance_rate)``.
+            step_size) -> (positions, acceptance_rate)``.
 
     Returns:
         sampler_fn: Vectorised function that samples all chains in parallel.
-            Expects ``random_values`` of shape ``(n_chains, n_steps, DoF+1)``.
+            Expects ``random_values`` of shape ``(n_chains, n_steps, dof+1)``.
     """
     sampler_fn = jax.vmap(
         mh_chain,
         in_axes=(
-            0,  # random_values: vectorize over chains (axis 0)
+            0,     # random_values: vectorize over chains
             None,  # PBC: same for all chains
             None,  # prob_fn: same function for all chains
             None,  # prob_params: same parameters for all chains
-            0,  # init_position: different position per chain
+            0,     # init_position: different position per chain
             None,  # step_size: same for all chains
-            None,  # is_log_prob: same for all chains
         ),
-        out_axes=0,  # Output: result for each chain (axis 0)
+        out_axes=0,
     )
     return sampler_fn
 
@@ -47,12 +46,11 @@ def create_sampler_fn(
     static_argnames=[
         "prob_fn",
         "n_chains",
-        "DoF",
+        "dof",
         "n_steps",
         "burn_in",
         "thinning",
         "PBC",
-        "is_log_prob",
         "uniform",
     ],
 )
@@ -63,88 +61,61 @@ def sample_and_process(
     init_positions: jnp.ndarray,
     step_size: float,
     n_chains: int,
-    DoF: int,
+    dof: int,
     n_steps: int,
     burn_in: int,
     thinning: int,
     PBC: float,
-    is_log_prob: bool,
     uniform: bool = False,
 ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
-    """
-    Generate one batch of samples from MCMC and process them.
+    """Generate one batch of samples from MCMC and process them.
 
-    This function:
-    1. Generates random numbers for all chains
-    2. Runs Metropolis-Hastings chains in parallel
-    3. Discards burn-in samples
-    4. Applies thinning to reduce autocorrelation
-    5. Returns flattened batch and diagnostics
+    Runs log-space Metropolis-Hastings chains in parallel, discards burn-in,
+    applies thinning, and returns a flattened batch.
 
     Args:
-        key: JAX random key for reproducibility
-        prob_fn: Probability density function (x, params) -> ℝ
-        prob_params: Parameters for prob_fn (typically neural network weights)
-        init_positions: Starting positions for all chains, shape (n_chains, DoF)
-        step_size: Step size for MH proposal distribution
-        n_chains: Number of parallel MCMC chains
-        DoF: Degrees of freedom per sample
-        n_steps: Total number of steps per chain
-        burn_in: Number of initial samples to discard (thermalization)
-        thinning: Keep every thinning-th sample (reduce autocorrelation)
-        PBC: Periodic boundary condition size (0 for no PBC)
-        is_log_prob: If True, prob_fn outputs log(P). If False, outputs P.
+        key: JAX random key.
+        prob_fn: Log-probability function ``(x, params) -> log P(x)``.
+        prob_params: Parameters for prob_fn.
+        init_positions: Starting positions, shape ``(n_chains, dof)``.
+        step_size: MH proposal step size.
+        n_chains: Number of parallel MCMC chains.
+        dof: Degrees of freedom per sample (n_particles * n_dim).
+        n_steps: Total steps per chain.
+        burn_in: Initial samples to discard (thermalization).
+        thinning: Keep every thinning-th sample.
+        PBC: Periodic boundary condition size (0 for none).
 
     Returns:
-        samples: Flattened batch of shape ``(n_chains * n_effective, DoF)``, where ``n_effective = (n_steps - burn_in) // thinning``.
-        last_positions: Final walker positions, shape ``(n_chains, DoF)``.
-        acceptance_rates: Per-chain acceptance rate, shape ``(n_chains,)``.
-
-    Note:
-        All operations are JIT-compiled. The vmap over chains is handled inside
-        :func:`create_sampler_fn`. Samples remain in log-space when
-        ``is_log_prob=True``.
+        samples: shape ``(n_chains * n_effective, dof)``.
+        last_positions: shape ``(n_chains, dof)``.
+        acceptance_rates: shape ``(n_chains,)``.
     """
     from .samplers import mh_chain as mh_chain_fn
 
-    # Generate random numbers for all chains
-    # Shape: (n_chains, n_steps, DoF+1)
-    # The extra dimension is used for accept/reject decision in MH kernel
+    # Shape: (n_chains, n_steps, dof+1) — last slot is the accept/reject draw
     if uniform:
-        rand_nums = random.uniform(key, (n_chains, n_steps, DoF + 1))
+        rand_nums = random.uniform(key, (n_chains, n_steps, dof + 1))
     else:
         uniform_key, normal_key = random.split(key)
-        rand_nums_normal = random.normal(normal_key, (n_chains, n_steps, DoF))
+        rand_nums_normal = random.normal(normal_key, (n_chains, n_steps, dof))
         rand_nums_uniform = random.uniform(uniform_key, (n_chains, n_steps, 1))
         rand_nums = jnp.concatenate([rand_nums_normal, rand_nums_uniform], axis=-1)
 
-    # Create vectorized sampler
     sampler_fn = create_sampler_fn(mh_chain_fn)
 
-    # Run all chains in parallel
-    # raw_batch shape: (n_chains, n_steps, DoF)
-    # acceptance_rates shape: (n_chains,)
-    # Note: argument order must match mh_chain signature
+    # raw_batch: (n_chains, n_steps, dof)
     raw_batch, acceptance_rates = sampler_fn(
-        rand_nums,  # random_values
-        PBC,  # PBC
-        prob_fn,  # prob_fn
-        prob_params,  # prob_params
-        init_positions,  # init_position
-        step_size,  # step_size
-        is_log_prob,  # is_log_prob
+        rand_nums,
+        PBC,
+        prob_fn,
+        prob_params,
+        init_positions,
+        step_size,
     )
 
-    # Post-processing: thermalization and thinning
-    # Drop first `burn_in` samples, then take every `thinning`-th sample
-    processed_batch = raw_batch[:, burn_in::thinning, :]
-    # Shape: (n_chains, (n_steps - burn_in) // thinning, DoF)
-
-    # Get final positions (last sample from each chain)
-    last_positions = raw_batch[:, -1, :]  # Shape: (n_chains, DoF)
-
-    # Flatten batch: combine all chains and all samples
-    batch_flat = processed_batch.reshape(-1, DoF)
-    # Shape: (n_chains * n_samples_effective, DoF)
+    processed_batch = raw_batch[:, burn_in::thinning, :]  # (n_chains, n_effective, dof)
+    last_positions = raw_batch[:, -1, :]                   # (n_chains, dof)
+    batch_flat = processed_batch.reshape(-1, dof)          # (n_chains * n_effective, dof)
 
     return batch_flat, last_positions, acceptance_rates
