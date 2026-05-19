@@ -22,7 +22,8 @@
 14. [Custom model](#14-custom-model)
 15. [Stochastic reconfiguration (QGT)](#15-stochastic-reconfiguration)
 16. [Hutchinson Laplacian estimator](#16-hutchinson)
-17. [Common mistakes](#17-common-mistakes)
+17. [YAML config runner](#17-yaml-runner)
+18. [Common mistakes](#18-common-mistakes)
 
 ---
 
@@ -867,7 +868,150 @@ lap = laplacian_hutchinson(log_psi, xs, key, n_terms=20, distribution="rademache
 
 ---
 
-## 17. Common mistakes <a name="17-common-mistakes"></a>
+## 17. YAML config runner
+
+The `qvarnet.runner` module lets you run experiments from a YAML file instead of writing Python. This is the recommended workflow for production runs — config files are self-documenting, version-controllable, and easy to share.
+
+### Running an experiment
+
+```bash
+# From the qvarnet/ directory:
+uv run python -m qvarnet.runner experiments/harmonic_oscillator.yaml
+
+# Override any field from the command line without editing the file:
+uv run python -m qvarnet.runner experiments/harmonic_oscillator.yaml \
+    --set training.n_epochs=10000 optimizer.learning_rate=5e-4 shape.n_chains=2000
+
+# If qvarnet is installed (pip/uv install):
+qvarnet experiments/harmonic_oscillator.yaml
+```
+
+### Config file structure
+
+The file is a YAML document with six top-level sections. Every key maps directly to an argument of `train()` or its sub-configs.
+
+```yaml
+# experiments/harmonic_oscillator.yaml
+name: harmonic_5p_mlp          # used for the output directory name
+output_dir: ./outputs/harmonic_5p_mlp/
+
+# ── Physical system ──────────────────────────────────────────────────────
+shape:
+  n_chains: 1000
+  n_particles: 5
+  n_dim: 1
+  # or: dof: 5  (overrides n_particles * n_dim)
+
+# ── Wavefunction ansatz ──────────────────────────────────────────────────
+model:
+  type: mlp                     # any key from MODEL_REGISTRY
+  architecture: [5, 64, 64, 1] # specific to each model type (see section 6)
+
+# ── Hamiltonian ──────────────────────────────────────────────────────────
+hamiltonian:
+  type: harmonic-oscillator     # any key from HAMILTONIAN_REGISTER
+  omega: 1.0                    # extra kwargs passed to the constructor
+  laplacian_method: forward_ad  # "forward_ad", "hutchinson", "central_difference"
+  # hutchinson_n_terms: 20      # only when laplacian_method: hutchinson
+  # hutchinson_distribution: rademacher
+
+# ── Optimizer ───────────────────────────────────────────────────────────
+optimizer:
+  type: adam                    # "adam", "adamw", "sgd"
+  learning_rate: 1e-3
+
+# ── Training ────────────────────────────────────────────────────────────
+training:
+  n_epochs: 5000
+  rng_seed: 42
+  save_checkpoints: true
+  warm_walkers: true
+  is_update_step_size: true
+  target_acceptance: 0.5
+  adaptation_rate: 0.1
+  # cusp:                        # uncomment to enable cusp condition
+  #   alpha: 0.01
+  #   epsilon: 1e-2
+  #   n: 2.0
+  #   C_n: 1.0
+
+# ── MCMC sampler ────────────────────────────────────────────────────────
+sampler:
+  step_size: 0.5
+  chain_length: 200
+  thermalization_steps: 20
+  thinning_factor: 1
+
+# ── Coordinate mode (optional, default: lab) ────────────────────────────
+coord_mode:
+  type: lab     # or "jacobi"
+  # n_particles_physical: 5   # required for jacobi
+  # n_dim: 1
+```
+
+For a `deep-set` model the `model:` section looks different:
+
+```yaml
+model:
+  type: deep-set
+  n_particles: 10
+  n_dim: 1
+  phi_hidden_architecture: [32, 32]
+  F_hidden_architecture: [64, 64, 1]
+```
+
+### CLI overrides
+
+The `--set` flag uses dot-notation to override any nested value. Types are inferred automatically (`int`, `float`, `bool`, `list` via Python literal eval; fallback to `str`):
+
+```bash
+# Single override
+qvarnet config.yaml --set training.n_epochs=10000
+
+# Multiple overrides in one command
+qvarnet config.yaml --set training.n_epochs=10000 optimizer.learning_rate=5e-4 shape.n_chains=2000
+
+# List value
+qvarnet config.yaml --set model.architecture=[5,128,128,1]
+```
+
+Overrides are applied after the file is loaded, so you can keep a base config and specialise it per run without duplicating files.
+
+### What the runner saves
+
+Every run writes to `output_dir/`:
+
+| File | Contents |
+|---|---|
+| `config.yaml` | The resolved config (file + overrides) — complete record for reproducibility |
+| `energy_history.csv` | `step, energy, std, acceptance_rate, step_size` — one row per epoch |
+| `checkpoint.msgpack` | Latest model parameters (when `save_checkpoints: true`) |
+| `run_config.json` | Model architecture + training config, used by `load_run()` |
+
+### Loading results after a run
+
+```python
+from qvarnet.utils import load_run
+import pandas as pd
+
+# Reconstruct the trained wavefunction
+model, params, cfg, coord = load_run("./outputs/harmonic_5p_mlp/")
+
+# Load the energy history
+df = pd.read_csv("./outputs/harmonic_5p_mlp/energy_history.csv")
+print(df.tail())
+```
+
+### Example configs
+
+Two ready-to-use configs live in `experiments/`:
+
+- `experiments/harmonic_oscillator.yaml` — 5-particle HO, MLP, forward_ad
+- `experiments/nn_oscillator_deepset.yaml` — 10-particle NN oscillator, DeepSet, Hutchinson
+
+---
+
+## 18. Common mistakes <a name="18-common-mistakes"></a>
 
 ### Wrong output shape from the model
 
