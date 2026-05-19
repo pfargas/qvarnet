@@ -1,0 +1,34 @@
+{
+  "model_name": "mlp",
+  "model_args": {
+    "type": "mlp",
+    "architecture": [
+      5,
+      64,
+      64,
+      1
+    ]
+  },
+  "sample_shape": [
+    64,
+    5
+  ],
+  "coord_mode": {
+    "type": "LabCoords"
+  },
+  "training_config": {
+    "n_epochs": 5,
+    "rng_seed": 42,
+    "init_positions": "normal",
+    "warm_walkers": true,
+    "is_update_step_size": true,
+    "min_step": 1e-05,
+    "max_step": 5.0,
+    "use_qgt": false,
+    "checkpoint_path": "outputs/harmonic_5p_mlp",
+    "save_checkpoints": true,
+    "target_acceptance": 0.5,
+    "adaptation_rate": 0.1,
+    "cusp": null
+  }
+}

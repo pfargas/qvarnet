@@ -1,0 +1,47 @@
+# Nearest-neighbour oscillator — 10 particles, 1D, DeepSet ansatz (permutation-invariant)
+# Run: uv run python -m qvarnet.runner experiments/nn_oscillator_deepset.yaml
+
+name: nn_osc_10p_deepset
+output_dir: ./outputs/nn_osc_10p_deepset/
+
+shape:
+  n_chains: 2000
+  n_particles: 10
+  n_dim: 1
+
+model:
+  type: deep-set
+  n_particles: 10
+  n_dim: 1
+  phi_hidden_architecture: [32, 32]   # per-particle network
+  F_hidden_architecture: [64, 64, 1]  # aggregation network
+
+hamiltonian:
+  type: nn-oscillator
+  omega_trap: 1.0
+  omega_interaction: 1.0
+  with_pbc: true
+  laplacian_method: hutchinson   # faster for larger dof
+  hutchinson_n_terms: 20
+  hutchinson_distribution: rademacher
+
+optimizer:
+  type: adam
+  learning_rate: 5e-4
+
+training:
+  n_epochs: 10000
+  rng_seed: 0
+  save_checkpoints: true
+  warm_walkers: true
+  is_update_step_size: true
+  target_acceptance: 0.5
+
+sampler:
+  step_size: 0.3
+  chain_length: 300
+  thermalization_steps: 30
+  thinning_factor: 1
+
+coord_mode:
+  type: lab

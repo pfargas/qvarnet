@@ -1,12 +1,11 @@
 from .base import BaseHamiltonian
 from .hamiltonian_registry import register_hamiltonian
 from .kinetic import kinetic_log
-from .laplacian import laplacian_forward_ad, laplacian_full_hessian, laplacian_central_difference
+from .laplacian import laplacian_forward_ad, laplacian_full_hessian, laplacian_central_difference, laplacian_hutchinson
 from flax import struct
 
 import jax.numpy as jnp
-from qvarnet.utils.jacobi import from_jacobi_to_lab
-from qvarnet.config.coord_mode import CoordMode, LabCoords, JacobiCoords
+from qvarnet.config.coord_mode import CoordMode, LabCoords
 
 
 @struct.dataclass
@@ -31,6 +30,8 @@ class ContinuousHamiltonian(BaseHamiltonian):
 
     laplacian_method: str = struct.field(pytree_node=False, default="forward_ad")
     coord_mode: CoordMode = struct.field(pytree_node=False, default=None)
+    hutchinson_n_terms: int = struct.field(pytree_node=False, default=10)
+    hutchinson_distribution: str = struct.field(pytree_node=False, default="rademacher")
 
     def _get_laplacian_fn(self):
         method = self.laplacian_method
@@ -40,33 +41,25 @@ class ContinuousHamiltonian(BaseHamiltonian):
             return laplacian_central_difference
         if method == "full_hessian":
             return laplacian_full_hessian
+        if method == "hutchinson":
+            from functools import partial
+            return partial(
+                laplacian_hutchinson,
+                n_terms=self.hutchinson_n_terms,
+                distribution=self.hutchinson_distribution,
+            )
         raise ValueError(f"Unknown laplacian_method: {method!r}")
 
-    def _samples_to_lab(self, samples):
-        """Transform sampler coordinates to lab coordinates for potential evaluation.
-
-        Kinetic energy always differentiates w.r.t. sampler coordinates (correct).
-        Potential energy always receives lab coordinates (general, works for any V).
-        """
-        if self.coord_mode is None or isinstance(self.coord_mode, LabCoords):
-            return samples
-        if isinstance(self.coord_mode, JacobiCoords):
-            n_phys = self.coord_mode.n_particles_physical
-            n_d = self.coord_mode.n_dim
-            zeros = jnp.zeros((*samples.shape[:-1], 1))
-            u_tilde = jnp.concatenate([samples, zeros], axis=-1)
-            return from_jacobi_to_lab(u_tilde, n_phys, n_d)
-        raise TypeError(f"Unknown CoordMode: {type(self.coord_mode)}")
-
-    def kinetic_local_energy(self, params, samples, model_apply):
-        return kinetic_log(params, samples, model_apply, self._get_laplacian_fn())
+    def kinetic_local_energy(self, params, samples, model_apply, key=None):
+        return kinetic_log(params, samples, model_apply, self._get_laplacian_fn(), key=key)
 
     def potential_energy(self, samples):
         raise NotImplementedError("Subclass must implement potential_energy().")
 
-    def local_energy(self, params, samples, model_apply):
-        kinetic = self.kinetic_local_energy(params, samples, model_apply)
-        lab_samples = self._samples_to_lab(samples)
+    def local_energy(self, params, samples, model_apply, key=None):
+        kinetic = self.kinetic_local_energy(params, samples, model_apply, key=key)
+        coord_mode = self.coord_mode if self.coord_mode is not None else LabCoords()
+        lab_samples = coord_mode.samples_to_lab(samples)
         return kinetic.squeeze() + self.potential_energy(lab_samples).squeeze()
 
 
@@ -132,9 +125,9 @@ class CalogeroSutherlandHamiltonian(ContinuousHamiltonian):
     epsilon: float = struct.field(pytree_node=False, default=0.0)
     omega_trap: float = struct.field(pytree_node=False, default=1.0)
 
-    def kinetic_local_energy(self, params, samples, model_apply):
+    def kinetic_local_energy(self, params, samples, model_apply, key=None):
         # Factor of 2: CS convention is H = -d²/dx² + V (ℏ²/m = 1, not ℏ²/2m = 1).
-        return 2 * kinetic_log(params, samples, model_apply, self._get_laplacian_fn())
+        return 2 * kinetic_log(params, samples, model_apply, self._get_laplacian_fn(), key=key)
 
     def potential_energy(self, samples):
         diffs = samples[:, :, jnp.newaxis] - samples[:, jnp.newaxis, :]

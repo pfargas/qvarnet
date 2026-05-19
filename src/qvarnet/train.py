@@ -1,4 +1,3 @@
-import collections
 import signal
 from functools import partial
 
@@ -6,16 +5,17 @@ import jax
 import jax.numpy as jnp
 from jax import random
 
-from .vmc_state import VMCState
-from .callbacks import nan_callback
+from .callbacks import CheckpointCallback, NaNCallback, ProgressCallback
+from .config.coord_mode import CoordMode, LabCoords
+from .config.training_setup import TrainingConfig, parse_sampler_params
+from .cusp import make_cusp_configs, make_cusp_pair_indices
+from .losses import CuspLoss
 from .probability import build_prob_fn
+from .qgt import DEFAULT_QGT_CONFIG, QGTConfig
 from .sampling_step import sample_and_process
 from .training_step import compute_step
-from .config.training_setup import parse_sampler_params, TrainingConfig, SamplingConfig
-from .config.coord_mode import CoordMode, LabCoords
-from .utils.coord_transforms import build_effective_apply, init_shape_for_model
-from .utils import load_doc, save_checkpoint, load_checkpoint
-from .cusp import make_cusp_configs, make_cusp_pair_indices
+from .utils import load_checkpoint, load_doc, save_run_config
+from .vmc_state import VMCState
 
 try:
     from tqdm import tqdm
@@ -31,6 +31,53 @@ def _update_step_size(step_size, acceptance_rate, min_step, max_step, target_acc
     return jnp.clip(step_size * factor, min_step, max_step)
 
 
+class TrainResult:
+    """Result of a VMC training run.
+
+    Attributes:
+        history: list of VMCState, one per epoch (includes full params).
+        cm_mean: list of float — per-epoch mean centre-of-mass.
+        cm_std:  list of float — per-epoch std of centre-of-mass.
+
+    Methods:
+        best(n, metric): return the N states with the lowest value of metric.
+    """
+
+    def __init__(self, history, cm_mean, cm_std):
+        self.history = history
+        self.cm_mean = cm_mean
+        self.cm_std = cm_std
+
+    def best(self, n: int = 1, metric: str = "energy"):
+        """Return the N VMCState objects with the lowest value of metric.
+
+        Args:
+            n: number of states to return.
+            metric: "energy" or "std".
+
+        Returns:
+            List of VMCState sorted ascending by metric (best first).
+        """
+        key_fns = {
+            "energy": lambda s: float(s.energy),
+            "std":    lambda s: float(s.std),
+        }
+        if metric not in key_fns:
+            raise ValueError(f"metric must be one of {list(key_fns)}, got {metric!r}")
+        return sorted(self.history, key=key_fns[metric])[:n]
+
+    def __iter__(self):
+        # Backward compat: allows  history, cm_mean, cm_std = result
+        return iter((self.history, self.cm_mean, self.cm_std))
+
+    def __repr__(self):
+        n = len(self.history)
+        if n:
+            last_e = self.history[-1].energy
+            return f"TrainResult(n_steps={n}, last_energy={float(last_e):.6f})"
+        return "TrainResult(n_steps=0)"
+
+
 @load_doc("train.txt")
 def train(
     shape,
@@ -40,14 +87,20 @@ def train(
     training_config: TrainingConfig,
     sampler_params,
     coord_mode: CoordMode = None,
+    model_name: str = None,
+    model_args: dict = None,
     qgt_config=None,
+    auxiliary_losses: tuple = (),
+    callbacks: list = None,
 ):
     """Train a VMC model using Metropolis-Hastings sampling."""
     if coord_mode is None:
         coord_mode = LabCoords()
+    if qgt_config is None:
+        qgt_config = DEFAULT_QGT_CONFIG
+    elif isinstance(qgt_config, dict):
+        qgt_config = QGTConfig(**qgt_config)
 
-    # Inject coord_mode into the hamiltonian so potential_energy always
-    # receives lab coordinates regardless of which sampler space is used.
     hamiltonian = hamiltonian.replace(coord_mode=coord_mode)
 
     assert len(shape) == 2, f"shape must be (n_chains, dof), got {shape}"
@@ -56,12 +109,22 @@ def train(
 
     key = random.PRNGKey(training_config.rng_seed)
 
-    init_shape = init_shape_for_model(shape, coord_mode)
+    init_shape = coord_mode.model_input_shape(shape)
     params = model.init(key, jnp.ones(init_shape))
 
-    effective_apply = build_effective_apply(model.apply, coord_mode)
+    effective_apply = coord_mode.wrap_model_apply(model.apply)
     state = VMCState.create(apply_fn=effective_apply, params=params, tx=optimizer)
     state = load_checkpoint(state, path=training_config.checkpoint_path, filename="checkpoint.msgpack")
+
+    if model_name is not None and model_args is not None:
+        save_run_config(
+            path=training_config.checkpoint_path,
+            model_name=model_name,
+            model_args=model_args,
+            sample_shape=shape,
+            coord_mode=coord_mode,
+            training_config=training_config,
+        )
 
     prob_fn = build_prob_fn(effective_apply)
     sampling_config = parse_sampler_params(sampler_params)
@@ -79,33 +142,41 @@ def train(
     )
 
     step_size = sampling_config.step_size
-    state_history = []
 
-    cusp_configs = None
-    cusp_pair_i = None
-    cusp_pair_j = None
-    if training_config.use_cusp_condition:
+    # Build auxiliary losses: cusp (if configured) + user-provided
+    _cusp = training_config.cusp
+    _aux_losses = []
+    if _cusp is not None:
         n_particles = shape[-1]
         L = getattr(hamiltonian, "L", sampling_config.PBC)
         cusp_configs = make_cusp_configs(
             n_particles=n_particles,
             L=L,
-            epsilon=training_config.cusp_epsilon,
-            n_configs_per_pair=training_config.cusp_n_configs_per_pair,
-            rng_seed=training_config.cusp_rng_seed,
+            epsilon=_cusp.epsilon,
+            n_configs_per_pair=_cusp.n_configs_per_pair,
+            rng_seed=_cusp.rng_seed,
         )
         cusp_pair_i, cusp_pair_j = make_cusp_pair_indices(
             n_particles=n_particles,
-            n_configs_per_pair=training_config.cusp_n_configs_per_pair,
+            n_configs_per_pair=_cusp.n_configs_per_pair,
         )
+        _aux_losses.append(CuspLoss(
+            cusp_configs, cusp_pair_i, cusp_pair_j,
+            alpha=_cusp.alpha,
+            epsilon=_cusp.epsilon,
+            n=_cusp.n,
+            C_n=_cusp.C_n,
+        ))
+    _aux_losses.extend(auxiliary_losses)
+    _auxiliary_losses = tuple(_aux_losses)
 
     @partial(
         jax.jit,
         static_argnames=["prob_fn", "hamiltonian", "sampling_config", "training_config"],
     )
     def full_update(state, key, current_pos, prob_fn, step_size, hamiltonian, sampling_config, training_config):
-        key, subkey = jax.random.split(key)
-        n_chains, dof = current_pos.shape  # dof = n_particles * n_dim
+        key, subkey, lap_key = jax.random.split(key, 3)
+        n_chains, dof = current_pos.shape
 
         batch, new_pos, acceptance_rate = sample_and_process(
             key=subkey,
@@ -121,7 +192,6 @@ def train(
             PBC=sampling_config.PBC,
         )
 
-        # Centre-of-mass diagnostic (meaningful for 1D, n_dim=1)
         cm = jnp.sum(new_pos, axis=1) / new_pos.shape[-1]
         cm_mean_val = jnp.mean(cm)
         cm_std_val = jnp.std(cm)
@@ -145,17 +215,19 @@ def train(
             hamiltonian=hamiltonian,
             use_qgt=training_config.use_qgt,
             qgt_config=qgt_config,
-            use_cusp_condition=training_config.use_cusp_condition,
-            cusp_configs=cusp_configs,
-            cusp_alpha=training_config.cusp_alpha,
-            cusp_pair_i=cusp_pair_i,
-            cusp_pair_j=cusp_pair_j,
-            cusp_epsilon=training_config.cusp_epsilon,
-            cusp_n=training_config.cusp_n,
-            cusp_C_n=training_config.cusp_C_n,
+            auxiliary_losses=_auxiliary_losses,
+            key=lap_key,
         )
 
         return new_state, key, new_pos, E, sigma_e, acceptance_rate, step_size, grads, cm_mean_val, cm_std_val
+
+    # Build callback list: always NaN guard, then user-supplied, then built-ins from config
+    _callbacks = list(callbacks or [])
+    _callbacks.insert(0, NaNCallback(training_config.checkpoint_path))
+    if training_config.save_checkpoints:
+        _callbacks.append(CheckpointCallback(training_config.checkpoint_path))
+
+    state_history = []
 
     # Signal handler — no global state, restores original handler on exit
     _stop = [False]
@@ -168,6 +240,8 @@ def train(
 
     init_steps = int(state.step)
     progress_bar = tqdm(range(init_steps, training_config.n_epochs), disable=not tqdm_available)
+    if tqdm_available:
+        _callbacks.append(ProgressCallback(progress_bar))
 
     try:
         for step in progress_bar:
@@ -209,22 +283,23 @@ def train(
             )
             state = new_state
 
-            if nan_callback(E):
-                print(f"NaN detected at step {step}. Stopping.")
-                save_checkpoint(state, path=training_config.checkpoint_path, filename="nan_checkpoint.msgpack")
+            metrics = {
+                "energy": float(E),
+                "std": float(sigma_e),
+                "acceptance_rate": acceptance_rate,
+                "step_size": float(step_size),
+                "cm_mean": float(cm_mean_single),
+                "cm_std": float(cm_std_single),
+            }
+
+            if any(cb.on_step_end(step, state, metrics) for cb in _callbacks):
                 break
-
-            if tqdm_available and step % 10 == 0:
-                progress_bar.set_postfix(E=f"{E:.4f}", sigma_E=f"{sigma_e:.4f}")
-
-            if training_config.save_checkpoints and step % 50 == 0:
-                save_checkpoint(new_state, path=training_config.checkpoint_path, filename="checkpoint.msgpack")
 
     finally:
         signal.signal(signal.SIGINT, original_handler)
+        for cb in _callbacks:
+            cb.on_train_end(state, state_history)
 
-    # TrainResult unpacks as (history, cm_mean, cm_std) for backward compatibility
-    TrainResult = collections.namedtuple("TrainResult", ["history", "cm_mean", "cm_std"])
     return TrainResult(
         history=state_history,
         cm_mean=[s.cm_mean for s in state_history],

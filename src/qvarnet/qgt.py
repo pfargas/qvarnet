@@ -1,290 +1,50 @@
-"""
-Quantum Geometric Tensor (QGT) implementation for natural gradient optimization
-in Variational Monte Carlo (VMC) calculations.
+"""Quantum Geometric Tensor (QGT) for natural-gradient / stochastic reconfiguration.
 
-This module provides functions to compute the QGT and use it as a preconditioner
-for energy minimization, implementing the stochastic reconfiguration method.
+S_{kl}(θ) = ⟨O_k O_l⟩ − ⟨O_k⟩⟨O_l⟩,   O_k = ∂log|ψ_θ(x)|/∂θ_k
 
-The QGT is defined as:
+Natural gradient update (stochastic reconfiguration):
+    θ_{t+1} = θ_t − η S⁻¹(θ_t) ∇_θ E(θ_t)
 
-.. math::
-
-    S_{ij}(\\theta) = \\langle O_i^* O_j \\rangle - \\langle O_i^* \\rangle \\langle O_j \\rangle
-
-where :math:`O_i = \\partial / \\partial\\theta_i \\log|\\psi(\\theta, x)|`.
-
-The natural gradient update (stochastic reconfiguration) is:
-
-.. math::
-
-    \\theta_{t+1} = \\theta_t - \\eta\\, S^{-1}(\\theta_t)\\, \\nabla_\\theta E(\\theta_t)
+Memory note: compute_qgt materialises a full (n_params, n_params) matrix.
+For large models this is O(n_params²) memory.  The matmul implementation
+avoids the O(B * n_params²) einsum intermediate, but the matrix itself still
+exists.  For n_params > ~10_000, prefer a matrix-free CG solver:
+jax.scipy.sparse.linalg.cg(lambda v: S_matvec(v), grad) where S_matvec
+computes S·v without materialising S.
 """
 
 import jax
 import jax.numpy as jnp
-from functools import partial
-
-
-def compute_log_derivatives(params, batch, model_apply):
-    """
-    Compute logarithmic derivatives O_i = ∂/∂θ_i log|ψ(θ,x)⟩.
-
-    Args:
-        params: Model parameters (PyTree)
-        batch: Batch of configurations (batch_size, DoF)
-        model_apply: Function to apply model with given parameters
-
-    Returns:
-        O_i: Logarithmic derivatives of shape (batch_size, n_params)
-    """
-
-    def log_psi_fn(p, x):
-        """Log of wavefunction with numerical stability."""
-        psi = model_apply(p, x)
-        return jnp.log(jnp.abs(psi) + 1e-8).squeeze()
-
-    # Vectorized gradient computation for all parameters
-    grad_log_psi_fn = jax.grad(log_psi_fn, argnums=0)
-    O_i = jax.vmap(grad_log_psi_fn, in_axes=(None, 0))(params, batch)
-
-    return O_i
-
-
-def compute_qgt(params, batch, model_apply, regularization=1e-6):
-    """
-    Compute the Quantum Geometric Tensor S_ij = ⟨O_i* O_j⟩ - ⟨O_i*⟩⟨O_j⟩.
-
-    Args:
-        params: Model parameters (PyTree)
-        batch: Batch of configurations (batch_size, DoF)
-        model_apply: Function to apply model with given parameters
-        regularization: Small constant for numerical stability
-
-    Returns:
-        S: Regularized QGT matrix of shape (n_params, n_params)
-        O_i_mean: Mean of logarithmic derivatives
-    """
-    # 1. Compute log-derivatives O_i = ∂/∂θ_i log|ψ|
-    O_i = compute_log_derivatives(params, batch, model_apply)
-    O_i_conj = jnp.conj(O_i)
-
-    # 2. Compute statistical averages
-    O_i_mean = jnp.mean(O_i_conj, axis=0)  # (n_params,)
-
-    # 3. Compute correlation matrix elements
-    # S_ij = ⟨O_i* O_j⟩ - ⟨O_i*⟩⟨O_j⟩
-    correlation_matrix = jnp.mean(jnp.einsum("bi,bj->bij", O_i_conj, O_i), axis=0)
-
-    # Subtract outer product of means
-    S = correlation_matrix - jnp.outer(O_i_mean, jnp.conj(O_i_mean))
-
-    # 4. Add regularization for numerical stability
-    S_reg = S + regularization * jnp.eye(S.shape[0])
-
-    # Ensure Hermitian property (important for numerical stability)
-    S_reg = 0.5 * (S_reg + jnp.conj(S_reg.T))
-
-    return S_reg, O_i_mean
-
-
-def solve_qgt_direct(S, grads):
-    """
-    Solve S·δθ = -∇E using direct matrix inversion.
-
-    Args:
-        S: QGT matrix (n_params, n_params)
-        grads: Energy gradient vector or PyTree
-
-    Returns:
-        natural_grad: S^{-1}·grads
-    """
-    return jnp.linalg.solve(S, grads)
-
-
-def solve_qgt_cholesky(S, grads):
-    """
-    Solve S·δθ = -∇E using Cholesky decomposition.
-    More stable for symmetric positive definite matrices.
-
-    Args:
-        S: QGT matrix (n_params, n_params)
-        grads: Energy gradient vector or PyTree
-
-    Returns:
-        natural_grad: S^{-1}·grads
-    """
-    try:
-        L = jnp.linalg.cholesky(S)
-        # Solve L·y = grads, then Lᵀ·x = y
-        y = jnp.linalg.solve_triangular(L, grads, lower=True)
-        natural_grad = jnp.linalg.solve_triangular(L.T, y, lower=False)
-        return natural_grad
-    except Exception as e:
-        warnings.warn(
-            f"Cholesky decomposition failed: {e}. Falling back to direct solve."
-        )
-        return solve_qgt_direct(S, grads)
-
-
-def solve_qgt_gmres(S, grads, maxiter=1000, tol=1e-8):
-    """
-    Solve S·δθ = -∇E using GMRES iterative method.
-    Suitable for large systems where direct inversion is expensive.
-
-    Args:
-        S: QGT matrix (n_params, n_params)
-        grads: Energy gradient vector or PyTree
-        maxiter: Maximum number of iterations
-        tol: Convergence tolerance
-
-    Returns:
-        natural_grad: S^{-1}·grads
-    """
-
-    def matvec(x):
-        """Matrix-vector product for GMRES."""
-        return jnp.dot(S, x)
-
-    try:
-        result, info = jax.scipy.sparse.linalg.gmres(
-            matvec, grads, maxiter=maxiter, tol=tol
-        )
-        if info != 0:
-            warnings.warn(f"GMRES did not converge: info={info}. Using direct solve.")
-            return solve_qgt_direct(S, grads)
-        return result
-    except Exception as e:
-        warnings.warn(f"GMRES failed: {e}. Falling back to direct solve.")
-        return solve_qgt_direct(S, grads)
-
-
-def solve_qgt_diagonal(S, grads):
-    """
-    Solve using only diagonal elements (computationally cheap approximation).
-    Useful for very large parameter sets or as a preconditioner.
-
-    Args:
-        S: QGT matrix (n_params, n_params)
-        grads: Energy gradient vector or PyTree
-
-    Returns:
-        natural_grad: Approximate S^{-1}·grads
-    """
-    diag_S = jnp.diag(S)
-    # Avoid division by zero
-    diag_S = jnp.where(diag_S < 1e-12, 1e-12, diag_S)
-    return grads / diag_S
-
-
-def flatten_params(params):
-    """
-    Flatten PyTree parameters to a single vector.
-
-    Args:
-        params: PyTree of parameters
-
-    Returns:
-        flat_params: 1D array
-        unravel_fn: Function to restore PyTree structure
-    """
-    from jax.flatten_util import ravel_pytree
-
-    flat_params, unravel_fn = ravel_pytree(params)
-    return flat_params, unravel_fn
-
-
-def unflatten_params(flat_params, unravel_fn):
-    """
-    Restore PyTree structure from flattened parameters.
-
-    Args:
-        flat_params: 1D array
-        unravel_fn: Function to restore PyTree structure
-
-    Returns:
-        params: PyTree of parameters
-    """
-    return unravel_fn(flat_params)
-
-
-def compute_natural_gradient(params, batch, model_apply, energy_grads, qgt_config):
-    """
-    Compute natural gradient using QGT as preconditioner.
-
-    Args:
-        params: Current parameters (PyTree)
-        batch: Batch of configurations
-        model_apply: Model application function
-        energy_grads: Energy gradient (∇_θ E)
-        qgt_config: Configuration dictionary for QGT computation
-
-    Returns:
-        natural_grad: Flattened natural gradient
-        unravel_fn: Function to restore PyTree structure
-    """
-    # Flatten parameters for QGT computation
-    flat_params, unravel_fn = flatten_params(params)
-    flat_grads, _ = flatten_params(energy_grads)
-
-    # Compute QGT
-    S, _ = compute_qgt(
-        flat_params,
-        batch,
-        lambda p, x: model_apply(unflatten_params(p, unravel_fn), x),
-        qgt_config.get("regularization", 1e-6),
-    )
-
-    # Choose solver based on configuration
-    solver = qgt_config.get("solver", "cholesky")
-
-    if solver == "direct":
-        natural_grad = solve_qgt_direct(S, flat_grads)
-    elif solver == "cholesky":
-        natural_grad = solve_qgt_cholesky(S, flat_grads)
-    elif solver == "gmres":
-        solver_opts = qgt_config.get("solver_options", {})
-        natural_grad = solve_qgt_gmres(
-            S,
-            flat_grads,
-            maxiter=solver_opts.get("maxiter", 1000),
-            tol=solver_opts.get("tolerance", 1e-8),
-        )
-    elif solver == "diagonal":
-        natural_grad = solve_qgt_diagonal(S, flat_grads)
-    else:
-        raise ValueError(f"Unknown QGT solver: {solver}")
-
-    return natural_grad, unravel_fn
+from jax.flatten_util import ravel_pytree
 
 
 class QGTConfig:
-    """
-    Configuration class for QGT optimization parameters.
+    """Configuration for QGT-based (stochastic reconfiguration) optimisation.
+
+    Pass an instance to train(..., qgt_config=QGTConfig(...), use_qgt=True).
+
+    Args:
+        solver:         "cholesky" (default, SPD, stable), "direct" (LU),
+                        "gmres" (iterative, large systems), "diagonal" (cheap approx).
+        learning_rate:  Step size for the natural gradient update (separate
+                        from the Adam/SGD lr — this replaces it when use_qgt=True).
+        regularization: ε added to the diagonal of S before solving (default 1e-6).
+        solver_options: Extra kwargs forwarded to the iterative solver (GMRES only).
     """
 
     def __init__(
         self,
-        solver="cholesky",
-        learning_rate=1e-3,
-        regularization=1e-6,
-        solver_options=None,
+        solver: str = "cholesky",
+        learning_rate: float = 1e-3,
+        regularization: float = 1e-6,
+        solver_options: dict = None,
     ):
-        """
-        Initialize QGT configuration.
-
-        Args:
-            solver: Solver type ('direct', 'cholesky', 'gmres', 'diagonal')
-            learning_rate: Learning rate for natural gradient updates
-            regularization: Regularization parameter for numerical stability
-            solver_options: Additional options for iterative solvers
-        """
         self.solver = solver
         self.learning_rate = learning_rate
         self.regularization = regularization
         self.solver_options = solver_options or {}
 
     def to_dict(self):
-        """Convert to dictionary format."""
         return {
             "solver": self.solver,
             "learning_rate": self.learning_rate,
@@ -293,18 +53,125 @@ class QGTConfig:
         }
 
 
-# Default QGT configurations for common use cases
-DEFAULT_QGT_CONFIG = QGTConfig(
-    solver="cholesky", learning_rate=1e-3, regularization=1e-6
-)
-
-MEMORY_EFFICIENT_QGT_CONFIG = QGTConfig(
-    solver="diagonal", learning_rate=1e-3, regularization=1e-4
-)
-
+DEFAULT_QGT_CONFIG = QGTConfig(solver="cholesky", learning_rate=1e-3, regularization=1e-6)
+MEMORY_EFFICIENT_QGT_CONFIG = QGTConfig(solver="diagonal", learning_rate=1e-3, regularization=1e-4)
 LARGE_SYSTEM_QGT_CONFIG = QGTConfig(
     solver="gmres",
     learning_rate=5e-4,
     regularization=1e-4,
     solver_options={"maxiter": 500, "tolerance": 1e-6},
 )
+
+
+# ---------------------------------------------------------------------------
+# Core computation
+# ---------------------------------------------------------------------------
+
+def compute_log_derivatives(params, batch, model_apply):
+    """Compute O_k = ∂log|ψ_θ(x)|/∂θ_k for every sample in batch.
+
+    Args:
+        params:      flat 1-D parameter vector, shape (n_params,).
+        batch:       configurations, shape (batch_size, dof).
+        model_apply: callable(params, x) → log|ψ| scalar.
+                     Must already output log|ψ| (log-model convention).
+
+    Returns:
+        shape (batch_size, n_params).
+    """
+    def log_psi(p, x):
+        return model_apply(p, x[None]).squeeze()  # x[None]: (1, dof) → scalar
+
+    return jax.vmap(jax.grad(log_psi, argnums=0), in_axes=(None, 0))(params, batch)
+
+
+def compute_qgt(params, batch, model_apply, regularization: float = 1e-6):
+    """Compute the regularised QGT matrix S, shape (n_params, n_params).
+
+    S_{kl} = ⟨O_k O_l⟩ − ⟨O_k⟩⟨O_l⟩  + ε I
+
+    Uses a matmul instead of einsum to avoid the O(B * n_params²) intermediate.
+    """
+    log_derivs = compute_log_derivatives(params, batch, model_apply)  # (B, P)
+    B = log_derivs.shape[0]
+    O_mean = jnp.mean(log_derivs, axis=0)                             # (P,)
+    # log_derivs.T @ log_derivs / B  =  ⟨O_k O_l⟩  (O(B*P²) FLOP, O(P²) memory)
+    S = log_derivs.T @ log_derivs / B - jnp.outer(O_mean, O_mean)
+    S = S + regularization * jnp.eye(S.shape[0])
+    return 0.5 * (S + S.T), O_mean   # symmetrise to cancel floating-point skew
+
+
+# ---------------------------------------------------------------------------
+# Solvers
+# ---------------------------------------------------------------------------
+
+def solve_qgt_direct(S, grads):
+    """Solve S·x = grads via LU decomposition."""
+    return jnp.linalg.solve(S, grads)
+
+
+def solve_qgt_cholesky(S, grads):
+    """Solve S·x = grads via Cholesky (S must be SPD — guaranteed by regularisation)."""
+    factor = jax.scipy.linalg.cho_factor(S)
+    return jax.scipy.linalg.cho_solve(factor, grads)
+
+
+def solve_qgt_gmres(S, grads, maxiter: int = 1000, tol: float = 1e-8):
+    """Solve S·x = grads via GMRES iterative solver."""
+    result, _ = jax.scipy.sparse.linalg.gmres(
+        lambda x: jnp.dot(S, x), grads, maxiter=maxiter, tol=tol
+    )
+    return result
+
+
+def solve_qgt_diagonal(S, grads):
+    """Approximate solve using only the diagonal of S (cheap preconditioner)."""
+    diag = jnp.where(jnp.diag(S) < 1e-12, 1e-12, jnp.diag(S))
+    return grads / diag
+
+
+# ---------------------------------------------------------------------------
+# High-level interface
+# ---------------------------------------------------------------------------
+
+def compute_natural_gradient(params, batch, model_apply, energy_grads, qgt_config: QGTConfig):
+    """Compute S⁻¹ ∇E — the natural gradient.
+
+    Args:
+        params:       parameter pytree.
+        batch:        MCMC batch, shape (batch_size, dof).
+        model_apply:  callable(params, x) → log|ψ| scalar.
+        energy_grads: ∇_θ E, same pytree structure as params.
+        qgt_config:   QGTConfig instance (solver, regularization, learning_rate).
+
+    Returns:
+        (natural_grad_flat, unravel_fn)
+    """
+    flat_params, unravel_fn = ravel_pytree(params)
+    flat_grads, _ = ravel_pytree(energy_grads)
+
+    S, _ = compute_qgt(
+        flat_params,
+        batch,
+        lambda p, x: model_apply(unravel_fn(p), x),
+        qgt_config.regularization,
+    )
+
+    solver = qgt_config.solver
+    if solver == "direct":
+        natural_grad = solve_qgt_direct(S, flat_grads)
+    elif solver == "cholesky":
+        natural_grad = solve_qgt_cholesky(S, flat_grads)
+    elif solver == "gmres":
+        opts = qgt_config.solver_options
+        natural_grad = solve_qgt_gmres(
+            S, flat_grads,
+            maxiter=opts.get("maxiter", 1000),
+            tol=opts.get("tolerance", 1e-8),
+        )
+    elif solver == "diagonal":
+        natural_grad = solve_qgt_diagonal(S, flat_grads)
+    else:
+        raise ValueError(f"Unknown QGT solver: {solver!r}")
+
+    return natural_grad, unravel_fn

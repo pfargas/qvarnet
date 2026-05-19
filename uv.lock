@@ -2437,6 +2437,7 @@ dependencies = [
     { name = "msgpack" },
     { name = "numpy" },
     { name = "optax" },
+    { name = "pyyaml" },
     { name = "tqdm" },
 ]
 
@@ -2481,6 +2482,7 @@ requires-dist = [
     { name = "msgpack", specifier = ">=1.1" },
     { name = "numpy", specifier = ">=2.0" },
     { name = "optax", specifier = ">=0.2.6" },
+    { name = "pyyaml", specifier = ">=6.0" },
     { name = "sphinx", marker = "extra == 'docs'", specifier = ">=7.0" },
     { name = "tqdm", specifier = ">=4.66" },
 ]

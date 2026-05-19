@@ -1,0 +1,35 @@
+name: harmonic_5p_mlp
+output_dir: ./outputs/harmonic_5p_mlp/
+shape:
+  n_chains: 64
+  n_particles: 5
+  n_dim: 1
+model:
+  type: mlp
+  architecture:
+  - 5
+  - 64
+  - 64
+  - 1
+hamiltonian:
+  type: harmonic-oscillator
+  omega: 1.0
+  laplacian_method: forward_ad
+optimizer:
+  type: adam
+  learning_rate: 1e-3
+training:
+  n_epochs: 5
+  rng_seed: 42
+  save_checkpoints: true
+  warm_walkers: true
+  is_update_step_size: true
+  target_acceptance: 0.5
+  adaptation_rate: 0.1
+sampler:
+  step_size: 0.5
+  chain_length: 50
+  thermalization_steps: 5
+  thinning_factor: 1
+coord_mode:
+  type: lab

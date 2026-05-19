@@ -1,7 +1,27 @@
 """Training configuration setup and parsing."""
 
 from dataclasses import dataclass
-from typing import Any, Dict
+from typing import Any, Dict, Optional
+
+
+@dataclass(frozen=True)
+class CuspConfig:
+    """Configuration for the cusp condition auxiliary loss.
+
+    alpha: weight of the cusp loss relative to the VMC loss
+    epsilon: regularisation distance at which cusp condition is enforced
+    n_configs_per_pair: number of sample points per particle pair
+    rng_seed: seed for cusp config generation
+    n: potential exponent (2 for CS, >2 for other power-law potentials)
+    C_n: target cusp value (λ for CS n=2, sqrt(g) for n>2)
+    """
+
+    alpha: float = 0.01
+    epsilon: float = 1e-2
+    n_configs_per_pair: int = 5
+    rng_seed: int = 42
+    n: float = 2.0
+    C_n: float = 1.0
 
 
 @dataclass(frozen=True)
@@ -13,6 +33,17 @@ class SamplingConfig:
     thermalization_steps: int
     thinning_factor: int
     PBC: float
+
+    def __post_init__(self):
+        if self.step_size <= 0:
+            raise ValueError(f"step_size must be positive, got {self.step_size}")
+        if self.thinning_factor < 1:
+            raise ValueError(f"thinning_factor must be >= 1, got {self.thinning_factor}")
+        if self.thermalization_steps >= self.chain_length:
+            raise ValueError(
+                f"thermalization_steps ({self.thermalization_steps}) must be "
+                f"< chain_length ({self.chain_length})"
+            )
 
 
 @dataclass(frozen=True)
@@ -31,13 +62,17 @@ class TrainingConfig:
     save_checkpoints: bool = False
     target_acceptance: float = 0.5
     adaptation_rate: float = 0.1
-    use_cusp_condition: bool = False
-    cusp_alpha: float = 0.01
-    cusp_epsilon: float = 1e-2
-    cusp_n_configs_per_pair: int = 5
-    cusp_rng_seed: int = 42
-    cusp_n: float = 2.0      # potential exponent (2 for CS, >2 for other power-law)
-    cusp_C_n: float = 1.0    # target cusp value (λ for CS n=2, sqrt(g) for n>2)
+    cusp: Optional[CuspConfig] = None    # None = cusp disabled
+
+    def __post_init__(self):
+        if self.min_step >= self.max_step:
+            raise ValueError(
+                f"min_step ({self.min_step}) must be < max_step ({self.max_step})"
+            )
+        if self.init_positions not in ("normal", "zeros"):
+            raise ValueError(
+                f"init_positions must be 'normal' or 'zeros', got {self.init_positions!r}"
+            )
 
 
 def parse_sampler_params(sampler_args: Dict[str, Any]) -> SamplingConfig:
@@ -53,6 +88,16 @@ def parse_sampler_params(sampler_args: Dict[str, Any]) -> SamplingConfig:
 
 def parse_training_params(train_args: Dict[str, Any]) -> TrainingConfig:
     """Convert dict-based training configuration to typed dataclass."""
+    cusp = None
+    if bool(train_args.get("use_cusp_condition", False)):
+        cusp = CuspConfig(
+            alpha=float(train_args.get("cusp_alpha", 0.01)),
+            epsilon=float(train_args.get("cusp_epsilon", 1e-2)),
+            n_configs_per_pair=int(train_args.get("cusp_n_configs_per_pair", 5)),
+            rng_seed=int(train_args.get("cusp_rng_seed", 42)),
+            n=float(train_args.get("cusp_n", 2.0)),
+            C_n=float(train_args.get("cusp_C_n", 1.0)),
+        )
     return TrainingConfig(
         n_epochs=int(train_args.get("num_epochs", 3000)),
         rng_seed=int(train_args.get("rng_seed", 0)),
@@ -66,11 +111,5 @@ def parse_training_params(train_args: Dict[str, Any]) -> TrainingConfig:
         save_checkpoints=bool(train_args.get("save_checkpoints", False)),
         target_acceptance=float(train_args.get("target_acceptance", 0.5)),
         adaptation_rate=float(train_args.get("adaptation_rate", 0.1)),
-        use_cusp_condition=bool(train_args.get("use_cusp_condition", False)),
-        cusp_alpha=float(train_args.get("cusp_alpha", 0.01)),
-        cusp_epsilon=float(train_args.get("cusp_epsilon", 1e-2)),
-        cusp_n_configs_per_pair=int(train_args.get("cusp_n_configs_per_pair", 5)),
-        cusp_rng_seed=int(train_args.get("cusp_rng_seed", 42)),
-        cusp_n=float(train_args.get("cusp_n", 2.0)),
-        cusp_C_n=float(train_args.get("cusp_C_n", 1.0)),
+        cusp=cusp,
     )
