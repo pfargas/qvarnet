@@ -8,11 +8,11 @@ from jax import random
 from .callbacks import CheckpointCallback, NaNCallback, ProgressCallback
 from .config.coord_mode import CoordMode, LabCoords
 from .config.training_setup import TrainingConfig, parse_sampler_params
-from .cusp import make_cusp_configs, make_cusp_pair_indices
-from .losses import CuspLoss
+from .losses import CuspLoss, make_cusp_configs, make_cusp_pair_indices
 from .probability import build_prob_fn
 from .qgt import DEFAULT_QGT_CONFIG, QGTConfig
-from .sampling_step import sample_and_process
+from .samplers import sample_and_process
+from .train_result import TrainResult
 from .training_step import compute_step
 from .utils import load_checkpoint, load_doc, save_run_config
 from .vmc_state import VMCState
@@ -30,52 +30,6 @@ def _update_step_size(step_size, acceptance_rate, min_step, max_step, target_acc
     factor = 1.0 + adaptation_rate * (jnp.mean(acceptance_rate) - target_acc)
     return jnp.clip(step_size * factor, min_step, max_step)
 
-
-class TrainResult:
-    """Result of a VMC training run.
-
-    Attributes:
-        history: list of VMCState, one per epoch (includes full params).
-        cm_mean: list of float — per-epoch mean centre-of-mass.
-        cm_std:  list of float — per-epoch std of centre-of-mass.
-
-    Methods:
-        best(n, metric): return the N states with the lowest value of metric.
-    """
-
-    def __init__(self, history, cm_mean, cm_std):
-        self.history = history
-        self.cm_mean = cm_mean
-        self.cm_std = cm_std
-
-    def best(self, n: int = 1, metric: str = "energy"):
-        """Return the N VMCState objects with the lowest value of metric.
-
-        Args:
-            n: number of states to return.
-            metric: "energy" or "std".
-
-        Returns:
-            List of VMCState sorted ascending by metric (best first).
-        """
-        key_fns = {
-            "energy": lambda s: float(s.energy),
-            "std":    lambda s: float(s.std),
-        }
-        if metric not in key_fns:
-            raise ValueError(f"metric must be one of {list(key_fns)}, got {metric!r}")
-        return sorted(self.history, key=key_fns[metric])[:n]
-
-    def __iter__(self):
-        # Backward compat: allows  history, cm_mean, cm_std = result
-        return iter((self.history, self.cm_mean, self.cm_std))
-
-    def __repr__(self):
-        n = len(self.history)
-        if n:
-            last_e = self.history[-1].energy
-            return f"TrainResult(n_steps={n}, last_energy={float(last_e):.6f})"
-        return "TrainResult(n_steps=0)"
 
 
 @load_doc("train.txt")

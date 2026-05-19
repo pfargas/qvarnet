@@ -82,7 +82,7 @@ class JacobiCoords(CoordMode):
         return (*sample_shape[:-1], self.n_particles_physical * self.n_dim)
 
     def wrap_model_apply(self, model_apply):
-        from ..utils.jacobi import from_jacobi_to_lab
+        from .jacobi import from_jacobi_to_lab
         n_phys = self.n_particles_physical
         n_d = self.n_dim
 
@@ -96,7 +96,7 @@ class JacobiCoords(CoordMode):
         return apply
 
     def samples_to_lab(self, samples):
-        from ..utils.jacobi import from_jacobi_to_lab
+        from .jacobi import from_jacobi_to_lab
         zeros = jnp.zeros((*samples.shape[:-1], 1))
         u_tilde = jnp.concatenate([samples, zeros], axis=-1)
         return from_jacobi_to_lab(u_tilde, self.n_particles_physical, self.n_dim)

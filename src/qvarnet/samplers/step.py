@@ -91,7 +91,7 @@ def sample_and_process(
         last_positions: shape ``(n_chains, dof)``.
         acceptance_rates: shape ``(n_chains,)``.
     """
-    from .samplers import mh_chain as mh_chain_fn
+    from .kernel import mh_chain as mh_chain_fn
 
     # Shape: (n_chains, n_steps, dof+1) — last slot is the accept/reject draw
     if uniform:

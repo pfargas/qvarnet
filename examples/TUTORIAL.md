@@ -582,13 +582,31 @@ plt.xlabel("Epoch"); plt.ylabel("Energy"); plt.legend()
 
 ### Best model selection
 
-```python
-# Single best state by energy
-best_state = result.best(n=1, metric="energy")[0]
-print(float(best_state.energy))
+`best()` sorts the history ascending by `metric` and returns the first `n`. The metric can be a built-in string or **any callable `(VMCState) -> float`**:
 
-# Top-5 by lowest variance
-top5 = result.best(n=5, metric="std")
+```python
+# Built-in shortcuts
+best_state = result.best(n=1, metric="energy")[0]   # lowest ⟨E⟩
+top5_std   = result.best(n=5, metric="std")          # lowest σ_E
+
+# Custom callable — any function of VMCState
+# Best energy-to-noise ratio (most converged step)
+best_snr = result.best(n=1, metric=lambda s: float(s.energy) / float(s.std))[0]
+
+# Closest acceptance rate to 0.5
+best_acc = result.best(n=1, metric=lambda s: abs(float(s.acceptance_rate.mean()) - 0.5))[0]
+
+# Best energy in the last 500 steps only
+late_history = result.history[-500:]
+best_late = sorted(late_history, key=lambda s: float(s.energy))[0]
+
+# Combine criteria: penalise high variance
+best_combo = result.best(n=1, metric=lambda s: float(s.energy) + 0.1 * float(s.std))[0]
+```
+
+To sort descending (e.g. highest acceptance rate), negate the return value:
+```python
+best_acceptance = result.best(n=1, metric=lambda s: -float(s.acceptance_rate.mean()))[0]
 ```
 
 ### VMCState fields
