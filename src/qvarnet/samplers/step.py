@@ -8,54 +8,105 @@ import jax.numpy as jnp
 from jax import random
 
 
-def create_sampler_fn(
-    mh_chain: Callable,
-) -> Callable:
+def create_sampler_fn(mh_chain: Callable) -> Callable:
+    """Vectorize a single-chain MH kernel over n_chains via vmap.
+
+    Returns a function that expects random_values of shape
+    (n_chains, n_steps, dof+1) and init_positions of shape (n_chains, dof).
     """
-    Create a vectorized sampler function over multiple MCMC chains.
-
-    Wraps a single-chain MH kernel with :func:`jax.vmap` to parallelise
-    sampling across all chains simultaneously.
-
-    Args:
-        mh_chain: Single-chain MH kernel with signature
-            ``(random_values, PBC, prob_fn, prob_params, init_position,
-            step_size) -> (positions, acceptance_rate)``.
-
-    Returns:
-        sampler_fn: Vectorised function that samples all chains in parallel.
-            Expects ``random_values`` of shape ``(n_chains, n_steps, dof+1)``.
-    """
-    sampler_fn = jax.vmap(
+    return jax.vmap(
         mh_chain,
-        in_axes=(
-            0,     # random_values: vectorize over chains
-            None,  # PBC: same for all chains
-            None,  # prob_fn: same function for all chains
-            None,  # prob_params: same parameters for all chains
-            0,     # init_position: different position per chain
-            None,  # step_size: same for all chains
-        ),
+        in_axes=(0, None, None, None, 0, None),
         out_axes=0,
     )
-    return sampler_fn
+
+
+def _gen_rand(key, n_chains, n_steps, dof, uniform):
+    """Generate (n_chains, n_steps, dof+1) random numbers."""
+    if uniform:
+        return random.uniform(key, (n_chains, n_steps, dof + 1))
+    u_key, n_key = random.split(key)
+    rand_n = random.normal(n_key, (n_chains, n_steps, dof))
+    rand_u = random.uniform(u_key, (n_chains, n_steps, 1))
+    return jnp.concatenate([rand_n, rand_u], axis=-1)
+
+
+def _sample_blocked(
+    key, prob_fn, prob_params, init_positions, step_size,
+    n_chains, dof, n_steps, block_size, PBC, uniform,
+):
+    """Run MH chains in blocks of block_size steps.
+
+    Peak random-number memory: O(n_chains * block_size * dof) instead of
+    O(n_chains * n_steps * dof).  Positions are still accumulated into a
+    (n_chains, n_steps, dof) buffer so that burn_in / thinning can be
+    applied identically to the non-blocked path.
+    """
+    from .kernel import mh_kernel_log
+
+    n_blocks = n_steps // block_size   # static: both are static_argnames
+
+    # Initial log-probs — computed once, threaded through the carry.
+    init_log_probs = jax.vmap(prob_fn, in_axes=(0, None))(init_positions, prob_params)
+
+    buf = jnp.zeros((n_chains, n_steps, dof))
+    # carry: (positions, log_probs, accept_counts, position_buffer)
+    init_carry = (
+        init_positions,
+        init_log_probs,
+        jnp.zeros(n_chains, dtype=jnp.int32),
+        buf,
+    )
+
+    def run_block(block_idx, carry):
+        positions, log_probs, counts, buf = carry
+
+        # Fresh random numbers for this block only — O(B * block_size * dof)
+        block_key = jax.random.fold_in(key, block_idx)
+        rand_nums = _gen_rand(block_key, n_chains, block_size, dof, uniform)
+
+        # Continue each chain for block_size steps from its current state.
+        def run_one_chain(pos, log_prob, count, rand):
+            carry0 = (pos, log_prob, count)
+
+            def body(inner_carry, step_rand):
+                p, lp, cnt = inner_carry
+                new_p, new_lp, accepted = mh_kernel_log(
+                    step_rand, prob_fn, prob_params, p, lp, step_size, PBC, uniform
+                )
+                return (new_p, new_lp, cnt + accepted), new_p
+
+            (new_pos, new_lp, new_cnt), block_pos = jax.lax.scan(body, carry0, rand)
+            return new_pos, new_lp, new_cnt, block_pos
+
+        new_pos, new_log_probs, new_counts, block_positions = jax.vmap(
+            run_one_chain, in_axes=(0, 0, 0, 0)
+        )(positions, log_probs, counts, rand_nums)
+
+        # Write block into the pre-allocated buffer at the correct offset.
+        # block_idx is a traced int, so dynamic_update_slice handles it.
+        buf = jax.lax.dynamic_update_slice(
+            buf, block_positions, [0, block_idx * block_size, 0]
+        )
+        return (new_pos, new_log_probs, new_counts, buf)
+
+    _, _, final_counts, all_positions = jax.lax.fori_loop(
+        0, n_blocks, run_block, init_carry
+    )
+
+    acceptance_rates = final_counts.astype(jnp.float32) / n_steps
+    return all_positions, acceptance_rates
 
 
 @partial(
     jax.jit,
     static_argnames=[
-        "prob_fn",
-        "n_chains",
-        "dof",
-        "n_steps",
-        "burn_in",
-        "thinning",
-        "PBC",
-        "uniform",
+        "prob_fn", "n_chains", "dof", "n_steps",
+        "burn_in", "thinning", "PBC", "uniform", "block_size",
     ],
 )
 def sample_and_process(
-    key: jax.random.PRNGKey,
+    key: jax.Array,
     prob_fn: Callable,
     prob_params,
     init_positions: jnp.ndarray,
@@ -67,55 +118,55 @@ def sample_and_process(
     thinning: int,
     PBC: float,
     uniform: bool = False,
+    block_size: int = 0,
 ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     """Generate one batch of samples from MCMC and process them.
 
-    Runs log-space Metropolis-Hastings chains in parallel, discards burn-in,
-    applies thinning, and returns a flattened batch.
+    Runs log-space Metropolis-Hastings chains in parallel (vmapped), discards
+    burn-in, applies thinning, and returns a flattened batch ready for VMC.
 
     Args:
-        key: JAX random key.
-        prob_fn: Log-probability function ``(x, params) -> log P(x)``.
+        key:        JAX random key.
+        prob_fn:    Log-probability ``(x, params) -> log P(x)``.
         prob_params: Parameters for prob_fn.
         init_positions: Starting positions, shape ``(n_chains, dof)``.
-        step_size: MH proposal step size.
-        n_chains: Number of parallel MCMC chains.
-        dof: Degrees of freedom per sample (n_particles * n_dim).
-        n_steps: Total steps per chain.
-        burn_in: Initial samples to discard (thermalization).
-        thinning: Keep every thinning-th sample.
-        PBC: Periodic boundary condition size (0 for none).
+        step_size:  MH proposal step size.
+        n_chains:   Number of parallel MCMC chains.
+        dof:        Degrees of freedom per sample.
+        n_steps:    Total MH steps per chain.
+        burn_in:    Initial samples to discard.
+        thinning:   Keep every thinning-th sample after burn-in.
+        PBC:        Periodic boundary condition size (0 = none).
+        uniform:    Use uniform proposals instead of Gaussian.
+        block_size: If > 0, generate random numbers in blocks of this many
+                    steps to cap peak memory at O(n_chains * block_size * dof).
+                    Must divide n_steps exactly.  Default 0 = no blocking.
 
     Returns:
-        samples: shape ``(n_chains * n_effective, dof)``.
-        last_positions: shape ``(n_chains, dof)``.
-        acceptance_rates: shape ``(n_chains,)``.
+        samples:          ``(n_chains * n_effective, dof)``
+        last_positions:   ``(n_chains, dof)``
+        acceptance_rates: ``(n_chains,)``
     """
     from .kernel import mh_chain as mh_chain_fn
 
-    # Shape: (n_chains, n_steps, dof+1) — last slot is the accept/reject draw
-    if uniform:
-        rand_nums = random.uniform(key, (n_chains, n_steps, dof + 1))
+    if block_size > 0:
+        if n_steps % block_size != 0:
+            raise ValueError(
+                f"block_size ({block_size}) must divide n_steps ({n_steps}) exactly."
+            )
+        raw_batch, acceptance_rates = _sample_blocked(
+            key, prob_fn, prob_params, init_positions, step_size,
+            n_chains, dof, n_steps, block_size, PBC, uniform,
+        )
     else:
-        uniform_key, normal_key = random.split(key)
-        rand_nums_normal = random.normal(normal_key, (n_chains, n_steps, dof))
-        rand_nums_uniform = random.uniform(uniform_key, (n_chains, n_steps, 1))
-        rand_nums = jnp.concatenate([rand_nums_normal, rand_nums_uniform], axis=-1)
+        rand_nums = _gen_rand(key, n_chains, n_steps, dof, uniform)
+        sampler_fn = create_sampler_fn(mh_chain_fn)
+        raw_batch, acceptance_rates = sampler_fn(
+            rand_nums, PBC, prob_fn, prob_params, init_positions, step_size,
+        )
 
-    sampler_fn = create_sampler_fn(mh_chain_fn)
-
-    # raw_batch: (n_chains, n_steps, dof)
-    raw_batch, acceptance_rates = sampler_fn(
-        rand_nums,
-        PBC,
-        prob_fn,
-        prob_params,
-        init_positions,
-        step_size,
-    )
-
-    processed_batch = raw_batch[:, burn_in::thinning, :]  # (n_chains, n_effective, dof)
-    last_positions = raw_batch[:, -1, :]                   # (n_chains, dof)
-    batch_flat = processed_batch.reshape(-1, dof)          # (n_chains * n_effective, dof)
+    processed = raw_batch[:, burn_in::thinning, :]   # (n_chains, n_effective, dof)
+    last_positions = raw_batch[:, -1, :]             # (n_chains, dof)
+    batch_flat = processed.reshape(-1, dof)          # (n_chains * n_effective, dof)
 
     return batch_flat, last_positions, acceptance_rates

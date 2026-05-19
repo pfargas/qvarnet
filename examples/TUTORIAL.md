@@ -23,7 +23,9 @@
 15. [Stochastic reconfiguration (QGT)](#15-stochastic-reconfiguration)
 16. [Hutchinson Laplacian estimator](#16-hutchinson)
 17. [YAML config runner](#17-yaml-runner)
-18. [Common mistakes](#18-common-mistakes)
+18. [Complexity reference](#18-complexity)
+19. [MCMC diagnostics and block sampling](#19-diagnostics)
+20. [Common mistakes](#20-common-mistakes)
 
 ---
 
@@ -161,7 +163,7 @@ When `cusp` is set in `TrainingConfig`, a `CuspLoss` is automatically added to t
 
 ## 5. SamplingConfig (sampler_params)
 
-Pass as a plain dict. All keys are optional — unset keys use the defaults below.
+Pass as a plain dict or a `SamplingConfig` object. All keys are optional — unset keys use the defaults below.
 
 | Key | Default | Meaning |
 |-----|---------|---------|
@@ -170,14 +172,23 @@ Pass as a plain dict. All keys are optional — unset keys use the defaults belo
 | `thermalization_steps` | 50 | Burn-in steps (must be < chain_length) |
 | `thinning_factor` | 1 | Keep every Nth sample |
 | `PBC` | 40.0 | Periodic box size (used only with PBC Hamiltonians) |
+| `block_size` | 0 | Random-number block size; 0 = disabled (see §19) |
 
 ```python
+# dict form (any missing key uses the default above)
 sampler_params = {
     "step_size": 0.3,
     "chain_length": 300,
     "thermalization_steps": 30,
     "thinning_factor": 2,
 }
+
+# or pass a SamplingConfig directly
+from qvarnet.config.training_setup import SamplingConfig
+sampler_params = SamplingConfig(
+    step_size=0.3, chain_length=300,
+    thermalization_steps=30, thinning_factor=2, PBC=0.0,
+)
 ```
 
 **Step-size adaptation**: when `is_update_step_size=True` in `TrainingConfig`, the step size is adapted each epoch toward `target_acceptance` (default 0.5). The initial `step_size` still matters — set it in the right ballpark for your system.
@@ -1029,7 +1040,194 @@ Two ready-to-use configs live in `experiments/`:
 
 ---
 
-## 18. Common mistakes <a name="18-common-mistakes"></a>
+## 18. Complexity reference <a name="18-complexity"></a>
+
+Notation used throughout: **B** = batch size (n\_chains), **N** = n\_particles, **d** = n\_dim, **dof** = N·d, **P** = n\_params, **S** = chain\_length (MCMC steps), **n\_t** = hutchinson\_n\_terms.
+
+T\_fwd and T\_bwd refer to one model forward/backward pass cost. For an MLP with depth L and width H, T\_fwd ≈ O(P) and T\_bwd ≈ 2–3 × T\_fwd.
+
+---
+
+### Laplacian (`hamiltonian/laplacian.py`)
+
+All four share the outer `vmap` over the batch, so the per-sample costs below multiply by B:
+
+| Method | Loop construct | Time (per sample) | Peak memory |
+|---|---|---|---|
+| `forward_ad` | `fori_loop` over dof | O(dof · T\_bwd) | O(P) — one gradient at a time |
+| `central_difference` | `scan` over dof | O(dof · T\_fwd) | O(B · dof) — two shifted batches per step |
+| `hutchinson` | `vmap` over n\_t probes | O(n\_t · T\_bwd) | O(B · n\_t · P) — all probes+samples live at once |
+| `full_hessian` | implicit (jax.hessian) | O(dof · T\_bwd) | O(B · dof²) — full Hessian matrix |
+
+**GPU parallelism note:** `forward_ad` and `central_difference` use sequential loops — steps run one at a time even on GPU (XLA cannot pipeline them). `hutchinson` vmaps over probes so all n\_t probes run in parallel — it can be faster than `forward_ad` even at equal FLOP when n\_t ≈ dof.
+
+---
+
+### Pairwise interactions (`hamiltonian/continuous.py`)
+
+Applies to `CalogeroSutherlandHamiltonian`. n\_pairs = N(N−1)/2.
+
+| `pairwise_impl` | Loop construct | Time | Peak memory | When to use |
+|---|---|---|---|---|
+| `"vectorized"` (default) | single gather-subtract | O(B · N²) | O(B · N²) | N ≲ 100, GPU |
+| `"scan"` | `fori_loop` over N | O(B · N²) | O(B · N) | N ≳ 100, memory-constrained |
+
+Both are asymptotically O(B·N²) in time — the scan saves memory by processing one particle row at a time but cannot parallelise over the N loop iterations.
+
+Configure via:
+```python
+CalogeroSutherlandHamiltonian(pairwise_impl="scan")
+# or in YAML:  pairwise_impl: scan
+```
+
+---
+
+### MCMC sampling (`samplers/`)
+
+| Component | Loop construct | Time | Peak memory |
+|---|---|---|---|
+| `mh_chain` | `scan` over S steps | O(S · T\_fwd) per chain | O(S · dof) — full trajectory stored |
+| `sample_and_process` (default) | `vmap` over B chains | O(B · S · T\_fwd) | O(B · S · dof) for `rand_nums` + trajectory |
+| `sample_and_process` (`block_size=K`) | `fori_loop` over S/K blocks, `vmap` inside | O(B · S · T\_fwd) | O(B · K · dof) for randoms; O(B · S · dof) for positions buffer |
+
+**Dominant cost:** `rand_nums` has shape `(B, S, dof+1)`. For B=1000, S=200, dof=10: 8 MB at float32. For B=2000, S=500, dof=50: 200 MB.
+
+Burn-in and thinning reduce the returned batch size but do **not** reduce peak memory — all S steps are computed and then subsampled.
+
+`block_size` cuts the random-number allocation to `(B, K, dof+1)` per block. The position buffer `(B, S, dof)` stays constant — use it when random numbers are the bottleneck, not positions. See §19 for usage.
+
+---
+
+### Gradient computation (`training_step.py`)
+
+| Step | Time | Peak memory |
+|---|---|---|
+| `compute_local_energy` (vmap H over B) | O(B · T\_fwd + B · T\_bwd) | O(B · act) — activations for backprop |
+| `jax.grad(loss)` over P params | O(B · T\_fwd + T\_bwd) | O(B · act) |
+
+act = activation memory per sample ≈ O(L · H) for an MLP (L layers, H width).
+
+---
+
+### QGT / stochastic reconfiguration (`qgt.py`)
+
+| Step | Time | Peak memory |
+|---|---|---|
+| `compute_log_derivatives` — `vmap(grad)` over B | O(B · T\_bwd) | O(B · P) |
+| `log_derivs.T @ log_derivs` — matrix multiply | O(B · P²) | O(P²) for S matrix |
+| Cholesky solve | O(P³) | O(P²) |
+| GMRES solve | O(P² · maxiter) | O(P²) |
+
+**Bottleneck:** the O(P²) S matrix. For P=5000: 100 MB at float32. For P=10000: 400 MB. Above ~5000 parameters, use `solver="diagonal"` or a matrix-free CG solver.
+
+---
+
+### Summary — what dominates at typical VMC scale
+
+For N=10 particles, B=1000 chains, S=200 steps, P=500 params:
+
+| Phase | Dominant cost | Memory |
+|---|---|---|
+| Sampling | O(B·S·T\_fwd) | ~10–50 MB (rand\_nums + trajectory) |
+| Kinetic energy (forward\_ad) | O(B·dof·T\_bwd) | ~few MB |
+| Gradient | O(B·T\_bwd) | ~few MB |
+| QGT (if used) | O(B·P²) time, O(P²) memory | ~1 MB at P=500 |
+
+Sampling typically dominates wall-clock time. Kinetic energy dominates if dof is large (many particles). QGT dominates memory if P is large.
+
+---
+
+## 19. MCMC diagnostics and block sampling <a name="19-diagnostics"></a>
+
+### Autocorrelation time and ESS
+
+The integrated autocorrelation time (IAT) τ_int tells you how many steps the chain needs to produce one effectively independent sample. Thinning by τ_int makes consecutive samples nearly independent; ESS = n\_steps / τ_int is the number of independent samples you actually get.
+
+```python
+from qvarnet.samplers import mh_chain, integrated_autocorr_time, effective_sample_size, chain_stats
+import jax, jax.numpy as jnp
+
+# Build prob_fn as usual
+from qvarnet.probability import build_prob_fn
+prob_fn = build_prob_fn(model.apply)
+
+# Run a single diagnostic chain (separate from training)
+n_steps, dof = 2000, n_particles * n_dim
+key = jax.random.PRNGKey(0)
+rand = jax.random.normal(key, (n_steps, dof + 1))
+positions, acceptance = mh_chain(rand, 0.0, prob_fn, params, init_pos, step_size)
+# positions: (n_steps, dof)
+
+tau = integrated_autocorr_time(positions[:, 0])   # IAT on first coordinate
+ess = effective_sample_size(positions[:, 0])
+print(f"τ_int = {float(tau):.1f}, ESS = {float(ess):.1f} / {n_steps}")
+```
+
+**Interpreting the result:**
+- τ_int ≈ 1 → chain mixes in one step (ideal, rarely true).
+- τ_int ≈ 10 → set `thinning_factor=10` to get independent samples; `chain_length` should be ≥ 10× `thermalization_steps`.
+- τ_int > chain_length/4 → the chain is stuck; reduce step size or increase chain_length.
+
+### Summarising multiple chains
+
+`chain_stats` takes the raw `(n_chains, n_steps, dof)` position history and returns per-chain IAT and ESS averaged over all coordinates:
+
+```python
+# Vmap mh_chain over n_chains (no training — diagnostic run only)
+rand_all = jax.random.normal(key, (n_chains, n_steps, dof + 1))
+vmapped_chain = jax.vmap(mh_chain, in_axes=(0, None, None, None, 0, None))
+all_positions, acceptance_rates = vmapped_chain(
+    rand_all, PBC, prob_fn, params, init_positions, step_size
+)
+# all_positions: (n_chains, n_steps, dof)
+
+taus, ess_per_chain = chain_stats(all_positions)
+print(f"mean τ_int = {float(taus.mean()):.1f}")
+print(f"mean ESS   = {float(ess_per_chain.mean()):.1f} / {n_steps}")
+```
+
+### Low-level: the full ACF array
+
+```python
+from qvarnet.samplers import autocorr
+import matplotlib.pyplot as plt
+
+rho = autocorr(positions[:, 0], max_lag=100)  # (100,) normalised ACF
+plt.plot(rho)
+plt.axhline(0, color="k", lw=0.5)
+plt.xlabel("lag")
+plt.ylabel("ρ")
+```
+
+The IAT estimator uses a **fixed window** of `max_lag` (default `n_steps // 4`). If the chain is very correlated and you suspect the window is too short, pass a larger `max_lag` or increase `n_steps`.
+
+### Block sampling
+
+When `n_chains * chain_length * dof` is large, the random-number matrix `(B, S, dof+1)` allocated by `sample_and_process` can overflow GPU memory. `block_size` splits that allocation into S/K chunks of size `(B, K, dof+1)`, executed sequentially via `fori_loop`:
+
+```python
+from qvarnet.config.training_setup import SamplingConfig
+
+# Without blocking: allocates (2000, 1000, 31) random numbers at once → ~240 MB
+# With block_size=100: allocates (2000, 100, 31) at a time → ~24 MB peak
+sc = SamplingConfig(
+    step_size=0.3,
+    chain_length=1000,
+    thermalization_steps=100,
+    thinning_factor=5,
+    PBC=0.0,
+    block_size=100,   # must divide chain_length exactly
+)
+result = train(..., sampler_params=sc)
+```
+
+**Memory trade-off:** `block_size` only reduces the random-number buffer. The position buffer `(B, S, dof)` is still allocated in full so that burn-in and thinning work identically. If positions are the bottleneck rather than randoms, blocking does not help.
+
+**Performance note:** each block is compiled as one fused XLA computation. Smaller blocks mean less parallelism within each block; a good starting point is `block_size = chain_length // 10`.
+
+---
+
+## 20. Common mistakes <a name="20-common-mistakes"></a>
 
 ### Wrong output shape from the model
 

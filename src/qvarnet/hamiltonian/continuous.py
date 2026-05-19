@@ -119,21 +119,48 @@ class GrossStructHamiltonian(ContinuousHamiltonian):
 @register_hamiltonian("CS-model")
 @struct.dataclass
 class CalogeroSutherlandHamiltonian(ContinuousHamiltonian):
-    """Calogero-Sutherland model: particles on a line with inverse-square interactions."""
+    """Calogero-Sutherland model: particles on a line with inverse-square interactions.
+
+    pairwise_impl controls the pairwise sum strategy:
+        "vectorized" (default) — all N*(N-1)/2 pairs at once.
+                                 Time O(B·N²), Memory O(B·N²).  Best on GPU for N ≲ 100.
+        "scan"                 — one particle row at a time via fori_loop.
+                                 Time O(B·N²), Memory O(B·N).   Better for large N.
+    """
 
     L: float = struct.field(pytree_node=False, default=1.0)
     epsilon: float = struct.field(pytree_node=False, default=0.0)
     omega_trap: float = struct.field(pytree_node=False, default=1.0)
+    pairwise_impl: str = struct.field(pytree_node=False, default="vectorized")
 
     def kinetic_local_energy(self, params, samples, model_apply, key=None):
         # Factor of 2: CS convention is H = -d²/dx² + V (ℏ²/m = 1, not ℏ²/2m = 1).
         return 2 * kinetic_log(params, samples, model_apply, self._get_laplacian_fn(), key=key)
 
     def potential_energy(self, samples):
-        diffs = samples[:, :, jnp.newaxis] - samples[:, jnp.newaxis, :]
-        mask = jnp.triu(jnp.ones(diffs.shape[1:]), k=1)
-        inv_square = jnp.where(
-            mask, self.L * (self.L - 1) / (diffs**2 + self.epsilon), 0.0
-        )
+        import jax
+        n = samples.shape[-1]
+        L, eps = self.L, self.epsilon
         trap = (self.omega_trap**2) * jnp.sum(samples**2, axis=-1)
-        return 2 * jnp.sum(inv_square, axis=(-1, -2)) + trap
+
+        if self.pairwise_impl == "scan":
+            # O(B·N) peak memory: one row at a time via fori_loop.
+            # i is a traced integer inside fori_loop — dynamic slices are forbidden,
+            # so we gather particle i and mask out j <= i positions.
+            col = jnp.arange(n)
+
+            def body(i, acc):
+                xi = jax.lax.dynamic_index_in_dim(samples, i, axis=1, keepdims=False)
+                diffs = xi[:, None] - samples                       # (batch, N)
+                mask = (col > i).astype(jnp.float32)
+                inv_sq = L * (L - 1) / (diffs**2 + eps) * mask
+                return acc + jnp.sum(inv_sq, axis=-1)
+
+            interaction = jax.lax.fori_loop(0, n - 1, body, jnp.zeros(samples.shape[0]))
+        else:
+            # O(B·N²/2) peak memory: all pairs at once, max GPU parallelism.
+            i_idx, j_idx = jnp.triu_indices(n, k=1)
+            diffs = samples[:, i_idx] - samples[:, j_idx]     # (batch, n_pairs)
+            interaction = jnp.sum(L * (L - 1) / (diffs**2 + eps), axis=-1)
+
+        return 2 * interaction + trap

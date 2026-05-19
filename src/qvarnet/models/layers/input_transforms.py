@@ -48,11 +48,7 @@ class AppendPairwiseDiffs(nn.Module):
     def __call__(self, x):
         shape = x.shape[:-1]
         r = x.reshape(*shape, self.n_particles, self.n_dim)   # (..., N, d)
-        # Collect upper-triangle pairs
-        diffs = []
-        for i in range(self.n_particles):
-            for j in range(i + 1, self.n_particles):
-                diffs.append(r[..., i, :] - r[..., j, :])    # (..., d)
-        diffs = jnp.stack(diffs, axis=-2)                     # (..., n_pairs, d)
+        i_idx, j_idx = jnp.triu_indices(self.n_particles, k=1)
+        diffs = r[..., i_idx, :] - r[..., j_idx, :]          # (..., n_pairs, d)
         diffs_flat = diffs.reshape(*shape, -1)                 # (..., n_pairs * d)
         return jnp.concatenate([x, diffs_flat], axis=-1)

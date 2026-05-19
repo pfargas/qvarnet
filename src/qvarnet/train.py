@@ -7,7 +7,7 @@ from jax import random
 
 from .callbacks import CheckpointCallback, NaNCallback, ProgressCallback
 from .config.coord_mode import CoordMode, LabCoords
-from .config.training_setup import TrainingConfig, parse_sampler_params
+from .config.training_setup import TrainingConfig, SamplingConfig, parse_sampler_params
 from .losses import CuspLoss, make_cusp_configs, make_cusp_pair_indices
 from .probability import build_prob_fn
 from .qgt import DEFAULT_QGT_CONFIG, QGTConfig
@@ -81,7 +81,10 @@ def train(
         )
 
     prob_fn = build_prob_fn(effective_apply)
-    sampling_config = parse_sampler_params(sampler_params)
+    if isinstance(sampler_params, SamplingConfig):
+        sampling_config = sampler_params
+    else:
+        sampling_config = parse_sampler_params(sampler_params)
 
     if training_config.init_positions == "normal":
         current_positions = jax.random.normal(key, shape) * 0.5
@@ -144,6 +147,7 @@ def train(
             burn_in=sampling_config.thermalization_steps,
             thinning=sampling_config.thinning_factor,
             PBC=sampling_config.PBC,
+            block_size=sampling_config.block_size,
         )
 
         cm = jnp.sum(new_pos, axis=1) / new_pos.shape[-1]

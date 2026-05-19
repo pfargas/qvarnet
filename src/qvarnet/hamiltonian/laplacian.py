@@ -66,7 +66,7 @@ def laplacian_central_difference(fn, xs, key=None, h=1e-4):
     f0 = batch_fn(xs)
 
     def body(acc, i):
-        e_i = jnp.eye(n)[i]
+        e_i = jnp.zeros(n).at[i].set(1.0)
         d2 = (batch_fn(xs + h * e_i) - 2 * f0 + batch_fn(xs - h * e_i)) / h**2
         return acc + d2, None
 

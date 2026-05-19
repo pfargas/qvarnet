@@ -33,6 +33,7 @@ class SamplingConfig:
     thermalization_steps: int
     thinning_factor: int
     PBC: float
+    block_size: int = 0   # 0 = disabled; >0 caps peak random-number memory
 
     def __post_init__(self):
         if self.step_size <= 0:
@@ -43,6 +44,13 @@ class SamplingConfig:
             raise ValueError(
                 f"thermalization_steps ({self.thermalization_steps}) must be "
                 f"< chain_length ({self.chain_length})"
+            )
+        if self.block_size < 0:
+            raise ValueError(f"block_size must be >= 0, got {self.block_size}")
+        if self.block_size > 0 and self.chain_length % self.block_size != 0:
+            raise ValueError(
+                f"block_size ({self.block_size}) must divide "
+                f"chain_length ({self.chain_length}) exactly."
             )
 
 
@@ -83,6 +91,7 @@ def parse_sampler_params(sampler_args: Dict[str, Any]) -> SamplingConfig:
         thermalization_steps=int(sampler_args.get("thermalization_steps", 50)),
         thinning_factor=int(sampler_args.get("thinning_factor", 5)),
         PBC=float(sampler_args.get("PBC", 40.0)),
+        block_size=int(sampler_args.get("block_size", 0)),
     )
 
 
