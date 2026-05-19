@@ -166,8 +166,8 @@ class PairLogExponentialMLPwithGaussianPenalty(BaseModel):
     def get_input_shape(cls, model_args: dict, batch_size: int) -> tuple:
         return (batch_size, model_args["hidden_arch"][0])
     
-@register_model("j-mlp-fourth-decay")
-class JastrowLogExponentialMLPwithPenalty(BaseModel):
+@register_model("j-mlp-gaussian-decay")
+class JastrowLogExponentialMLPwithGaussianPenalty(BaseModel):
     architecture: list
     hidden_activation: Callable = nn.tanh
     kernel_init: Callable = nn.initializers.lecun_normal()
@@ -198,7 +198,7 @@ class JastrowLogExponentialMLPwithPenalty(BaseModel):
         )
         envelope_param = self.param("envelope_param", nn.initializers.constant(1.0), ())
         mlp_output = mlp(x)
-        log_wf = mlp_output - envelope_param * jnp.sum(x**4, axis=-1, keepdims=True) + log_jastrow
+        log_wf = mlp_output - envelope_param * jnp.sum(x**2, axis=-1, keepdims=True) + log_jastrow
         return log_wf
 
     def build_from_params(self, params):

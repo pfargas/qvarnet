@@ -56,11 +56,20 @@ def energy_and_grads(
     use_cusp_condition: bool = False,
     cusp_configs: jnp.ndarray = None,
     cusp_alpha: float = 0.01,
+    cusp_pair_i: jnp.ndarray = None,
+    cusp_pair_j: jnp.ndarray = None,
+    cusp_epsilon: float = 1e-2,
+    cusp_n: float = 2.0,
+    cusp_C_n: float = 1.0,
 ) -> Tuple[jnp.ndarray, jnp.ndarray, dict]:
     """Compute energy and parameter gradients via variance-minimization loss.
 
     Loss: L(θ) = 2⟨(E_loc - ⟨E⟩) log|ψ_θ|⟩
-                + cusp_alpha * mean_{x∈cusp_configs}[ E_L(x;θ)² ]  (if use_cusp_condition)
+                + cusp_alpha * mean_{x∈cusp_configs}[ C_ij(x;θ) ]  (if use_cusp_condition)
+
+    Option A — direct cusp residual:
+        C_ij(x;θ) = (ε^(n/2) * ∂log|ψ_θ|/∂r_ij - C_n)²
+        where r_ij = x_i - x_j, so ∂/∂r_ij = ∂/∂x_i - ∂/∂x_j.
     """
     E, E_loc, sigma_e = energy_fn(hamiltonian, params, batch, model_apply, is_log_model)
 
@@ -71,12 +80,28 @@ def energy_and_grads(
     def loss(p):
         vmc = 2 * jnp.mean(jax.lax.stop_gradient(E_loc - E) * _log_psi(p))
         if use_cusp_condition:
-            E_cusp = hamiltonian.local_energy(p, cusp_configs, model_apply, is_log_model)
-            # Normalize by stop-gradient RMS so the cusp loss is O(1) regardless of
-            # epsilon. Without this, E_cusp ~ L(L-1)/epsilon^2 ~ 10^4 at the cusp,
-            # making the gradient ~10^8 and blowing up the model.
-            E_cusp_rms = jax.lax.stop_gradient(jnp.sqrt(jnp.mean(E_cusp ** 2)) + 1.0)
-            return vmc + cusp_alpha * jnp.mean((E_cusp / E_cusp_rms) ** 2)
+            # --- Option A: direct cusp residual ---
+            # ∂log|ψ|/∂r_ij = ∂log|ψ|/∂x_i - ∂log|ψ|/∂x_j
+            def log_psi_single(pos):
+                out = model_apply(p, pos[None]).squeeze()
+                return out if is_log_model else jnp.log(jnp.abs(out))
+
+            grad_log_psi = jax.vmap(jax.grad(log_psi_single))(cusp_configs)  # (n_cusp, N)
+            n_cusp = cusp_configs.shape[0]
+            idx = jnp.arange(n_cusp)
+            # Factor 1/2: ∂/∂r_ij = (1/2)(∂/∂x_i - ∂/∂x_j) from the coordinate transform
+            # r = x_i - x_j, R = (x_i+x_j)/2 → ∂_r = (1/2)(∂_xi - ∂_xj)
+            grad_rij = 0.5 * (grad_log_psi[idx, cusp_pair_i] - grad_log_psi[idx, cusp_pair_j])
+            cusp_residuals = (cusp_epsilon ** (cusp_n / 2.0) * grad_rij - cusp_C_n) ** 2
+            return vmc + cusp_alpha * jnp.mean(cusp_residuals)
+
+            # --- Option B: local energy squared (commented out) ---
+            # E_cusp = hamiltonian.local_energy(p, cusp_configs, model_apply, is_log_model)
+            # # Normalize by stop-gradient RMS so the cusp loss is O(1) regardless of
+            # # epsilon. Without this, E_cusp ~ L(L-1)/epsilon^2 ~ 10^4 at the cusp,
+            # # making the gradient ~10^8 and blowing up the model.
+            # E_cusp_rms = jax.lax.stop_gradient(jnp.sqrt(jnp.mean(E_cusp ** 2)) + 1.0)
+            # return vmc + cusp_alpha * jnp.mean((E_cusp / E_cusp_rms) ** 2)
         return vmc
 
     grads = jax.grad(loss)(params)
@@ -94,6 +119,11 @@ def compute_step(
     use_cusp_condition: bool = False,
     cusp_configs: jnp.ndarray = None,
     cusp_alpha: float = 0.01,
+    cusp_pair_i: jnp.ndarray = None,
+    cusp_pair_j: jnp.ndarray = None,
+    cusp_epsilon: float = 1e-2,
+    cusp_n: float = 2.0,
+    cusp_C_n: float = 1.0,
 ) -> Tuple[VMCState, jnp.ndarray, jnp.ndarray]:
     """Perform one training step: compute energy/gradients and update parameters."""
     if qgt_config is None:
@@ -105,6 +135,11 @@ def compute_step(
         use_cusp_condition=use_cusp_condition,
         cusp_configs=cusp_configs,
         cusp_alpha=cusp_alpha,
+        cusp_pair_i=cusp_pair_i,
+        cusp_pair_j=cusp_pair_j,
+        cusp_epsilon=cusp_epsilon,
+        cusp_n=cusp_n,
+        cusp_C_n=cusp_C_n,
     )
 
     if not use_qgt:

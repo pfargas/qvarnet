@@ -38,6 +38,8 @@ class TrainingConfig:
     cusp_epsilon: float = 1e-2
     cusp_n_configs_per_pair: int = 5
     cusp_rng_seed: int = 42
+    cusp_n: float = 2.0      # potential exponent (2 for CS, >2 for other power-law)
+    cusp_C_n: float = 1.0    # target cusp value (λ for CS n=2, sqrt(g) for n>2)
 
 
 def parse_sampler_params(sampler_args: Dict[str, Any], is_log_prob: bool = False) -> SamplingConfig:
@@ -82,4 +84,6 @@ def parse_training_params(train_args: Dict[str, Any]) -> TrainingConfig:
         cusp_epsilon=float(train_args.get("cusp_epsilon", 1e-2)),
         cusp_n_configs_per_pair=int(train_args.get("cusp_n_configs_per_pair", 5)),
         cusp_rng_seed=int(train_args.get("cusp_rng_seed", 42)),
+        cusp_n=float(train_args.get("cusp_n", 2.0)),
+        cusp_C_n=float(train_args.get("cusp_C_n", 1.0)),
     )

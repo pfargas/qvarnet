@@ -35,3 +35,17 @@ def make_cusp_configs(n_particles, L, epsilon, n_configs_per_pair, rng_seed=0):
             configs.append(x.copy())
 
     return jnp.array(np.stack(configs), dtype=jnp.float32)
+
+
+def make_cusp_pair_indices(n_particles, n_configs_per_pair):
+    """Return (pair_i, pair_j) index arrays matching make_cusp_configs output order.
+
+    Each cusp config at position k tests the pair (pair_i[k], pair_j[k]).
+    """
+    pairs = [(i, j) for i in range(n_particles) for j in range(i + 1, n_particles)]
+    pair_i, pair_j = [], []
+    for i, j in pairs:
+        for _ in range(n_configs_per_pair):
+            pair_i.append(i)
+            pair_j.append(j)
+    return jnp.array(pair_i, dtype=jnp.int32), jnp.array(pair_j, dtype=jnp.int32)
