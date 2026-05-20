@@ -15,36 +15,42 @@ class TrainResult:
         self.cm_mean = cm_mean
         self.cm_std = cm_std
 
-    def best(self, n: int = 1, metric="energy"):
-        """Return the N VMCState objects sorted ascending by metric (lowest = best).
+    def best(self, n: int = 1, metric: list = ["energy"]):
+        """Return the N VMCState objects sorted ascending by each metric (lowest = best).
 
         Args:
-            n:      number of states to return.
-            metric: a string shortcut OR any callable (VMCState) -> float.
+            n:      number of states to return per metric.
+            metric: list of ranking criteria. Each element is either a string shortcut
+                    or a callable (VMCState) -> float (lower = better).
 
                     Shortcuts:  "energy"  — lowest ⟨E⟩
                                 "std"     — lowest σ_E
 
                     Custom examples:
-                        metric=lambda s: float(s.energy) / float(s.std)
-                        metric=lambda s: abs(float(s.acceptance_rate.mean()) - 0.5)
+                        metric=[lambda s: float(s.energy) + float(s.std)]
+                        metric=["energy", lambda s: abs(float(s.acceptance_rate.mean()) - 0.5)]
 
         Returns:
-            List of VMCState sorted ascending by metric (best first).
+            If metric has one element: list of VMCState sorted ascending (best first).
+            If metric has multiple elements: dict mapping each metric element to such a list.
         """
-        if callable(metric):
-            key_fn = metric
-        else:
-            _builtins = {
-                "energy": lambda s: float(s.energy),
-                "std":    lambda s: float(s.std),
-            }
-            if metric not in _builtins:
-                raise ValueError(
-                    f"metric must be one of {list(_builtins)} or a callable, got {metric!r}"
-                )
-            key_fn = _builtins[metric]
-        return sorted(self.history, key=key_fn)[:n]
+        _builtins = {
+            "energy": lambda s: float(s.energy),
+            "std": lambda s: float(s.std),
+            # TODO: add 2 more built-in metrics: E+alpha*sigma where alpha is tunable and V-Score (https://arxiv.org/abs/2302.04919v2)
+        }
+        result = {}
+        for m in metric:
+            if callable(m):
+                key_fn = m
+            else:
+                if m not in _builtins:
+                    raise ValueError(
+                        f"metric must be one of {list(_builtins)} or a callable, got {m!r}"
+                    )
+                key_fn = _builtins[m]
+            result[m] = sorted(self.history, key=key_fn)[:n]
+        return result if len(metric) > 1 else result[metric[0]]
 
     def __iter__(self):
         # Backward compat: allows  history, cm_mean, cm_std = result

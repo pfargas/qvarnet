@@ -1,11 +1,12 @@
 import signal
+import warnings
 from functools import partial
 
 import jax
 import jax.numpy as jnp
 from jax import random
 
-from .callbacks import CheckpointCallback, NaNCallback, ProgressCallback
+from .callbacks import CheckpointCallback, NaNCallback, ProgressCallback, RunOutputCallback
 from .config.coord_mode import CoordMode, LabCoords
 from .config.training_setup import TrainingConfig, SamplingConfig, parse_sampler_params
 from .losses import CuspLoss, make_cusp_configs, make_cusp_pair_indices
@@ -184,6 +185,16 @@ def train(
     _callbacks.insert(0, NaNCallback(training_config.checkpoint_path))
     if training_config.save_checkpoints:
         _callbacks.append(CheckpointCallback(training_config.checkpoint_path))
+    if not any(isinstance(cb, RunOutputCallback) for cb in _callbacks):
+        if training_config.checkpoint_path == "./":
+            warnings.warn(
+                "checkpoint_path is './' (the default) — run outputs will be saved in the "
+                "current working directory. Set TrainingConfig.checkpoint_path to a named "
+                "run directory, or pass a RunOutputCallback with an explicit path.",
+                UserWarning,
+                stacklevel=2,
+            )
+        _callbacks.append(RunOutputCallback(n=1, path=training_config.checkpoint_path))
 
     state_history = []
 

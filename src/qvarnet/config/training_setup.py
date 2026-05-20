@@ -33,13 +33,15 @@ class SamplingConfig:
     thermalization_steps: int
     thinning_factor: int
     PBC: float
-    block_size: int = 0   # 0 = disabled; >0 caps peak random-number memory
+    block_size: int = 0  # 0 = disabled; >0 caps peak random-number memory
 
     def __post_init__(self):
         if self.step_size <= 0:
             raise ValueError(f"step_size must be positive, got {self.step_size}")
         if self.thinning_factor < 1:
-            raise ValueError(f"thinning_factor must be >= 1, got {self.thinning_factor}")
+            raise ValueError(
+                f"thinning_factor must be >= 1, got {self.thinning_factor}"
+            )
         if self.thermalization_steps >= self.chain_length:
             raise ValueError(
                 f"thermalization_steps ({self.thermalization_steps}) must be "
@@ -52,6 +54,14 @@ class SamplingConfig:
                 f"block_size ({self.block_size}) must divide "
                 f"chain_length ({self.chain_length}) exactly."
             )
+        if self.thermalization_steps < 0:
+            raise ValueError(
+                f"thermalization_steps must be >= 0, got {self.thermalization_steps}"
+            )
+        if self.chain_length < self.thermalization_steps + 1:
+            raise ValueError(
+                f"chain_length must be >= thermalization_steps, got {self.chain_length} < {self.thermalization_steps}"
+            )
 
 
 @dataclass(frozen=True)
@@ -60,7 +70,7 @@ class TrainingConfig:
 
     n_epochs: int
     rng_seed: int = 0
-    init_positions: str = "normal"       # "normal" | "zeros"
+    init_positions: str = "normal"  # "normal" | "zeros"
     warm_walkers: bool = False
     is_update_step_size: bool = False
     min_step: float = 1e-5
@@ -70,7 +80,7 @@ class TrainingConfig:
     save_checkpoints: bool = False
     target_acceptance: float = 0.5
     adaptation_rate: float = 0.1
-    cusp: Optional[CuspConfig] = None    # None = cusp disabled
+    cusp: Optional[CuspConfig] = None  # None = cusp disabled
 
     def __post_init__(self):
         if self.min_step >= self.max_step:
