@@ -189,7 +189,7 @@ class JastrowLogExponentialMLPwithGaussianPenalty(BaseModel):
         mask = jnp.triu(jnp.ones((n, n)), k=1)  # (N, N)
 
         # Jastrow in log-space: λ · Σᵢ<ⱼ log|xᵢ-xⱼ|  →  (...)
-        log_jastrow = lam * jnp.sum(mask * jnp.log(diffs), axis=(-1, -2))
+        log_jastrow = lam * jnp.sum(mask * jnp.log(diffs), axis=(-1, -2))[..., None] # the dimensions of sum were (N,) and we need (N,1) :)
         mlp = MLP(
             architecture=self.architecture,
             hidden_activation=self.hidden_activation,

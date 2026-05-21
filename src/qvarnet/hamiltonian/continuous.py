@@ -163,4 +163,4 @@ class CalogeroSutherlandHamiltonian(ContinuousHamiltonian):
             diffs = samples[:, i_idx] - samples[:, j_idx]     # (batch, n_pairs)
             interaction = jnp.sum(L * (L - 1) / (diffs**2 + eps), axis=-1)
 
-        return 2 * interaction + trap
+        return 2 * interaction + trap # factor 2 cause g = 2L(L-1) in CS convention, not L(L-1)
