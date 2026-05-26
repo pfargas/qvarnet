@@ -8,7 +8,7 @@ from jax import random
 
 from .callbacks import CheckpointCallback, NaNCallback, ProgressCallback, RunOutputCallback
 from .config.coord_mode import CoordMode, LabCoords
-from .config.training_setup import TrainingConfig, SamplingConfig, parse_sampler_params
+from .config.training_setup import SamplingConfig, TrainingConfig, parse_sampler_params
 from .losses import CuspLoss, make_cusp_configs, make_cusp_pair_indices
 from .probability import build_prob_fn
 from .qgt import DEFAULT_QGT_CONFIG, QGTConfig
@@ -20,6 +20,7 @@ from .vmc_state import VMCState
 
 try:
     from tqdm import tqdm
+
     tqdm_available = True
 except ImportError:
     tqdm_available = False
@@ -30,7 +31,6 @@ except ImportError:
 def _update_step_size(step_size, acceptance_rate, min_step, max_step, target_acc, adaptation_rate):
     factor = 1.0 + adaptation_rate * (jnp.mean(acceptance_rate) - target_acc)
     return jnp.clip(step_size * factor, min_step, max_step)
-
 
 
 @load_doc("train.txt")
@@ -69,7 +69,9 @@ def train(
 
     effective_apply = coord_mode.wrap_model_apply(model.apply)
     state = VMCState.create(apply_fn=effective_apply, params=params, tx=optimizer)
-    state = load_checkpoint(state, path=training_config.checkpoint_path, filename="checkpoint.msgpack")
+    state = load_checkpoint(
+        state, path=training_config.checkpoint_path, filename="checkpoint.msgpack"
+    )
 
     if model_name is not None and model_args is not None:
         save_run_config(
@@ -95,8 +97,7 @@ def train(
         raise ValueError(f"Unknown init_positions: {training_config.init_positions!r}")
 
     assert current_positions.shape == (n_chains, dof), (
-        f"init_positions shape mismatch: expected {(n_chains, dof)}, "
-        f"got {current_positions.shape}"
+        f"init_positions shape mismatch: expected {(n_chains, dof)}, got {current_positions.shape}"
     )
 
     step_size = sampling_config.step_size
@@ -106,7 +107,12 @@ def train(
     _aux_losses = []
     if _cusp is not None:
         n_particles = shape[-1]
-        L = getattr(hamiltonian, "L", sampling_config.PBC)
+        L = _cusp.L if _cusp.L is not None else getattr(hamiltonian, "L", None)
+        if L is None:
+            raise ValueError(
+                "CuspConfig requires a box size L, but neither CuspConfig.L nor "
+                "hamiltonian.L is set. Pass cusp=CuspConfig(L=...) to TrainingConfig."
+            )
         cusp_configs = make_cusp_configs(
             n_particles=n_particles,
             L=L,
@@ -118,13 +124,17 @@ def train(
             n_particles=n_particles,
             n_configs_per_pair=_cusp.n_configs_per_pair,
         )
-        _aux_losses.append(CuspLoss(
-            cusp_configs, cusp_pair_i, cusp_pair_j,
-            alpha=_cusp.alpha,
-            epsilon=_cusp.epsilon,
-            n=_cusp.n,
-            C_n=_cusp.C_n,
-        ))
+        _aux_losses.append(
+            CuspLoss(
+                cusp_configs,
+                cusp_pair_i,
+                cusp_pair_j,
+                alpha=_cusp.alpha,
+                epsilon=_cusp.epsilon,
+                n=_cusp.n,
+                C_n=_cusp.C_n,
+            )
+        )
     _aux_losses.extend(auxiliary_losses)
     _auxiliary_losses = tuple(_aux_losses)
 
@@ -132,7 +142,9 @@ def train(
         jax.jit,
         static_argnames=["prob_fn", "hamiltonian", "sampling_config", "training_config"],
     )
-    def full_update(state, key, current_pos, prob_fn, step_size, hamiltonian, sampling_config, training_config):
+    def full_update(
+        state, key, current_pos, prob_fn, step_size, hamiltonian, sampling_config, training_config
+    ):
         key, subkey, lap_key = jax.random.split(key, 3)
         n_chains, dof = current_pos.shape
 
@@ -147,7 +159,6 @@ def train(
             n_steps=sampling_config.chain_length,
             burn_in=sampling_config.thermalization_steps,
             thinning=sampling_config.thinning_factor,
-            PBC=sampling_config.PBC,
             block_size=sampling_config.block_size,
         )
 
@@ -178,7 +189,18 @@ def train(
             key=lap_key,
         )
 
-        return new_state, key, new_pos, E, sigma_e, acceptance_rate, step_size, grads, cm_mean_val, cm_std_val
+        return (
+            new_state,
+            key,
+            new_pos,
+            E,
+            sigma_e,
+            acceptance_rate,
+            step_size,
+            grads,
+            cm_mean_val,
+            cm_std_val,
+        )
 
     # Build callback list: always NaN guard, then user-supplied, then built-ins from config
     _callbacks = list(callbacks or [])

@@ -11,7 +11,7 @@ Typical usage::
 
     # run one chain for n_steps steps
     rand = jax.random.normal(key, (n_steps, dof + 1))
-    positions, _ = mh_chain(rand, PBC, prob_fn, params, init_pos, step_size)
+    positions, _ = mh_chain(rand, prob_fn, params, init_pos, step_size)
     # positions: (n_steps, dof)
 
     tau = integrated_autocorr_time(positions[:, 0])   # IAT on first coord

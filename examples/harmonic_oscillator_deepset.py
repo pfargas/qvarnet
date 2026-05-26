@@ -113,7 +113,6 @@ def create_experiment_config(system_name: str, n_epochs: int = 500):
             "chain_length": 200,
             "thermalization_steps": 50,
             "thinning_factor": 2,
-            "PBC": 40.0,
         },
         "hamiltonian": {
             "name": system_name,
@@ -171,7 +170,6 @@ def train_deepset_model(
         "chain_length": 200,
         "thermalization_steps": 50,
         "thinning_factor": 2,
-        "PBC": 40.0,
     }
 
     # Train in log-domain for numerical stability
@@ -308,10 +306,9 @@ def sample_from_model(
     rand_nums = jax.random.uniform(key, (n_steps, 11))
 
     # Call mh_chain with positional arguments in correct order:
-    # (random_values, PBC, prob_fn, prob_params, init_position, step_size, is_log_prob)
+    # (random_values, prob_fn, prob_params, init_position, step_size)
     samples, _ = mh_chain(
         rand_nums,  # random_values
-        40.0,  # PBC
         prob_fn,  # prob_fn
         params,  # prob_params
         init_pos,  # init_position

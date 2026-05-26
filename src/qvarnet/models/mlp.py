@@ -1,8 +1,9 @@
-from .layers import CustomDense
-from flax import linen as nn
-from typing import Callable
-from .base import BaseModel
+from collections.abc import Callable
 
+from flax import linen as nn
+
+from .base import BaseModel
+from .layers import CustomDense
 from .registry import register_model
 
 
@@ -10,33 +11,39 @@ from .registry import register_model
 class MLP(BaseModel):
     """Multi-layer perceptron using CustomDense layers.
 
-    Input:  (..., architecture[0])   — arbitrary leading dims preserved
-    Output: (..., architecture[-1])
+    Two interfaces (exactly one must be provided):
+      hidden=[h1, h2, ...], output_dim=1  — new, lazy; no input dim needed
+      architecture=[in, h1, ..., out]     — legacy; first element is documentation only
 
-    When used standalone as a wavefunction:
-        shape = (batch, architecture[0])  → output (batch, architecture[-1])
-    When used as phi/F subnet inside DeepSet:
-        shape = (batch, n_particles, n_dim) → output (batch, n_particles, features)
+    Input:  (..., any)   — arbitrary leading dims preserved; input width inferred lazily
+    Output: (..., output_dim / architecture[-1])
     """
 
-    architecture: list
+    architecture: list = None
+    hidden: list = None
+    output_dim: int = 1
     hidden_activation: Callable = nn.tanh
     kernel_init: Callable = nn.initializers.lecun_normal()
     bias_init: Callable = nn.initializers.zeros_init()
-    beta: float = 1.0  # scale factor for kernel
-    has_output_activation: bool = False  # whether to apply hidden_activation to output layer
+    beta: float = 1.0
+    has_output_activation: bool = False
 
     @nn.compact
     def __call__(self, x):
-        # x: (..., architecture[0]) → (..., architecture[-1])
-        for i in range(len(self.architecture) - 1):
+        if self.hidden is not None:
+            arch = list(self.hidden) + [self.output_dim]
+        elif self.architecture is not None:
+            arch = list(self.architecture)[1:]  # first elem is documentation only
+        else:
+            raise ValueError("MLP requires either 'hidden' or 'architecture'")
+        for i, features in enumerate(arch):
             x = CustomDense(
-                features=self.architecture[i + 1],
+                features=features,
                 kernel_init=self.kernel_init,
                 bias_init=self.bias_init,
                 beta=self.beta,
             )(x)
-            if i < len(self.architecture) - 2:
+            if i < len(arch) - 1:
                 x = self.hidden_activation(x)
         if self.has_output_activation:
             x = self.hidden_activation(x)

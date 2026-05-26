@@ -1,4 +1,5 @@
 from functools import partial
+
 import jax
 from jax import numpy as jnp
 
@@ -11,7 +12,6 @@ def mh_kernel_log(
     position,
     prob,
     step_size,
-    PBC,
     uniform=False,
 ):
     """Single Metropolis-Hastings step in log-probability space.
@@ -29,7 +29,6 @@ def mh_kernel_log(
         position: Current configuration, shape ``(DoF,)``.
         prob: Current log-probability :math:`\\log P(x)`.
         step_size: Proposal standard deviation.
-        PBC: Periodic boundary size (reserved, currently unused).
         uniform: If ``True``, use a uniform proposal instead of Gaussian.
 
     Returns:
@@ -55,7 +54,6 @@ def mh_kernel_log(
 @partial(jax.jit, static_argnames=("prob_fn", "uniform"))
 def mh_chain(
     random_values,
-    PBC,
     prob_fn,
     prob_params,
     init_position,
@@ -70,7 +68,6 @@ def mh_chain(
     Args:
         random_values: Pre-generated random numbers, shape ``(n_steps, dof + 1)``.
             Each row: first ``dof`` values are proposal noise, last is accept/reject draw.
-        PBC: Periodic boundary size passed through to the kernel.
         prob_fn: Log-probability function ``(x, params) -> log P(x)``.
         prob_params: Parameters for ``prob_fn``.
         init_position: Initial configuration, shape ``(dof,)``.
@@ -93,14 +90,11 @@ def mh_chain(
             position=position,
             prob=prob,
             step_size=step_size,
-            PBC=PBC,
             uniform=uniform,
         )
         new_count = count + accepted
         return (new_position, new_prob, step_size, new_count), (new_position, accepted)
 
-    (_, _, _, counts), (positions, accepted) = jax.lax.scan(
-        body_fn, carry0, random_values
-    )
+    (_, _, _, counts), (positions, accepted) = jax.lax.scan(body_fn, carry0, random_values)
     acceptance_rate = counts / random_values.shape[0]
     return positions, acceptance_rate

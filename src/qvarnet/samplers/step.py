@@ -1,7 +1,7 @@
 """MCMC sampling step for Variational Monte Carlo."""
 
+from collections.abc import Callable
 from functools import partial
-from typing import Callable, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -16,7 +16,7 @@ def create_sampler_fn(mh_chain: Callable) -> Callable:
     """
     return jax.vmap(
         mh_chain,
-        in_axes=(0, None, None, None, 0, None),
+        in_axes=(0, None, None, 0, None),
         out_axes=0,
     )
 
@@ -32,8 +32,16 @@ def _gen_rand(key, n_chains, n_steps, dof, uniform):
 
 
 def _sample_blocked(
-    key, prob_fn, prob_params, init_positions, step_size,
-    n_chains, dof, n_steps, block_size, PBC, uniform,
+    key,
+    prob_fn,
+    prob_params,
+    init_positions,
+    step_size,
+    n_chains,
+    dof,
+    n_steps,
+    block_size,
+    uniform,
 ):
     """Run MH chains in blocks of block_size steps.
 
@@ -44,7 +52,7 @@ def _sample_blocked(
     """
     from .kernel import mh_kernel_log
 
-    n_blocks = n_steps // block_size   # static: both are static_argnames
+    n_blocks = n_steps // block_size  # static: both are static_argnames
 
     # Initial log-probs — computed once, threaded through the carry.
     init_log_probs = jax.vmap(prob_fn, in_axes=(0, None))(init_positions, prob_params)
@@ -72,7 +80,7 @@ def _sample_blocked(
             def body(inner_carry, step_rand):
                 p, lp, cnt = inner_carry
                 new_p, new_lp, accepted = mh_kernel_log(
-                    step_rand, prob_fn, prob_params, p, lp, step_size, PBC, uniform
+                    step_rand, prob_fn, prob_params, p, lp, step_size, uniform
                 )
                 return (new_p, new_lp, cnt + accepted), new_p
 
@@ -85,14 +93,10 @@ def _sample_blocked(
 
         # Write block into the pre-allocated buffer at the correct offset.
         # block_idx is a traced int, so dynamic_update_slice handles it.
-        buf = jax.lax.dynamic_update_slice(
-            buf, block_positions, [0, block_idx * block_size, 0]
-        )
+        buf = jax.lax.dynamic_update_slice(buf, block_positions, [0, block_idx * block_size, 0])
         return (new_pos, new_log_probs, new_counts, buf)
 
-    _, _, final_counts, all_positions = jax.lax.fori_loop(
-        0, n_blocks, run_block, init_carry
-    )
+    _, _, final_counts, all_positions = jax.lax.fori_loop(0, n_blocks, run_block, init_carry)
 
     acceptance_rates = final_counts.astype(jnp.float32) / n_steps
     return all_positions, acceptance_rates
@@ -101,8 +105,14 @@ def _sample_blocked(
 @partial(
     jax.jit,
     static_argnames=[
-        "prob_fn", "n_chains", "dof", "n_steps",
-        "burn_in", "thinning", "PBC", "uniform", "block_size",
+        "prob_fn",
+        "n_chains",
+        "dof",
+        "n_steps",
+        "burn_in",
+        "thinning",
+        "uniform",
+        "block_size",
     ],
 )
 def sample_and_process(
@@ -116,10 +126,9 @@ def sample_and_process(
     n_steps: int,
     burn_in: int,
     thinning: int,
-    PBC: float,
     uniform: bool = False,
     block_size: int = 0,
-) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     """Generate one batch of samples from MCMC and process them.
 
     Runs log-space Metropolis-Hastings chains in parallel (vmapped), discards
@@ -136,7 +145,6 @@ def sample_and_process(
         n_steps:    Total MH steps per chain.
         burn_in:    Initial samples to discard.
         thinning:   Keep every thinning-th sample after burn-in.
-        PBC:        Periodic boundary condition size (0 = none).
         uniform:    Use uniform proposals instead of Gaussian.
         block_size: If > 0, generate random numbers in blocks of this many
                     steps to cap peak memory at O(n_chains * block_size * dof).
@@ -151,22 +159,32 @@ def sample_and_process(
 
     if block_size > 0:
         if n_steps % block_size != 0:
-            raise ValueError(
-                f"block_size ({block_size}) must divide n_steps ({n_steps}) exactly."
-            )
+            raise ValueError(f"block_size ({block_size}) must divide n_steps ({n_steps}) exactly.")
         raw_batch, acceptance_rates = _sample_blocked(
-            key, prob_fn, prob_params, init_positions, step_size,
-            n_chains, dof, n_steps, block_size, PBC, uniform,
+            key,
+            prob_fn,
+            prob_params,
+            init_positions,
+            step_size,
+            n_chains,
+            dof,
+            n_steps,
+            block_size,
+            uniform,
         )
     else:
         rand_nums = _gen_rand(key, n_chains, n_steps, dof, uniform)
         sampler_fn = create_sampler_fn(mh_chain_fn)
         raw_batch, acceptance_rates = sampler_fn(
-            rand_nums, PBC, prob_fn, prob_params, init_positions, step_size,
+            rand_nums,
+            prob_fn,
+            prob_params,
+            init_positions,
+            step_size,
         )
 
-    processed = raw_batch[:, burn_in::thinning, :]   # (n_chains, n_effective, dof)
-    last_positions = raw_batch[:, -1, :]             # (n_chains, dof)
-    batch_flat = processed.reshape(-1, dof)          # (n_chains * n_effective, dof)
+    processed = raw_batch[:, burn_in::thinning, :]  # (n_chains, n_effective, dof)
+    last_positions = raw_batch[:, -1, :]  # (n_chains, dof)
+    batch_flat = processed.reshape(-1, dof)  # (n_chains * n_effective, dof)
 
     return batch_flat, last_positions, acceptance_rates
