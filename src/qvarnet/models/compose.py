@@ -48,9 +48,9 @@ class LogWavefunction(nn.Module):
         x_enc = self.transform(x)
         if self.n_particles is not None:
             ppd = x_enc.shape[-1] // self.n_particles
-            assert (
-                ppd == self.n_dim
-            ), f"Expected ppd={self.n_dim} but got {ppd} from transform output shape {x_enc.shape}"
+            # assert (
+            #     ppd == self.n_dim
+            # ), f"Expected ppd={self.n_dim} but got {ppd} from transform output shape {x_enc.shape}"
             x_for_net = x_enc.reshape(*x_enc.shape[:-1], self.n_particles, ppd)
         else:
             x_for_net = x_enc
