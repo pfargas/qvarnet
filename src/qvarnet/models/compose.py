@@ -2,6 +2,8 @@ from typing import Any
 
 from flax import linen as nn
 
+from qvarnet.boundaries import NoBoundary
+
 
 class LogWavefunction(nn.Module):
     """Composable log-wavefunction.
@@ -36,8 +38,8 @@ class LogWavefunction(nn.Module):
         Optional Jastrow factor applied to *raw* ``x``.
     """
 
-    transform: Any
     network: nn.Module
+    transform: Any = None  # NoBoundary() or PeriodicBoundary(L) — not a JAX array
     n_particles: int = None
     n_dim: int = None
     envelope: Any = None
@@ -45,6 +47,8 @@ class LogWavefunction(nn.Module):
 
     @nn.compact
     def __call__(self, x):
+        if self.transform is None:
+            self.transform = NoBoundary()
         x_enc = self.transform(x)
         if self.n_particles is not None:
             ppd = x_enc.shape[-1] // self.n_particles
