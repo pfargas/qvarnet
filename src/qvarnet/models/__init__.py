@@ -13,6 +13,7 @@ from .exponential import LogExponentialMLPwithPenalty as LogExponentialMLPwithPe
 from .jastrow import LogJastrow as LogJastrow
 from .mlp import MLP as MLP
 from .mlp_fermions import FermionicMLP as FermionicMLP
+from .transformer import TransformerWavefunction as TransformerWavefunction
 from .registry import MODEL_REGISTRY as MODEL_REGISTRY
 from .registry import register_model as register_model
 
