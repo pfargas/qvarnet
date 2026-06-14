@@ -1,6 +1,7 @@
+import argparse
 import os
 import sys
-import argparse
+
 import jax
 
 parser = argparse.ArgumentParser(description="Run MCMC sampling")
@@ -8,15 +9,11 @@ parser.add_argument(
     "--device", type=str, default="cpu", choices=["cpu", "cuda"], help="Device to use"
 )
 parser.add_argument("--split", action="store_true", help="Use split RNG")
-parser.add_argument(
-    "--n-chains", type=int, default=1000, help="Number of max chains to run"
-)
+parser.add_argument("--n-chains", type=int, default=1000, help="Number of max chains to run")
 parser.add_argument(
     "--n-trials", type=int, default=2, help="Number of trials for statistics in timing"
 )
-parser.add_argument(
-    "--n-steps", type=int, default=10_000, help="Number of steps per chain"
-)
+parser.add_argument("--n-steps", type=int, default=10_000, help="Number of steps per chain")
 
 args = parser.parse_args()
 
@@ -28,11 +25,11 @@ N_MAX = args.n_chains
 number_of_steps_per_chain = args.n_steps
 N_TRIALS = args.n_trials
 
-from jax import random
-from jax import numpy as jnp
-
 import time
 from functools import partial
+
+from jax import numpy as jnp
+from jax import random
 
 times = []
 std_times = []
@@ -145,9 +142,7 @@ def time_run_sampling(n_chains, n_steps, DoF=1, n_trials=10):
         start_time_append = time.perf_counter()
         execution_times = execution_times.at[i].set(end_time - start_time)
         end_time_append = time.perf_counter()
-        print(
-            f"\tTiming recorded in {end_time_append - start_time_append:.2e} seconds."
-        )
+        print(f"\tTiming recorded in {end_time_append - start_time_append:.2e} seconds.")
 
     erase_block(n_trials + 1)
 
@@ -189,9 +184,7 @@ def time_run_sampling_split(n_chains, n_steps, DoF=1, n_trials=10):
         start_time_append = time.perf_counter()
         execution_times = execution_times.at[i].set(end_time - start_time)
         end_time_append = time.perf_counter()
-        print(
-            f"\tTiming recorded in {end_time_append - start_time_append:.2e} seconds."
-        )
+        print(f"\tTiming recorded in {end_time_append - start_time_append:.2e} seconds.")
 
     erase_block(n_trials + 1)
 
@@ -246,7 +239,6 @@ for n_chain in number_of_chains:
 
 
 import csv
-import os
 
 os.makedirs(f"results/{device}", exist_ok=True)
 
@@ -256,8 +248,6 @@ with open(
     newline="",
 ) as file:
     writer = csv.writer(file)
-    writer.writerow(
-        ["Number of Chains", "Time (seconds)", "Standard Deviation (seconds)"]
-    )
+    writer.writerow(["Number of Chains", "Time (seconds)", "Standard Deviation (seconds)"])
     for n_chain, t, std in zip(number_of_chains, times, std_times):
         writer.writerow([n_chain, t, std])

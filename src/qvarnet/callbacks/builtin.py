@@ -92,7 +92,7 @@ class RunOutputCallback(Callback):
         self.metrics = metric if metric is not None else ["energy"]
 
     def on_train_end(self, state, history):
-        if not history:
+        if not len(history):
             return
 
         os.makedirs(self.path, exist_ok=True)
@@ -102,19 +102,11 @@ class RunOutputCallback(Callback):
             writer.writeheader()
             writer.writerows(_state_to_row(s) for s in history)
 
-        for i, m in enumerate(self.metrics):
-            if callable(m):
-                key_fn = m
-                label = f"custom_{i}"
-            else:
-                if m not in _BUILTIN_METRICS:
-                    raise ValueError(
-                        f"metric must be one of {list(_BUILTIN_METRICS)} or a callable, got {m!r}"
-                    )
-                key_fn = _BUILTIN_METRICS[m]
-                label = m
-            for rank, s in enumerate(sorted(history, key=key_fn)[: self.n]):
-                save_checkpoint(s, self.path, filename=f"best_{label}_{rank}.msgpack")
+        # Best-K *parameter* snapshots needed the per-epoch VMCState; with the
+        # param-free MetricsHistory that returns in roadmap step 6 (snapshot policy:
+        # none/every_n/all/best_k). For now persist the final live state so a
+        # resumable checkpoint always exists.
+        save_checkpoint(state, self.path, filename="final_state.msgpack")
 
 
 class NaNCallback(Callback):

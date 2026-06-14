@@ -5,15 +5,13 @@
 - Renamed the Greek beta parameter to `beta` for readability.
 """
 
-import time
-from functools import partial
-from typing import Callable
+from collections.abc import Callable
 
 import jax
-from jax import random
 import jax.numpy as jnp
-from flax import linen as nn
 import matplotlib.pyplot as plt
+from flax import linen as nn
+from jax import random
 
 # Device selection
 device = "cuda"  # 'cpu' or 'cuda'
@@ -71,9 +69,7 @@ class CustomDense(nn.Module):
 
     @nn.compact
     def __call__(self, inputs):
-        kernel = self.param(
-            "kernel", self.kernel_init, (inputs.shape[-1], self.features)
-        )
+        kernel = self.param("kernel", self.kernel_init, (inputs.shape[-1], self.features))
         y = jnp.dot(inputs, self.beta * kernel)
         bias = self.param("bias", self.bias_init, (self.features,))
         print("values:", kernel, bias)
@@ -203,13 +199,10 @@ def main():
         # print(f"beta: {beta}, time: {end_time - start_time:.4f}s")
 
         # samples_np = jnp.array(samples).reshape(-1, DoF)
-        current_distribution = jnp.array(
-            current_prob_fn(x_plot, current_params)
-        ).flatten()
+        current_distribution = jnp.array(current_prob_fn(x_plot, current_params)).flatten()
         plt.plot(
             x_plot.flatten(),
-            current_distribution
-            / jnp.trapezoid(current_distribution, x_plot.flatten()),
+            current_distribution / jnp.trapezoid(current_distribution, x_plot.flatten()),
             label=f"beta={beta}",
         )
         # plt.hist(

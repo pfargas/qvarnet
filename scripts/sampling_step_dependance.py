@@ -1,6 +1,7 @@
+import argparse
 import os
 import sys
-import argparse
+
 import jax
 
 parser = argparse.ArgumentParser(description="Run MCMC sampling")
@@ -8,18 +9,12 @@ parser.add_argument(
     "--device", type=str, default="cpu", choices=["cpu", "cuda"], help="Device to use"
 )
 parser.add_argument("--split", action="store_true", help="Use split RNG")
-parser.add_argument(
-    "--n-chains", type=int, default=1000, help="Number of chains to run"
-)
-parser.add_argument(
-    "--loop-step", type=int, default=200, help="Step in steps per chain"
-)
+parser.add_argument("--n-chains", type=int, default=1000, help="Number of chains to run")
+parser.add_argument("--loop-step", type=int, default=200, help="Step in steps per chain")
 parser.add_argument(
     "--n-trials", type=int, default=2, help="Number of trials for statistics in timing"
 )
-parser.add_argument(
-    "--n-steps", type=int, default=10_000, help="Number of max steps per chain"
-)
+parser.add_argument("--n-steps", type=int, default=10_000, help="Number of max steps per chain")
 
 args = parser.parse_args()
 
@@ -37,11 +32,11 @@ if SPACING > N_STEPS:
 if N_STEPS < 10:
     raise ValueError("Number of steps must be at least 10.")
 
-from jax import random
-from jax import numpy as jnp
-
 import time
 from functools import partial
+
+from jax import numpy as jnp
+from jax import random
 
 times = []
 std_times = []
@@ -77,6 +72,7 @@ def mh_chain_with_all_random_nums(random_values, prob_fn, init_pos):
     carry = (init_pos, initial_prob)
     positions, _ = jax.lax.scan(mh_kernel, carry, random_values)
     return positions
+
 
 @partial(jax.jit, static_argnames=("n_steps", "prob_fn"))
 def mh_chain_with_split(init_key, n_steps, prob_fn, init_pos):
@@ -153,9 +149,7 @@ def time_run_sampling(n_chains, n_steps, DoF=1, n_trials=10):
         start_time_append = time.perf_counter()
         execution_times = execution_times.at[i].set(end_time - start_time)
         end_time_append = time.perf_counter()
-        print(
-            f"\tTiming recorded in {end_time_append - start_time_append:.2e} seconds."
-        )
+        print(f"\tTiming recorded in {end_time_append - start_time_append:.2e} seconds.")
 
     erase_block(n_trials + 1)
 
@@ -197,9 +191,7 @@ def time_run_sampling_split(n_chains, n_steps, DoF=1, n_trials=10):
         start_time_append = time.perf_counter()
         execution_times = execution_times.at[i].set(end_time - start_time)
         end_time_append = time.perf_counter()
-        print(
-            f"\tTiming recorded in {end_time_append - start_time_append:.2e} seconds."
-        )
+        print(f"\tTiming recorded in {end_time_append - start_time_append:.2e} seconds.")
 
     erase_block(n_trials + 1)
 
@@ -254,7 +246,6 @@ for n_step in number_of_steps:
 
 
 import csv
-import os
 
 os.makedirs(f"results/steps/{device}", exist_ok=True)
 
@@ -264,8 +255,6 @@ with open(
     newline="",
 ) as file:
     writer = csv.writer(file)
-    writer.writerow(
-        ["Number of Steps", "Time (seconds)", "Standard Deviation (seconds)"]
-    )
+    writer.writerow(["Number of Steps", "Time (seconds)", "Standard Deviation (seconds)"])
     for n_step, t, std in zip(number_of_steps, times, std_times):
         writer.writerow([n_step, t, std])
