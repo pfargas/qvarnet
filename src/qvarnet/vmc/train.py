@@ -9,7 +9,12 @@ import optax
 from jax import random
 from jax.flatten_util import ravel_pytree
 
-from ..callbacks import CheckpointCallback, NaNCallback, ProgressCallback, RunOutputCallback
+from ..callbacks import (
+    CheckpointCallback,
+    NaNCallback,
+    ProgressCallback,
+    RunOutputCallback,
+)
 from ..config.coord_mode import CoordMode, LabCoords
 from ..config.training_setup import SamplingConfig, TrainingConfig, parse_sampler_params
 from ..geometry.qgt import DEFAULT_QGT_CONFIG, QGTConfig
@@ -32,7 +37,9 @@ except ImportError:
 
 
 @jax.jit
-def _update_step_size(step_size, acceptance_rate, min_step, max_step, target_acc, adaptation_rate):
+def _update_step_size(
+    step_size, acceptance_rate, min_step, max_step, target_acc, adaptation_rate
+):
     factor = 1.0 + adaptation_rate * (jnp.mean(acceptance_rate) - target_acc)
     return jnp.clip(step_size * factor, min_step, max_step)
 
@@ -108,9 +115,10 @@ def train(
     else:
         raise ValueError(f"Unknown init_positions: {training_config.init_positions!r}")
 
-    assert current_positions.shape == (n_chains, dof), (
-        f"init_positions shape mismatch: expected {(n_chains, dof)}, got {current_positions.shape}"
-    )
+    assert current_positions.shape == (
+        n_chains,
+        dof,
+    ), f"init_positions shape mismatch: expected {(n_chains, dof)}, got {current_positions.shape}"
 
     step_size = sampling_config.step_size
 
@@ -152,10 +160,22 @@ def train(
 
     @partial(
         jax.jit,
-        static_argnames=["prob_fn", "hamiltonian", "sampling_config", "training_config"],
+        static_argnames=[
+            "prob_fn",
+            "hamiltonian",
+            "sampling_config",
+            "training_config",
+        ],
     )
     def full_update(
-        state, key, current_pos, prob_fn, step_size, hamiltonian, sampling_config, training_config
+        state,
+        key,
+        current_pos,
+        prob_fn,
+        step_size,
+        hamiltonian,
+        sampling_config,
+        training_config,
     ):
         key, subkey, lap_key = jax.random.split(key, 3)
         n_chains, dof = current_pos.shape
@@ -248,7 +268,9 @@ def train(
     original_handler = signal.signal(signal.SIGINT, _handle_sigint)
 
     init_steps = int(state.step)
-    progress_bar = tqdm(range(init_steps, training_config.n_epochs), disable=not tqdm_available)
+    progress_bar = tqdm(
+        range(init_steps, training_config.n_epochs), disable=not tqdm_available
+    )
     if tqdm_available:
         _callbacks.append(ProgressCallback(progress_bar))
 
@@ -287,7 +309,9 @@ def train(
             grad_norm = optax.tree.norm(grads)
             old_flat = ravel_pytree(state.params)[0]  # state is still pre-update here
             new_flat = ravel_pytree(new_state.params)[0]
-            theta_ratio = jnp.linalg.norm(new_flat - old_flat) / (jnp.linalg.norm(old_flat) + 1e-8)
+            theta_ratio = jnp.linalg.norm(new_flat - old_flat) / (
+                jnp.linalg.norm(old_flat) + 1e-8
+            )
 
             state = new_state
 
@@ -336,7 +360,8 @@ def train(
                 "wall_time": dt,
             }
             metrics_history.append(metrics)
-
+            # TODO: Need a way of saving the parameters of the epochs so that when i call TrainResult.best() I can retrieve the parameters of the best n epochs.
+            # How could i do that without afecting the computation? and without making the memory explode. think about it.
             if any(cb.on_step_end(step, state, metrics) for cb in _callbacks):
                 break
 
