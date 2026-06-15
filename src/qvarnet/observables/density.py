@@ -9,6 +9,8 @@ import numpy as np
 def density_histogram(samples, n_particles, n_dim=1, bins=60, value_range=None):
     """Single-particle density n(x), normalised so that ∫ n(x) dx = N.
 
+    Check this actually is correct. n(x) = int dx2dx3...dxN psi(x1, x2, ...)
+
     samples: ``(M, N*d)``. Returns ``(centers, n)``. Currently 1-D (d=1).
     """
     if n_dim != 1:

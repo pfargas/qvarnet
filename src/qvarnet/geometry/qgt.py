@@ -29,7 +29,7 @@ class QGTConfig:
                         "minsr" (M×M Gram dual — solve in sample space; use when P > M).
         learning_rate:  Step size for the natural gradient update (separate
                         from the Adam/SGD lr — this replaces it when use_qgt=True).
-        regularization: ε added to the diagonal of S before solving (default 1e-6).
+        regularization: ε added to the diagonal of S before solving (default 1e-2).
         solver_options: Extra kwargs forwarded to the iterative solver (GMRES only).
     """
 
@@ -37,7 +37,7 @@ class QGTConfig:
         self,
         solver: str = "cholesky",
         learning_rate: float = 1e-3,
-        regularization: float = 1e-6,
+        regularization: float = 1e-2,
         solver_options: dict = None,
     ):
         self.solver = solver
@@ -54,12 +54,12 @@ class QGTConfig:
         }
 
 
-DEFAULT_QGT_CONFIG = QGTConfig(solver="cholesky", learning_rate=1e-3, regularization=1e-6)
-MEMORY_EFFICIENT_QGT_CONFIG = QGTConfig(solver="diagonal", learning_rate=1e-3, regularization=1e-4)
+DEFAULT_QGT_CONFIG = QGTConfig(solver="cholesky", learning_rate=1e-3, regularization=1e-2)
+MEMORY_EFFICIENT_QGT_CONFIG = QGTConfig(solver="diagonal", learning_rate=1e-3, regularization=1e-2)
 LARGE_SYSTEM_QGT_CONFIG = QGTConfig(
     solver="gmres",
     learning_rate=5e-4,
-    regularization=1e-4,
+    regularization=1e-2,
     solver_options={"maxiter": 500, "tolerance": 1e-6},
 )
 
@@ -88,7 +88,7 @@ def compute_log_derivatives(params, batch, model_apply):
     return jax.vmap(jax.grad(log_psi, argnums=0), in_axes=(None, 0))(params, batch)
 
 
-def compute_qgt(params, batch, model_apply, regularization: float = 1e-6):
+def compute_qgt(params, batch, model_apply, regularization: float = 1e-2):
     """Compute the regularised QGT matrix S, shape (n_params, n_params).
 
     S_{kl} = ⟨O_k O_l⟩ − ⟨O_k⟩⟨O_l⟩  + ε I

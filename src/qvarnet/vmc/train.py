@@ -14,6 +14,7 @@ from ..callbacks import (
     NaNCallback,
     ProgressCallback,
     RunOutputCallback,
+    SnapshotCallback,
 )
 from ..config.coord_mode import CoordMode, LabCoords
 from ..config.training_setup import SamplingConfig, TrainingConfig, parse_sampler_params
@@ -58,8 +59,18 @@ def train(
     qgt_config=None,
     auxiliary_losses: tuple = (),
     callbacks: list = None,
+    select="std",
+    k_best: int = 3,
 ):
-    """Train a VMC model using Metropolis-Hastings sampling."""
+    """Train a VMC model using Metropolis-Hastings sampling.
+
+    Parameter retrieval (roadmap step 8): unless a ``SnapshotCallback`` is passed explicitly,
+    the ``k_best`` best-by-``select`` parameter sets are retained and exposed on the returned
+    ``TrainResult`` as ``best_params()`` / ``best_k_params(n)``; the final-epoch params are
+    always available as ``result.final_params``. ``select`` is a string ("std" default,
+    "energy", "e_plus_sigma", or any metrics key) or a callable ``(metrics_dict) -> float``
+    (lower = better). Set ``k_best=0`` to keep nothing.
+    """
     if coord_mode is None:
         coord_mode = LabCoords()
     if qgt_config is None:
@@ -243,6 +254,12 @@ def train(
     # Build callback list: always NaN guard, then user-supplied, then built-ins from config
     _callbacks = list(callbacks or [])
     _callbacks.insert(0, NaNCallback(training_config.checkpoint_path))
+    # Parameter retrieval (step 8): reuse a user-supplied SnapshotCallback if present, else
+    # auto-add a best_k policy so result.best_params()/best_k_params() work out of the box.
+    snapshot_cb = next((cb for cb in _callbacks if isinstance(cb, SnapshotCallback)), None)
+    if snapshot_cb is None and k_best > 0:
+        snapshot_cb = SnapshotCallback(policy="best_k", k=k_best, metric=select)
+        _callbacks.append(snapshot_cb)
     if training_config.save_checkpoints:
         _callbacks.append(CheckpointCallback(training_config.checkpoint_path))
     if not any(isinstance(cb, RunOutputCallback) for cb in _callbacks):
@@ -360,8 +377,9 @@ def train(
                 "wall_time": dt,
             }
             metrics_history.append(metrics)
-            # TODO: Need a way of saving the parameters of the epochs so that when i call TrainResult.best() I can retrieve the parameters of the best n epochs.
-            # How could i do that without afecting the computation? and without making the memory explode. think about it.
+            # Param retrieval: the SnapshotCallback (best_k by `select`) keeps the k best params
+            # off-device; exposed post-run via result.best_params()/best_k_params(). No per-epoch
+            # device copy in this hot loop — only the snapshot policy and one final device_get.
             if any(cb.on_step_end(step, state, metrics) for cb in _callbacks):
                 break
 
@@ -370,4 +388,7 @@ def train(
         for cb in _callbacks:
             cb.on_train_end(state, metrics_history)
 
-    return TrainResult(history=metrics_history)
+    # One host copy of the final params (no per-epoch cost); best-k come from the snapshot policy.
+    final_params = jax.device_get(state.params)
+    snapshots = snapshot_cb.snapshots if snapshot_cb is not None else []
+    return TrainResult(history=metrics_history, final_params=final_params, snapshots=snapshots)

@@ -24,8 +24,37 @@ class TrainResult:
                  from history for backward compatibility).
     """
 
-    def __init__(self, history):
+    def __init__(self, history, final_params=None, snapshots=None):
         self.history = history
+        self.final_params = final_params  # host pytree of the last-epoch params, or None
+        # each snapshot: {"step", "metric", "params"} — from the SnapshotCallback policy
+        self.snapshots = list(snapshots) if snapshots else []
+
+    def best_params(self):
+        """Parameters of the single best retained snapshot (lowest selection metric).
+
+        Falls back to ``final_params`` when no snapshots were kept (e.g. policy "none").
+        """
+        if not self.snapshots:
+            return self.final_params
+        return min(self.snapshots, key=lambda s: s["metric"])["params"]
+
+    def best_k(self, n: int = None):
+        """Retained snapshots, lowest selection metric first (best first).
+
+        Each item is a dict ``{"step", "metric", "params"}`` — so the **epoch** that produced a
+        given parameter set is ``snapshot["step"]``. ``n`` limits the count; ``None`` returns all.
+        """
+        ranked = sorted(self.snapshots, key=lambda s: s["metric"])
+        return ranked if n is None else ranked[:n]
+
+    def best_k_params(self, n: int = None):
+        """List of retained snapshot params, best first. For the epoch of each, use ``best_k``."""
+        return [s["params"] for s in self.best_k(n)]
+
+    def best_steps(self, n: int = None):
+        """The epochs (``step``) the best-k params were taken from, best first."""
+        return [s["step"] for s in self.best_k(n)]
 
     @property
     def cm_mean(self):

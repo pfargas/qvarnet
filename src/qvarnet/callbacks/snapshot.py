@@ -10,6 +10,11 @@ Policies:
     "all"      keep every epoch (short diagnostic runs)
     "best_k"   keep the ``k`` best epochs by ``metric`` (model selection) — this restores the
                full-parameter ``best()`` retrieval that the param-free MetricsHistory dropped.
+
+``metric`` is the selection key (lower = better). It may be a **string** shortcut —
+``"std"`` (default; minimise σ_E), ``"energy"``, ``"e_plus_sigma"`` (Ē + σ_E), or any raw
+key present in the per-epoch ``metrics`` dict — or a **callable** ``(metrics_dict) -> float``
+(e.g. a V-score once an E_∞ is known, or σ/|E|).
 """
 
 import jax
@@ -17,14 +22,25 @@ import jax
 from .base import Callback
 
 
+def resolve_metric_fn(metric):
+    """Turn a string shortcut or callable into a key ``(metrics_dict) -> float`` (lower=better)."""
+    if callable(metric):
+        return metric
+    if metric == "e_plus_sigma":
+        return lambda m: float(m["energy"]) + float(m["std"])
+    # "std", "energy", or any raw metrics key
+    return lambda m: float(m[metric])
+
+
 class SnapshotCallback(Callback):
-    def __init__(self, policy: str = "best_k", every_n: int = 50, k: int = 3, metric: str = "energy"):
+    def __init__(self, policy: str = "best_k", every_n: int = 50, k: int = 3, metric="std"):
         if policy not in ("none", "every_n", "all", "best_k"):
             raise ValueError(f"unknown snapshot policy {policy!r}")
         self.policy = policy
         self.every_n = every_n
         self.k = k
         self.metric = metric
+        self._key = resolve_metric_fn(metric)
         self.snapshots: list[dict] = []  # each: {step, metric, params}
 
     def on_step_end(self, step, state, metrics) -> bool:
@@ -34,10 +50,10 @@ class SnapshotCallback(Callback):
             return False
         if self.policy in ("all", "every_n"):
             self.snapshots.append(
-                {"step": step, "metric": metrics.get(self.metric), "params": jax.device_get(state.params)}
+                {"step": step, "metric": self._key(metrics), "params": jax.device_get(state.params)}
             )
         elif self.policy == "best_k":
-            value = float(metrics[self.metric])
+            value = self._key(metrics)
             # keep only if it could be among the k smallest (lower = better)
             if len(self.snapshots) < self.k or value < self.snapshots[-1]["metric"]:
                 self.snapshots.append(
