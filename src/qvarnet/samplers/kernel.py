@@ -13,6 +13,7 @@ def mh_kernel_log(
     prob,
     step_size,
     uniform=False,
+    box_L=0.0,
 ):
     """Single Metropolis-Hastings step in log-probability space.
 
@@ -30,6 +31,10 @@ def mh_kernel_log(
         prob: Current log-probability :math:`\\log P(x)`.
         step_size: Proposal standard deviation.
         uniform: If ``True``, use a uniform proposal instead of Gaussian.
+        box_L: Periodic box side length. ``> 0`` wraps each proposed coordinate into
+            ``[0, L)`` (PBC sampler). The Gaussian/uniform proposal is symmetric on the
+            torus, so detailed balance and the acceptance ratio are unchanged. ``0``
+            (default) disables wrapping. Passed as a traced value, not a static arg.
 
     Returns:
         new_position: Accepted or current configuration, shape ``(DoF,)``.
@@ -43,6 +48,9 @@ def mh_kernel_log(
         proposal = position + step_size * (2 * proposal_noise - 1)
     else:
         proposal = position + step_size * proposal_noise  # standard normal
+    # PBC sampler: fold proposal into [0, L) when box_L > 0 (no-op when box_L == 0).
+    wrapped = proposal - box_L * jnp.floor(proposal / jnp.where(box_L > 0, box_L, 1.0))
+    proposal = jnp.where(box_L > 0, wrapped, proposal)
     proposal_log_prob = prob_fn(proposal, prob_params)
     accept_log_prob = jnp.minimum(0.0, proposal_log_prob - prob)
     accept = jnp.log(accept_draw) < accept_log_prob
@@ -59,6 +67,7 @@ def mh_chain(
     init_position,
     step_size,
     uniform=False,
+    box_L=0.0,
 ):
     """Run a single Metropolis-Hastings chain over ``n_steps`` steps.
 
@@ -73,6 +82,7 @@ def mh_chain(
         init_position: Initial configuration, shape ``(dof,)``.
         step_size: Proposal step size.
         uniform: If ``True``, use uniform proposals.
+        box_L: Periodic box side length; ``> 0`` wraps proposals into ``[0, L)``.
 
     Returns:
         positions: All sampled positions, shape ``(n_steps, dof)``.
@@ -91,6 +101,7 @@ def mh_chain(
             prob=prob,
             step_size=step_size,
             uniform=uniform,
+            box_L=box_L,
         )
         new_count = count + accepted
         return (new_position, new_prob, step_size, new_count), (new_position, accepted)

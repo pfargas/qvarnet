@@ -6,18 +6,26 @@ Both are histograms over particle coordinates from samples R ~ |ψ|².
 import numpy as np
 
 
-def density_histogram(samples, n_particles, n_dim=1, bins=60, value_range=None):
+def density_histogram(samples, n_particles, n_dim=1, bins=60, value_range=None, L=None):
     """Single-particle density n(x), normalised so that ∫ n(x) dx = N.
 
     Check this actually is correct. n(x) = int dx2dx3...dxN psi(x1, x2, ...)
 
     samples: ``(M, N*d)``. Returns ``(centers, n)``. Currently 1-D (d=1).
+
+    For a periodic box pass ``L``: coordinates are folded into ``[0, L)`` before
+    histogramming (PBC samplers leave walkers on the covering space), and the bin
+    range defaults to ``[0, L)``.
     """
     if n_dim != 1:
         raise NotImplementedError("density_histogram currently supports n_dim=1")
     s = np.asarray(samples)
     M = s.shape[0]
     coords = s.reshape(M, n_particles)
+    if L is not None:
+        coords = np.mod(coords, L)
+        if value_range is None:
+            value_range = (0.0, L)
     hist, edges = np.histogram(coords.ravel(), bins=bins, range=value_range)
     centers = 0.5 * (edges[:-1] + edges[1:])
     width = edges[1] - edges[0]

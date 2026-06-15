@@ -72,8 +72,14 @@ class PeriodicBoundary:
     L: float
 
     def encode(self, x: jnp.ndarray) -> jnp.ndarray:
+        # Interleave sin/cos **per coordinate** so a downstream per-particle reshape
+        # (..., N*d) -> (..., N, 2d) keeps each particle's own features together:
+        #   [sin(x0), cos(x0), sin(x1), cos(x1), ...]
+        # A naive concatenate([sin(all), cos(all)]) would instead group sines of
+        # different particles into the same row, scrambling the DeepSet input.
         phase = 2.0 * jnp.pi * x / self.L
-        return jnp.concatenate([jnp.sin(phase), jnp.cos(phase)], axis=-1)
+        stacked = jnp.stack([jnp.sin(phase), jnp.cos(phase)], axis=-1)  # (..., D, 2)
+        return stacked.reshape(*x.shape[:-1], 2 * x.shape[-1])
 
     def feature_dim(self, n: int) -> int:
         return 2 * n

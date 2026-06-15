@@ -2,6 +2,10 @@ from .boundaries import BoundaryHamiltonian, BoundaryModel, NoBoundary, Periodic
 from .config.coord_mode import JacobiCoords, LabCoords
 from .config.training_setup import SamplingConfig, TrainingConfig
 from .hamiltonian import define_hamiltonian, list_hamiltonians
+
+# Imported after .boundaries (line 1) so its BoundaryHamiltonian base is available; this
+# also registers "lattice-bose" in the Hamiltonian registry.
+from .hamiltonian.periodic import LatticeBoseHamiltonian, PenetrableSphereHamiltonian
 from .models.layers import AppendPairwiseDiffs, SubtractCM
 from .utils import load_custom_module
 from .vmc.train import train
@@ -23,4 +27,6 @@ __all__ = [
     "PeriodicBoundary",
     "BoundaryModel",
     "BoundaryHamiltonian",
+    "LatticeBoseHamiltonian",
+    "PenetrableSphereHamiltonian",
 ]

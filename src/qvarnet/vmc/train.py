@@ -20,7 +20,7 @@ from ..config.coord_mode import CoordMode, LabCoords
 from ..config.training_setup import SamplingConfig, TrainingConfig, parse_sampler_params
 from ..geometry.qgt import DEFAULT_QGT_CONFIG, QGTConfig
 from ..losses import CuspLoss, make_cusp_configs, make_cusp_pair_indices
-from ..samplers import sample_and_process
+from ..samplers import geometric_betas, sample_and_process, sample_parallel_tempering
 from ..utils import load_checkpoint, load_doc, save_run_config
 from .metrics_history import MetricsHistory
 from .probability import build_prob_fn
@@ -35,6 +35,20 @@ try:
 except ImportError:
     tqdm_available = False
     print("tqdm not found, progress bars will not be displayed.")
+
+
+def _is_periodic_ansatz(model) -> bool:
+    """Best-effort detection of a PeriodicBoundary transform on the model.
+
+    Checks ``LogWavefunction.transform`` and ``BoundaryModel.boundary``. Used only for
+    the PBC sanity warning in ``train()`` — false negatives are harmless (no warning).
+    """
+    from ..boundaries import PeriodicBoundary
+
+    for attr in ("transform", "boundary"):
+        if isinstance(getattr(model, attr, None), PeriodicBoundary):
+            return True
+    return False
 
 
 @jax.jit
@@ -119,6 +133,36 @@ def train(
     else:
         sampling_config = parse_sampler_params(sampler_params)
 
+    # Resolve the parallel-tempering ladder once (a concrete tuple captured by full_update).
+    _pt_betas = None
+    if sampling_config.sampler == "pt":
+        _pt_betas = sampling_config.pt_betas or geometric_betas(
+            sampling_config.pt_n_replicas, sampling_config.pt_beta_min
+        )
+
+    # PBC sanity check: the periodic-ansatz toggle (model transform) and the PBC-sampler
+    # toggle (sampling_config.box_L) are independent by design, but a mismatch is a likely
+    # user error — warn, don't forbid. A periodic ansatz with an unwrapped sampler is still
+    # correct for the energy (|ψ|² is periodic) but yields unwrapped coords for observables;
+    # a wrapped sampler with a non-periodic ansatz biases the energy at the box face.
+    ansatz_periodic = _is_periodic_ansatz(model)
+    sampler_periodic = bool(sampling_config.box_L)
+    if ansatz_periodic and not sampler_periodic:
+        warnings.warn(
+            "Model uses a PeriodicBoundary ansatz but the sampler is not wrapped "
+            "(sampling_config.box_L is None): walkers diffuse on the covering space. "
+            "Energy is unbiased, but sampled positions are unwrapped — fold them (or set "
+            "box_L) before computing position-binned observables.",
+            stacklevel=2,
+        )
+    elif sampler_periodic and not ansatz_periodic:
+        warnings.warn(
+            "PBC sampler is enabled (box_L set) but the ansatz is not periodic: log|ψ| is "
+            "discontinuous across the box face, so the energy is biased there. Use a "
+            "PeriodicBoundary transform (and periodic Jastrow) for a valid PBC state.",
+            stacklevel=2,
+        )
+
     if training_config.init_positions == "normal":
         current_positions = jax.random.normal(key, shape) * 0.5
     elif training_config.init_positions == "zeros":
@@ -191,19 +235,38 @@ def train(
         key, subkey, lap_key = jax.random.split(key, 3)
         n_chains, dof = current_pos.shape
 
-        batch, new_pos, acceptance_rate = sample_and_process(
-            key=subkey,
-            prob_fn=prob_fn,
-            prob_params=state.params,
-            init_positions=current_pos,
-            step_size=step_size,
-            n_chains=n_chains,
-            dof=dof,
-            n_steps=sampling_config.chain_length,
-            burn_in=sampling_config.thermalization_steps,
-            thinning=sampling_config.thinning_factor,
-            block_size=sampling_config.block_size,
-        )
+        if sampling_config.sampler == "pt":
+            batch, new_pos, acceptance_rate = sample_parallel_tempering(
+                key=subkey,
+                prob_fn=prob_fn,
+                prob_params=state.params,
+                init_positions=current_pos,
+                step_size=step_size,
+                n_chains=n_chains,
+                dof=dof,
+                n_steps=sampling_config.chain_length,
+                burn_in=sampling_config.thermalization_steps,
+                thinning=sampling_config.thinning_factor,
+                betas=_pt_betas,
+                swap_every=sampling_config.swap_every,
+                box_L=sampling_config.box_L or 0.0,
+                scale_steps=sampling_config.pt_scale_steps,
+            )
+        else:
+            batch, new_pos, acceptance_rate = sample_and_process(
+                key=subkey,
+                prob_fn=prob_fn,
+                prob_params=state.params,
+                init_positions=current_pos,
+                step_size=step_size,
+                n_chains=n_chains,
+                dof=dof,
+                n_steps=sampling_config.chain_length,
+                burn_in=sampling_config.thermalization_steps,
+                thinning=sampling_config.thinning_factor,
+                block_size=sampling_config.block_size,
+                box_L=sampling_config.box_L or 0.0,
+            )
 
         cm = jnp.sum(new_pos, axis=1) / new_pos.shape[-1]
         cm_mean_val = jnp.mean(cm)

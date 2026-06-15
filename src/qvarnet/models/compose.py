@@ -1,8 +1,9 @@
+import warnings
 from typing import Any
 
 from flax import linen as nn
 
-from qvarnet.boundaries import NoBoundary
+from qvarnet.boundaries import NoBoundary, PeriodicBoundary
 
 
 class LogWavefunction(nn.Module):
@@ -49,6 +50,17 @@ class LogWavefunction(nn.Module):
     def __call__(self, x):
         if self.transform is None:
             self.transform = NoBoundary()
+        if isinstance(self.transform, PeriodicBoundary) and self.envelope is not None:
+            # A confining envelope (e.g. Gaussian) breaks L-periodicity of log|ψ|:
+            # there is no trap on a ring. The envelope is applied to *raw* x and is
+            # not periodic, so it silently corrupts the PBC wavefunction.
+            warnings.warn(
+                "LogWavefunction has a PeriodicBoundary transform but a non-None "
+                "envelope. The envelope is applied to raw coordinates and is not "
+                "L-periodic, breaking periodicity of log|ψ|. Set envelope=None for "
+                "periodic systems (use a periodic Jastrow for interactions instead).",
+                stacklevel=2,
+            )
         x_enc = self.transform(x)
         if self.n_particles is not None:
             ppd = x_enc.shape[-1] // self.n_particles

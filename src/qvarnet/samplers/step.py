@@ -8,14 +8,17 @@ import jax.numpy as jnp
 from jax import random
 
 
-def create_sampler_fn(mh_chain: Callable) -> Callable:
+def create_sampler_fn(mh_chain: Callable, box_L: float = 0.0) -> Callable:
     """Vectorize a single-chain MH kernel over n_chains via vmap.
 
     Returns a function that expects random_values of shape
     (n_chains, n_steps, dof+1) and init_positions of shape (n_chains, dof).
+    ``box_L`` (the same for every chain) is bound before vmapping so it is not a
+    mapped axis.
     """
+    chain = partial(mh_chain, box_L=box_L)
     return jax.vmap(
-        mh_chain,
+        chain,
         in_axes=(0, None, None, 0, None),
         out_axes=0,
     )
@@ -42,6 +45,7 @@ def _sample_blocked(
     n_steps,
     block_size,
     uniform,
+    box_L=0.0,
 ):
     """Run MH chains in blocks of block_size steps.
 
@@ -80,7 +84,7 @@ def _sample_blocked(
             def body(inner_carry, step_rand):
                 p, lp, cnt = inner_carry
                 new_p, new_lp, accepted = mh_kernel_log(
-                    step_rand, prob_fn, prob_params, p, lp, step_size, uniform
+                    step_rand, prob_fn, prob_params, p, lp, step_size, uniform, box_L
                 )
                 return (new_p, new_lp, cnt + accepted), new_p
 
@@ -128,6 +132,7 @@ def sample_and_process(
     thinning: int,
     uniform: bool = False,
     block_size: int = 0,
+    box_L: float = 0.0,
 ) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     """Generate one batch of samples from MCMC and process them.
 
@@ -149,6 +154,9 @@ def sample_and_process(
         block_size: If > 0, generate random numbers in blocks of this many
                     steps to cap peak memory at O(n_chains * block_size * dof).
                     Must divide n_steps exactly.  Default 0 = no blocking.
+        box_L:      Periodic box side length. > 0 enables the PBC sampler (proposals
+                    wrapped into [0, L)); 0 (default) leaves walkers on the covering
+                    space. Independent of whether the ansatz is periodic.
 
     Returns:
         samples:          ``(n_chains * n_effective, dof)``
@@ -171,10 +179,11 @@ def sample_and_process(
             n_steps,
             block_size,
             uniform,
+            box_L,
         )
     else:
         rand_nums = _gen_rand(key, n_chains, n_steps, dof, uniform)
-        sampler_fn = create_sampler_fn(mh_chain_fn)
+        sampler_fn = create_sampler_fn(mh_chain_fn, box_L)
         raw_batch, acceptance_rates = sampler_fn(
             rand_nums,
             prob_fn,
