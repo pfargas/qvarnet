@@ -94,9 +94,14 @@ class HP:
     n_chains: int = 512
     sampler: str = "mh"
     step_size: float = 0.0  # 0 = box-aware auto (~½ interparticle spacing); >0 overrides
-    chain_length: int = 80
+    # With warm_walkers the chain persists across epochs, so we only need to *decorrelate* one
+    # fresh sample per epoch: a 21-step chain, discard the first 20, keep the last 1 (n_eff=1).
+    # This is the cheap path — the per-epoch Laplacian batch is n_chains·n_eff, and n_eff drove
+    # the cost (was 30 with the old 80/20/2). Raise chain_length/thinning only if autocorrelation
+    # demands it. (n_eff = (chain_length − thermalization_steps) // thinning_factor.)
+    chain_length: int = 21
     thermalization_steps: int = 20
-    thinning_factor: int = 2
+    thinning_factor: int = 1
     target_acceptance: float = 0.5
     # homogeneous-gas sampling regime: start walkers uniformly across the box and carry them
     # across epochs, so the chain equilibrates once instead of restarting in a speck every epoch

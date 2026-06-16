@@ -43,6 +43,11 @@ def main():
     p.add_argument("--n-x", type=int, default=7)
     p.add_argument("--epochs", type=int, default=2000, help="epoch ceiling (early-stop ends sooner)")
     p.add_argument("--chains", type=int, default=1024)
+    # sampler: per-epoch Laplacian batch = chains * n_eff, n_eff=(chain_len-therm)//thin.
+    # Default 21/20/1 = keep 1 sample/chain/epoch (warm walkers carry the chain across epochs).
+    p.add_argument("--chain-length", type=int, default=21)
+    p.add_argument("--thermalization", type=int, default=20, help="must be < chain-length")
+    p.add_argument("--thinning", type=int, default=1)
     p.add_argument("--gpus", type=str, default=None, help="comma list e.g. 0,1; default = all detected")
     # early-stop tuning (n_epochs is a ceiling). plateau-rel > 0 stops when the tail-mean energy
     # improves by less than that over `es-check-every` epochs — needed because the strict verdict
@@ -63,6 +68,9 @@ def main():
 
     hp = HP(
         n_epochs=args.epochs, n_chains=args.chains,
+        chain_length=args.chain_length,
+        thermalization_steps=args.thermalization,
+        thinning_factor=args.thinning,
         early_stop=not args.no_early_stop,
         es_plateau_rel=args.plateau_rel,
         es_min_epochs=args.es_min_epochs,
