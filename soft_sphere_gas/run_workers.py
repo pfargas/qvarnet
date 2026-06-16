@@ -41,9 +41,18 @@ def main():
     p.add_argument("--N", type=int, nargs="+", default=[64], help="particle counts (N-ladder)")
     p.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2])
     p.add_argument("--n-x", type=int, default=7)
-    p.add_argument("--epochs", type=int, default=2000)
+    p.add_argument("--epochs", type=int, default=2000, help="epoch ceiling (early-stop ends sooner)")
     p.add_argument("--chains", type=int, default=1024)
     p.add_argument("--gpus", type=str, default=None, help="comma list e.g. 0,1; default = all detected")
+    # early-stop tuning (n_epochs is a ceiling). plateau-rel > 0 stops when the tail-mean energy
+    # improves by less than that over `es-check-every` epochs — needed because the strict verdict
+    # rarely fires at very small x (per-epoch noise > error-of-mean). 0 = verdict-only.
+    p.add_argument("--plateau-rel", type=float, default=0.0,
+                   help="early-stop on energy plateau (e.g. 0.005 = <0.5%% improvement/check); 0=off")
+    p.add_argument("--es-min-epochs", type=int, default=200)
+    p.add_argument("--es-check-every", type=int, default=50)
+    p.add_argument("--es-patience", type=int, default=2)
+    p.add_argument("--no-early-stop", action="store_true", help="run the full --epochs (no early stop)")
     p.add_argument("--db", default="outputs/soft_sphere.db")
     args = p.parse_args()
 
@@ -52,7 +61,14 @@ def main():
     if requeued:
         print(f"requeued {requeued} interrupted run(s)")
 
-    hp = HP(n_epochs=args.epochs, n_chains=args.chains)
+    hp = HP(
+        n_epochs=args.epochs, n_chains=args.chains,
+        early_stop=not args.no_early_stop,
+        es_plateau_rel=args.plateau_rel,
+        es_min_epochs=args.es_min_epochs,
+        es_check_every=args.es_check_every,
+        es_patience=args.es_patience,
+    )
     n = sweep.enqueue_sweep(conn, SS10, args.N, args.seeds, hp, n_x=args.n_x)
     print(f"enqueued sweep: N={args.N} seeds={args.seeds} n_x={args.n_x} -> {n} new todo points")
     print(f"queue status: {db.status_counts(conn)}")

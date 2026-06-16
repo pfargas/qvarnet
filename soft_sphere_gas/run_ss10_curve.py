@@ -29,6 +29,13 @@ def main():
     p.add_argument(
         "--tune", action="store_true", help="ASHA-tune at an anchor x, then freeze"
     )
+    # early-stop tuning (--epochs is a ceiling). See run_workers.py for the same flags.
+    p.add_argument("--plateau-rel", type=float, default=0.0,
+                   help="early-stop on energy plateau (e.g. 0.005); 0=verdict-only")
+    p.add_argument("--es-min-epochs", type=int, default=200)
+    p.add_argument("--es-check-every", type=int, default=50)
+    p.add_argument("--es-patience", type=int, default=2)
+    p.add_argument("--no-early-stop", action="store_true", help="run the full --epochs")
     p.add_argument("--db", default="outputs/soft_sphere.db")
     args = p.parse_args()
 
@@ -40,7 +47,14 @@ def main():
     print(
         f"SS10 feasible x-grid: {xs[0]:.2e} ... {xs[-1]:.2e}  (N={args.N}, n_x={args.n_x})"
     )
-    base = HP(n_epochs=args.epochs, n_chains=args.chains)
+    base = HP(
+        n_epochs=args.epochs, n_chains=args.chains,
+        early_stop=not args.no_early_stop,
+        es_plateau_rel=args.plateau_rel,
+        es_min_epochs=args.es_min_epochs,
+        es_check_every=args.es_check_every,
+        es_patience=args.es_patience,
+    )
 
     if args.tune:
         space = [

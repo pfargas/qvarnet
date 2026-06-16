@@ -196,6 +196,20 @@ units and as **paper-unit per-particle** columns (`e_per_n_paper = 2·energy_eng
 
 ## 4. Reading / extracting results
 
+### Sanity-check the physics (`check_db.py`)
+
+The fastest way to confirm a run is sound — reads the DB and checks every done point against the
+rigorous corridor (`4πx ≤ E/N ≤ Eq.31`) and Lee–Yang, prints the queue status, any failures, and
+the seed-aggregated curve:
+
+```bash
+python check_db.py --db outputs/soft_sphere.db
+```
+
+Each row shows `E/N` (per-particle paper units, straight from the DB — no progress-bar guessing),
+the bounds, `E/LY`, a `corridor` ok/VIOLATION flag, the verdict, and `epochs_ran`. "all done
+points inside [4πx, Eq31]" = the physics is correct.
+
 ### The curve (seed-averaged, verdict-gated)
 
 ```python
