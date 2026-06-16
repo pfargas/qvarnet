@@ -49,6 +49,8 @@ def main():
     p.add_argument("--thermalization", type=int, default=20, help="must be < chain-length")
     p.add_argument("--thinning", type=int, default=1)
     p.add_argument("--gpus", type=str, default=None, help="comma list e.g. 0,1; default = all detected")
+    p.add_argument("--cpu-per-worker", type=int, default=0,
+                   help="CPU threads per worker (0 = auto = cores/n_workers); prevents multi-worker thrash")
     # early-stop tuning (n_epochs is a ceiling). plateau-rel > 0 stops when the tail-mean energy
     # improves by less than that over `es-check-every` epochs — needed because the strict verdict
     # rarely fires at very small x (per-epoch noise > error-of-mean). 0 = verdict-only.
@@ -84,11 +86,24 @@ def main():
 
     gpus = args.gpus.split(",") if args.gpus else detect_gpus()
     here = os.path.dirname(os.path.abspath(__file__))
-    print(f"launching {len(gpus)} worker(s) on GPU(s) {gpus}")
+
+    # Cap host-side CPU threads per worker. Running N unthrottled JAX processes on one node makes
+    # them thrash each other on the shared CPU (measured ~28× slowdown with 2 workers); pinning
+    # each to a slice of the cores fixes it. Default: cores / n_workers (>=1).
+    n_cpu = os.cpu_count() or 8
+    per = args.cpu_per_worker if args.cpu_per_worker > 0 else max(1, n_cpu // max(1, len(gpus)))
+    print(f"launching {len(gpus)} worker(s) on GPU(s) {gpus}  ({per} CPU threads each of {n_cpu})")
 
     procs = []
     for g in gpus:
-        env = dict(os.environ, CUDA_VISIBLE_DEVICES=str(g))
+        env = dict(
+            os.environ,
+            CUDA_VISIBLE_DEVICES=str(g),
+            OMP_NUM_THREADS=str(per),
+            MKL_NUM_THREADS=str(per),
+            OPENBLAS_NUM_THREADS=str(per),
+            NUMEXPR_NUM_THREADS=str(per),
+        )
         procs.append(subprocess.Popen(
             [sys.executable, os.path.join(here, "worker.py"), "--db", args.db], env=env
         ))
