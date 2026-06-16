@@ -9,7 +9,6 @@ import math
 
 import matplotlib.pyplot as plt
 import numpy as np
-
 from dilute_gas import lee_yang_energy_per_particle
 
 x = np.logspace(-6, -1.5, 300)  # gas parameter rho a^3

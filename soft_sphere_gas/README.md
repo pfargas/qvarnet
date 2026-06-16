@@ -12,19 +12,32 @@ engine stays general.
 
 ## Physics
 
-3D homogeneous gas of `N` bosons, `ℏ = m = 1`, Hamiltonian (paper Eq. 7)
+3D homogeneous gas of `N` bosons, Hamiltonian (paper Eq. 7)
 
-    H = -½ Σ ∇²ᵢ + Σ_{i<j} V(r_ij),   V(r) = V0 for r<R, else 0   (soft sphere, Eq. 9)
-
-implemented by `qvarnet.PenetrableSphereHamiltonian` with `PeriodicBoundary(L)`.
+    H = -∇²ᵢ Σ + Σ_{i<j} V(r_ij),   V(r) = V0 for r<R, else 0   (soft sphere, Eq. 9)
 
 The control parameter is the **gas parameter** `x = ρ a³`, where the s-wave
 scattering length is (Eq. 10)
 
-    a = R[1 - tanh(K₀R)/(K₀R)],   K₀ = √V0.
+    a = R[1 - tanh(K₀R)/(K₀R)],   K₀ = √(V0/2).
 
-All energies are reported in units of `ℏ²/2ma² = 1/a²`, and validated at low `x`
-against the Lee–Yang expansion (Eq. 1).
+## Units & conventions
+
+We work in the **paper's convention** so every number lands on Mazzanti's tables:
+`ℏ²/2m = 1` (kinetic operator `-∇²`), lengths in units of `a` (so `a = 1`),
+energies in units of `ℏ²/2ma²`. In this convention `K₀² = V0·m/ℏ² = V0/2`, and the
+paper's published barriers `V0(SS10)=0.00681670` (R=10) and `V0(SS5)=0.06308561`
+(R=5) both give `a = 1` (regression-tested).
+
+**Bridge to the engine.** `qvarnet.PenetrableSphereHamiltonian` runs in `ℏ = m = 1`
+(kinetic `-½∇²`) — a factor of two from the paper. The translation lives in two
+helpers only: build with `V0_engine = engine_V0(V0_paper)` (= V0/2) and report
+`E_paper = to_paper_energy(E_engine)` (= 2·E). Lengths (`R`, box `L`) are identical
+in both conventions; only `V0` and the energy carry the factor of two. Use
+`n_dim=3` and `PeriodicBoundary(L)` when constructing the Hamiltonian.
+
+Validated at low `x` against the Lee–Yang expansion (Eq. 1) and against the
+first-order upper bound (Eq. 31, `first_order_energy_upper_bound`).
 
 ## Files
 
