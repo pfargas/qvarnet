@@ -29,14 +29,20 @@ def main():
     # sampler: per-epoch Laplacian batch = chains * (chain-length-therm)//thinning.
     # 21/20/1 = keep 1 sample/chain/epoch (warm walkers carry the chain across epochs).
     p.add_argument("--chain-length", type=int, default=21)
-    p.add_argument("--thermalization", type=int, default=20, help="must be < chain-length")
+    p.add_argument(
+        "--thermalization", type=int, default=20, help="must be < chain-length"
+    )
     p.add_argument("--thinning", type=int, default=1)
     p.add_argument(
         "--tune", action="store_true", help="ASHA-tune at an anchor x, then freeze"
     )
     # early-stop tuning (--epochs is a ceiling). See run_workers.py for the same flags.
-    p.add_argument("--plateau-rel", type=float, default=0.0,
-                   help="early-stop on energy plateau (e.g. 0.005); 0=verdict-only")
+    p.add_argument(
+        "--plateau-rel",
+        type=float,
+        default=0.0,
+        help="early-stop on energy plateau (e.g. 0.005); 0=verdict-only",
+    )
     p.add_argument("--es-min-epochs", type=int, default=200)
     p.add_argument("--es-check-every", type=int, default=50)
     p.add_argument("--es-patience", type=int, default=2)
@@ -52,8 +58,12 @@ def main():
     print(
         f"SS10 feasible x-grid: {xs[0]:.2e} ... {xs[-1]:.2e}  (N={args.N}, n_x={args.n_x})"
     )
+    print(
+        f" chains={args.chains}, chain-length={args.chain_length}, thermalization={args.thermalization}, thinning={args.thinning}"
+    )
     base = HP(
-        n_epochs=args.epochs, n_chains=args.chains,
+        n_epochs=args.epochs,
+        n_chains=args.chains,
         chain_length=args.chain_length,
         thermalization_steps=args.thermalization,
         thinning_factor=args.thinning,
