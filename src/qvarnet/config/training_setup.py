@@ -101,9 +101,9 @@ class TrainingConfig:
     def __post_init__(self):
         if self.min_step >= self.max_step:
             raise ValueError(f"min_step ({self.min_step}) must be < max_step ({self.max_step})")
-        if self.init_positions not in ("normal", "zeros"):
+        if self.init_positions not in ("normal", "zeros", "uniform"):
             raise ValueError(
-                f"init_positions must be 'normal' or 'zeros', got {self.init_positions!r}"
+                f"init_positions must be 'normal', 'zeros' or 'uniform', got {self.init_positions!r}"
             )
 
 

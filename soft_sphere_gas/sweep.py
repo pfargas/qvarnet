@@ -77,19 +77,14 @@ def tune_then_freeze(potential, anchor_x, N, space, **asha_kw) -> Frozen:
 # ── the runs ──────────────────────────────────────────────────────────────────────
 
 
-def run_one(conn, potential, x, N, seed, hp, *, out_root: str, force: bool = False) -> None:
-    """Run a single point unless already done (resumable). Records status + artifacts.
+def execute_claimed(conn, potential, x, N, seed, hp, *, out_root: str) -> None:
+    """Train one already-claimed (status ``running``) point, write artifacts, save the result.
 
-    On success: writes the run dir (history/params/meta/verdict) under ``out_root`` and stores its
-    relative path in the DB row, so the scalar index and the heavy artifacts stay linked.
+    Shared by the serial driver (`run_one`) and the parallel `worker.py`. Assumes the row is
+    already marked ``running`` (by `mark_running` or `db.claim_next`); does not re-check status.
+    Writes the run dir (history/params/meta/verdict) under ``out_root`` and links it via ``run_dir``.
+    On failure the row is marked ``failed`` (with the traceback) and the exception re-raised.
     """
-    if not force and db.status_of(conn, potential, x, N, seed, hp) == "done":
-        return
-    if not box_fits_interaction(potential, x, N):
-        db.mark_skipped_box(conn, potential, x, N, seed, hp, box_side_for_gas_parameter(x, 1.0, N))
-        return
-    db.enqueue(conn, potential, x, N, seed, hp)
-    db.mark_running(conn, potential, x, N, seed, hp)
     rel = os.path.join(artifacts.RUNS_SUBDIR, artifacts.run_id(potential, x, N, seed, hp))
     run_path = os.path.join(out_root, rel)
     os.makedirs(run_path, exist_ok=True)
@@ -100,6 +95,18 @@ def run_one(conn, potential, x, N, seed, hp, *, out_root: str, force: bool = Fal
     except Exception:
         db.mark_failed(conn, potential, x, N, seed, hp, traceback.format_exc())
         raise
+
+
+def run_one(conn, potential, x, N, seed, hp, *, out_root: str, force: bool = False) -> None:
+    """Run a single point unless already done (resumable, serial). Records status + artifacts."""
+    if not force and db.status_of(conn, potential, x, N, seed, hp) == "done":
+        return
+    if not box_fits_interaction(potential, x, N):
+        db.mark_skipped_box(conn, potential, x, N, seed, hp, box_side_for_gas_parameter(x, 1.0, N))
+        return
+    db.enqueue(conn, potential, x, N, seed, hp)
+    db.mark_running(conn, potential, x, N, seed, hp)
+    execute_claimed(conn, potential, x, N, seed, hp, out_root=out_root)
 
 
 def sweep_x(conn, potential, xs, N, seeds, strategy: HPStrategy, *,
@@ -156,3 +163,28 @@ def feasible_x_grid(potential, N, x_lo=1e-5, x_hi=1e-2, n=8) -> np.ndarray:
     x_max_box = N / (8.0 * potential.R**3)
     grid = np.geomspace(x_lo, min(x_hi, 0.999 * x_max_box), n)
     return grid
+
+
+# ── work-queue planning (for the parallel, worker-per-GPU runner) ────────────────────
+
+
+def enqueue_sweep(conn, potential, N_list, seeds, hp, *, n_x=7, x_lo=1e-5, x_hi=1e-2) -> int:
+    """Insert all ``todo`` rows for a (potential, N-ladder, seeds, hp) sweep; return #enqueued.
+
+    One row per ``(potential, x, N, seed, hp)`` over the box-feasible x-grid *per N* (the grid
+    ceiling ``x < N/(8R^3)`` depends on N). Infeasible points are recorded ``skipped_box`` and not
+    counted. Idempotent (``INSERT OR IGNORE``), so it is safe to re-run to extend a sweep — already
+    present points keep their status. Workers then drain the queue via :func:`db.claim_next`.
+    """
+    n = 0
+    for N in N_list:
+        xs = feasible_x_grid(potential, N, x_lo=x_lo, x_hi=x_hi, n=n_x)
+        for x in (float(v) for v in xs):
+            for seed in seeds:
+                if not box_fits_interaction(potential, x, N):
+                    db.mark_skipped_box(conn, potential, x, N, seed, hp,
+                                        box_side_for_gas_parameter(x, 1.0, N))
+                    continue
+                db.enqueue(conn, potential, x, N, seed, hp)
+                n += 1
+    return n

@@ -141,6 +141,35 @@ def requeue_interrupted(conn) -> int:
     return cur.rowcount
 
 
+def claim_next(conn):
+    """Atomically claim one ``todo`` row for execution (multi-worker safe). Returns the row or None.
+
+    Uses ``BEGIN IMMEDIATE`` so concurrent workers on one WAL database serialise on the write
+    lock — two GPU workers can never grab the same point. The returned row carries everything
+    needed to reconstruct the run: ``potential_label, R, V0_paper, x, N, seed, hp_json``.
+    """
+    conn.execute("BEGIN IMMEDIATE")
+    row = conn.execute(
+        "SELECT id, potential_label, R, V0_paper, x, N, seed, hp_json "
+        "FROM runs WHERE status='todo' ORDER BY id LIMIT 1"
+    ).fetchone()
+    if row is None:
+        conn.commit()
+        return None
+    conn.execute(
+        "UPDATE runs SET status='running', started_at=?, error=NULL WHERE id=?",
+        (_now(), row["id"]),
+    )
+    conn.commit()
+    return row
+
+
+def status_counts(conn) -> dict:
+    """``{status: count}`` across all rows — for launcher/worker progress reporting."""
+    rows = conn.execute("SELECT status, COUNT(*) AS n FROM runs GROUP BY status").fetchall()
+    return {r["status"]: r["n"] for r in rows}
+
+
 def fetch_done(conn, potential_label: str, N: int) -> list[sqlite3.Row]:
     """All completed, verdict-passing rows for one (potential, N), ordered by x then seed."""
     return conn.execute(

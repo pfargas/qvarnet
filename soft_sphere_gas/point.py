@@ -33,6 +33,7 @@ from dilute_gas import (
 )
 
 from qvarnet import PenetrableSphereHamiltonian, PeriodicBoundary
+from qvarnet.callbacks import EarlyStopCallback
 from qvarnet.config.coord_mode import LabCoords
 from qvarnet.config.training_setup import SamplingConfig, TrainingConfig
 from qvarnet.models.compose import LogWavefunction
@@ -92,11 +93,25 @@ class HP:
     # sampler
     n_chains: int = 512
     sampler: str = "mh"
-    step_size: float = 0.3
+    step_size: float = 0.0  # 0 = box-aware auto (~½ interparticle spacing); >0 overrides
     chain_length: int = 80
     thermalization_steps: int = 20
     thinning_factor: int = 2
     target_acceptance: float = 0.5
+    # homogeneous-gas sampling regime: start walkers uniformly across the box and carry them
+    # across epochs, so the chain equilibrates once instead of restarting in a speck every epoch
+    # (the default normal/cold-start is disastrous when L ~ (N/x)^{1/3} is hundreds of a).
+    init_positions: str = "uniform"
+    warm_walkers: bool = True
+    # early stopping: end a run once the three-referee verdict passes `es_patience` checks in a
+    # row (after `es_min_epochs`), so `n_epochs` is only a ceiling. es_target_rel_err>0 also
+    # requires err/|E| below it before stopping. Set early_stop=False for a fixed-length run.
+    early_stop: bool = True
+    es_check_every: int = 50
+    es_min_epochs: int = 200
+    es_patience: int = 2
+    es_target_rel_err: float = 0.0  # 0 = verdict-only (no relative-error gate)
+    es_plateau_rel: float = 0.0     # >0: also stop when tail-E improves < this/check (NN drift)
     # parameter retrieval: keep the best ``snapshot_frac`` of epochs (by ``select``, lower=better)
     select: str = "std"
     snapshot_frac: float = 0.10
@@ -123,6 +138,15 @@ class HP:
             "thermalization_steps": self.thermalization_steps,
             "thinning_factor": self.thinning_factor,
             "target_acceptance": self.target_acceptance,
+            "init_positions": self.init_positions,
+            "warm_walkers": self.warm_walkers,
+            "model_with_pbc": self.model_with_pbc,
+            "early_stop": self.early_stop,
+            "es_check_every": self.es_check_every,
+            "es_min_epochs": self.es_min_epochs,
+            "es_patience": self.es_patience,
+            "es_target_rel_err": self.es_target_rel_err,
+            "es_plateau_rel": self.es_plateau_rel,
             "select": self.select,
             "snapshot_frac": self.snapshot_frac,
         }
@@ -193,12 +217,30 @@ def run_point(
         L=L
     )  # Here the boundary is always periodic, since the soft-sphere gas is defined in a box with PBCs.
 
+    # Box-aware MH step. The relevant length is the interparticle spacing d = L / N^{1/3}
+    # (= x^{-1/3} a). Start at ~½ d and let the adaptive controller refine toward
+    # target_acceptance; raise max_step well above the default 5.0 so it isn't capped in the
+    # big dilute boxes (where d can be tens of a). step_size>0 in HP overrides the auto value.
+    spacing = L / N ** (1.0 / 3.0)
+    step0 = hp.step_size if hp.step_size > 0 else 0.5 * spacing
+    max_step = max(5.0, 0.5 * L)
+
     hamiltonian = PenetrableSphereHamiltonian(
         n_dim=N_DIM,
         R=potential.R,
         V0=engine_V0(potential.V0_paper),  # ← /2 : paper -> engine (ℏ=m=1)
         boundary=boundary,
     )
+
+    callbacks = []
+    if hp.early_stop:
+        callbacks.append(EarlyStopCallback(
+            check_every=hp.es_check_every,
+            min_epochs=hp.es_min_epochs,
+            patience=hp.es_patience,
+            target_rel_err=hp.es_target_rel_err or None,
+            plateau_rel=hp.es_plateau_rel or None,
+        ))
 
     result = train(
         shape=(hp.n_chains, N * N_DIM),
@@ -212,9 +254,12 @@ def run_point(
             target_acceptance=hp.target_acceptance,
             save_checkpoints=False,
             checkpoint_path=checkpoint_dir or "./",
+            init_positions=hp.init_positions,
+            warm_walkers=hp.warm_walkers,
+            max_step=max_step,
         ),
         sampler_params=SamplingConfig(
-            step_size=hp.step_size,
+            step_size=step0,
             chain_length=hp.chain_length,
             thermalization_steps=hp.thermalization_steps,
             thinning_factor=hp.thinning_factor,
@@ -222,11 +267,16 @@ def run_point(
             sampler=hp.sampler,
         ),
         coord_mode=LabCoords(),
+        callbacks=callbacks,
         select=hp.select,
         k_best=hp.k_best(),  # retain the best snapshot_frac of epochs (by `select`)
     )
 
     verdict = result.diagnose(print_report=False)
+    # Record how the run terminated: epochs actually run (< n_epochs ⇒ early-stopped) + where.
+    verdict["epochs_ran"] = len(result.history)
+    verdict["early_stopped_at"] = callbacks[0].stopped_at if callbacks else None
+    verdict["early_stop_reason"] = callbacks[0].stop_reason if callbacks else None
 
     # Tail estimates live in the verdict (engine units); convert to per-particle paper units.
     e_engine = float(verdict["tail_energy"])

@@ -167,6 +167,14 @@ def train(
         current_positions = jax.random.normal(key, shape) * 0.5
     elif training_config.init_positions == "zeros":
         current_positions = jnp.zeros(shape)
+    elif training_config.init_positions == "uniform":
+        # Uniform over the periodic box [0, L)^dof — the correct prior for a homogeneous
+        # (untrapped) gas. Starting from a "normal" speck in a large box (L ~ (N/x)^{1/3}
+        # can be hundreds of scattering lengths) leaves the walkers unequilibrated for
+        # thousands of MH steps; uniform init removes that burn-in entirely.
+        if not sampling_config.box_L:
+            raise ValueError("init_positions='uniform' requires sampling_config.box_L (a PBC box)")
+        current_positions = jax.random.uniform(key, shape) * sampling_config.box_L
     else:
         raise ValueError(f"Unknown init_positions: {training_config.init_positions!r}")
 

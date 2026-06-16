@@ -14,6 +14,30 @@ design). This file is only about *operating* the pipeline.
 
 ## 1. How to run
 
+### On a cluster with conda (no `uv`)
+
+The scripts have **no dependency on `uv`** — that's just the local dev launcher. With an activated
+conda env you only need `qvarnet` importable and the deps present (`jax`+CUDA, `flax`, `optax`,
+`numpy`, `matplotlib`). Outputs go to `./outputs/` **relative to your current directory**, so run
+from wherever you want them:
+
+```bash
+conda activate <env>
+pip install -e ~/qvarnet --no-deps          # one-time; makes `import qvarnet` work
+#   (or, without installing:  export PYTHONPATH=~/qvarnet/src)
+export MPLBACKEND=Agg                        # headless plotting
+
+cd ~/dilute-bose
+python ~/qvarnet/soft_sphere_gas/run_workers.py --gpus 0,1 --seeds 0 1 2
+#   -> writes ~/dilute-bose/outputs/{soft_sphere.db, runs/}
+```
+
+Running the script *by path* puts its own directory on `sys.path`, so the sibling imports
+(`db`, `point`, …) resolve while outputs stay relative to your CWD. Everything below shows the
+local `uv` form; on the cluster drop `uv run --project ..` and just use `python`.
+
+### Local (uv)
+
 Everything runs through `uv` from the qvarnet project (the venv lives one level up):
 
 ```bash
@@ -36,6 +60,56 @@ is the key, so changing any of those produces a *new* run rather than overwritin
 default is **1024 chains** (~5.6 s/epoch). 512 chains (~2.8 s/epoch) also works and is noisier.
 On a bigger cluster GPU you can raise `--chains` (and lower wall-clock). Rough budget at 1024
 chains / 2000 epochs: **~3 hr per (x, seed) point**; a full 7×3 grid is ~60 GPU-hours.
+
+### Multi-GPU (worker-per-GPU) — the fast path
+
+The sweep is a set of *independent* points, so the efficient way to use several GPUs is one
+**worker process per GPU**, all draining a single shared SQLite queue. `db.claim_next` hands each
+worker a distinct `(potential, x, N, seed, hp)` atomically (`BEGIN IMMEDIATE`), so two GPUs never
+run the same point, and it load-balances (a free GPU claims the next point immediately).
+
+```bash
+cd ~/qvarnet/soft_sphere_gas        # or wherever the project lives
+
+# fill the queue + spawn one worker per detected GPU (Titan V + Titan Xp -> 2 workers)
+python run_workers.py --N 64 --seeds 0 1 2 --epochs 2000 --chains 1024 \
+       --db ~/dilute-bose/outputs/soft_sphere.db
+
+# explicit GPUs and a finite-N ladder
+python run_workers.py --gpus 0,1 --N 32 64 128 --seeds 0 1 --db ~/dilute-bose/outputs/soft_sphere.db
+```
+
+`run_workers.py` requeues any crashed `running` rows, enqueues the whole sweep (feasible x-grid
+*per N*), then launches the workers with `CUDA_VISIBLE_DEVICES` pinned per GPU. It's fully
+resumable: re-run the same command to extend (add seeds / N / x-points) — finished points are
+skipped. To run a single GPU by hand: `CUDA_VISIBLE_DEVICES=0 python worker.py --db <path>`.
+
+> **One worker per *distinct* GPU.** JAX preallocates most of a GPU's VRAM per process, so do not
+> point two workers at the same device (you'll OOM) unless you also set
+> `XLA_PYTHON_CLIENT_MEM_FRACTION` low. The Titans have 12 GB, so `--chains 1024` (and likely
+> 2048) fits one worker comfortably.
+
+> **Same node only (SQLite).** The shared-queue coordination relies on a local-filesystem SQLite
+> DB. For multiple GPUs on one node this is ideal. Across nodes, give each node its own `--db` and
+> merge afterwards (every row is keyed, so `INSERT OR IGNORE` merges cleanly).
+
+### Early stopping (don't waste epochs)
+
+`n_epochs` is a **ceiling**, not a fixed length: by default each run stops once it looks converged,
+via `EarlyStopCallback`. Two triggers (a run stops when either holds for `es_patience` checks in a
+row, after `es_min_epochs`):
+
+- **verdict** (default): the three-referee convergence verdict passes (stationary + at MC floor +
+  chains mixed). Principled and never stops while the energy is still meaningfully improving — but
+  for a slowly-improving NN ansatz it can wait a long time.
+- **plateau** (opt-in, `es_plateau_rel > 0`): the tail-mean energy improved by less than
+  `es_plateau_rel` (relative) over the last `es_check_every` epochs — i.e. the optimiser has
+  effectively stopped lowering the energy. More aggressive; saves the most GPU time.
+
+`HP` knobs: `early_stop` (default `True`), `es_min_epochs` (200), `es_check_every` (50),
+`es_patience` (2), `es_target_rel_err` (0 = off; require `err/|E|` below it), `es_plateau_rel`
+(0 = off). The run's `verdict.json` records `epochs_ran`, `early_stopped_at`, `early_stop_reason`.
+Set `early_stop=False` for a fixed-length run.
 
 **A single point** (no DB, for a quick check):
 
