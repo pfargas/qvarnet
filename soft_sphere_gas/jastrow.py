@@ -95,5 +95,16 @@ class SoftCoreJastrow(nn.Module):
         d = pos[..., i, :] - pos[..., j, :]                           # (..., P, d), P=N(N-1)/2
         d = d - self.L * jnp.round(d / self.L)                        # minimum image
         r = jnp.sqrt(jnp.sum(d**2, axis=-1) + self.eps_reg)           # (..., P); eps: 0-grad guard
-        jr = pair_log_jastrow(r, self.alpha, self.Rc)                 # (..., P)
+        # C¹ cutoff at r_c = L/2 so log J is smooth *and periodic* on the torus (spec §8). Subtract
+        # the raw 2-body j's value AND slope at r_c, then zero it beyond ⇒ j_cut(r_c)=j_cut'(r_c)=0.
+        # This leaves the short-range 2-body physics (hole/cusp at r∼a) intact up to a tiny linear
+        # tilt; only the long-range tail (pairs already ~uncorrelated) is healed. WITHOUT it the
+        # non-periodic tail breaks the ⟨T⟩=½⟨|∇logψ|²⟩≥0 identity ⇒ negative kinetic, E/N below 4πx.
+        # r_c = L/2 > Rc (guaranteed by box_fits_interaction), so r_c is in the outside branch:
+        # j(r_c)=log(1−1/r_c), j'(r_c)=1/(r_c²−r_c) — analytic, no nested AD inside the Laplacian.
+        rc = 0.5 * self.L
+        j_rc = jnp.log1p(-1.0 / rc)
+        jp_rc = 1.0 / (rc * rc - rc)
+        jr = pair_log_jastrow(r, self.alpha, self.Rc) - j_rc - (r - rc) * jp_rc  # (..., P)
+        jr = jnp.where(r < rc, jr, 0.0)                              # heal to 0 beyond L/2
         return jnp.sum(jr, axis=-1)[..., None]                        # (..., 1)
