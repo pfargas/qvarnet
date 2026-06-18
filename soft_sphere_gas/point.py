@@ -22,6 +22,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 import jax
+import jax.numpy as jnp
 import numpy as np
 import optax
 from dilute_gas import (
@@ -32,6 +33,7 @@ from dilute_gas import (
     softcore_jastrow_params,
     to_paper_energy,
 )
+from flax import linen as nn
 from jastrow import SoftCoreJastrow
 
 from qvarnet import PenetrableSphereHamiltonian, PeriodicBoundary
@@ -94,6 +96,11 @@ class HP:
     # at the uncorrelated UB Eq.31); turn on to capture the r_ij correlation hole and head toward
     # Lee-Yang. α/Rc are fixed by the potential (frozen, no params), so it adds zero optimiser cost.
     use_jastrow: bool = False
+    # Include the neural network (DeepSet) at all. False ⇒ bare analytic Jastrow only (no trainable
+    # params): a fixed two-body-correlated trial whose energy is the lowest-order (Bijl–Jastrow)
+    # value — the analog of the paper's IPC/SR. Pair with use_jastrow=True (else log ψ = 0 = ideal
+    # gas). See _ZeroNetwork.
+    use_network: bool = True
     # Pooled-latent size of the DeepSet (the φ output / aggregation width). This is the real
     # capacity bottleneck: phi_hidden/F_hidden only widen the per-particle and readout MLPs, while
     # *all* particle information is squeezed through this one vector before F sees it. The Deep Sets
@@ -166,6 +173,7 @@ class HP:
             "phi_hidden": list(self.phi_hidden),
             "F_hidden": list(self.F_hidden),
             "use_jastrow": self.use_jastrow,
+            "use_network": self.use_network,
             "lr_schedule": self.lr_schedule,
             "lr_final_frac": self.lr_final_frac,
             "hidden_internal_dim": self.hidden_internal_dim,
@@ -245,6 +253,20 @@ def _build_optimizer(hp: HP) -> optax.GradientTransformation:
     return optax.adam(lr)
 
 
+class _ZeroNetwork(nn.Module):
+    """A parameter-free network that outputs log-contribution 0 — i.e. *no* neural part.
+
+    With ``use_network=False`` the ansatz is the bare analytic Jastrow, ``log ψ = Σ_{i<j} j(r_ij)``:
+    a *fixed* trial wavefunction (no trainable parameters), so "training" just MC-samples |ψ_J|²
+    and averages the local energy — the lowest-order (Bijl–Jastrow) energy, the analog of the
+    paper's IPC/SR two-body-correlation-only result.
+    """
+
+    @nn.compact
+    def __call__(self, x):  # x: (..., N, ppd) after LogWavefunction's reshape
+        return jnp.zeros((*x.shape[:-2], 1), dtype=x.dtype)
+
+
 def _build_model(N: int, L: float, hp: HP, potential: Potential) -> LogWavefunction:
     jastrow = None
     if hp.use_jastrow:
@@ -252,15 +274,20 @@ def _build_model(N: int, L: float, hp: HP, potential: Potential) -> LogWavefunct
         # can't build). α/Rc are fixed by the potential (a_s=1); see jastrow.py / spec §9.
         alpha, Rc = softcore_jastrow_params(potential.V0_paper, potential.R)
         jastrow = SoftCoreJastrow(n_particles=N, n_dim=N_DIM, L=L, alpha=alpha, Rc=Rc)
+    network = (
+        DeepSet(
+            phi_hidden=list(hp.phi_hidden),
+            F_hidden=list(hp.F_hidden),
+            hidden_internal_dim=hp.hidden_internal_dim,
+        )
+        if hp.use_network
+        else _ZeroNetwork()  # bare-Jastrow run: no neural part, no trainable params
+    )
     return LogWavefunction(
         n_particles=N,
         n_dim=N_DIM,
         transform=PeriodicBoundary(L=L) if hp.model_with_pbc else None,
-        network=DeepSet(
-            phi_hidden=list(hp.phi_hidden),
-            F_hidden=list(hp.F_hidden),
-            hidden_internal_dim=hp.hidden_internal_dim,
-        ),
+        network=network,
         jastrow=jastrow,
     )
 

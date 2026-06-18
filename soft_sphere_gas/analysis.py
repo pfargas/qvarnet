@@ -75,28 +75,59 @@ def aggregate_seeds(rows) -> tuple[float, float, int]:
     return mean, max(across, float(within.mean())), len(e)
 
 
-def collect_ladder(conn, potential_label: str, N_list, require_passed: bool = True) -> dict:
+def _cluster_x(xs_sorted, rtol):
+    """Group a *sorted* list of x into clusters where neighbours are within ``rtol`` (relative).
+
+    ``rtol=0`` ⇒ every x is its own cluster (exact grouping). A small ``rtol`` (e.g. 0.02) merges
+    near-duplicate x produced by different sweep grids (e.g. 0.00999 vs 0.01) so they're treated as
+    the *same* density — real grid points are spaced far more than a few % apart, so they're safe.
+    """
+    if not xs_sorted:
+        return []
+    clusters = [[xs_sorted[0]]]
+    for x in xs_sorted[1:]:
+        if rtol > 0 and x <= clusters[-1][-1] * (1.0 + rtol):
+            clusters[-1].append(x)
+        else:
+            clusters.append([x])
+    return clusters
+
+
+def collect_ladder(conn, potential_label: str, N_list, require_passed: bool = True,
+                   x_rtol: float = 0.02) -> dict:
     """Group all done runs into ``{x: [(N, e_per_n, err, n_seeds), ...]}`` (seeds already merged).
 
-    ``x`` keys come straight from the DB; for an aligned (shared-grid) sweep they match bit-for-bit
-    across N, so the same physical x lands in one bucket. Off-grid legacy points (a different x per
-    N) simply land in singleton buckets and are skipped by the fit (needs ≥2 N).
+    x-values within ``x_rtol`` (relative) are merged into one density: their rows are pooled per N
+    (across seeds *and* the near-equal x), so a point run twice on slightly different grids
+    (0.00999 vs 0.01) becomes a single x with a richer N-ladder instead of two near-coincident
+    points. The cluster is labelled by the mean of its x-values. ``x_rtol=0`` recovers exact
+    grouping. Only x sampled at ≥2 N survive the fit downstream.
     """
     from collections import defaultdict
 
     import db
 
-    per_xn: dict = defaultdict(list)
+    rows_by_xN: dict = defaultdict(list)   # (x, N) -> [rows]
+    all_x: set = set()
     for N in N_list:
-        rows = [r for r in db.fetch_done(conn, potential_label, N)
-                if not (require_passed and not r["passed"])]
-        by_x: dict = defaultdict(list)
-        for r in rows:
-            by_x[r["x"]].append(r)
-        for x, seed_rows in by_x.items():
-            e, err, n = aggregate_seeds(seed_rows)
-            per_xn[x].append((N, e, err, n))
-    return {x: sorted(per_xn[x]) for x in sorted(per_xn)}
+        for r in db.fetch_done(conn, potential_label, N):
+            if require_passed and not r["passed"]:
+                continue
+            rows_by_xN[(r["x"], N)].append(r)
+            all_x.add(r["x"])
+
+    out: dict = {}
+    for cl in _cluster_x(sorted(all_x), x_rtol):
+        x_label = float(np.mean(cl))
+        pts = []
+        for N in N_list:
+            seed_rows = [row for x in cl for row in rows_by_xN.get((x, N), [])]
+            if seed_rows:
+                e, err, n = aggregate_seeds(seed_rows)
+                pts.append((N, e, err, n))
+        if pts:
+            out[x_label] = sorted(pts)
+    return dict(sorted(out.items()))
 
 
 def _wls_intercept(t, y, s):
@@ -116,7 +147,8 @@ def _wls_intercept(t, y, s):
 
 
 def extrapolate_thermodynamic(conn, potential_label: str, N_list,
-                              require_passed: bool = True, min_N: int = 2) -> dict:
+                              require_passed: bool = True, min_N: int = 2,
+                              x_rtol: float = 0.02) -> dict:
     """N→∞ extrapolation of E/N at each fixed x: weighted linear fit in 1/N.
 
     Returns ``{x: fit}`` where each ``fit`` has::
@@ -131,7 +163,7 @@ def extrapolate_thermodynamic(conn, potential_label: str, N_list,
     different power here if a curvature term is needed. Points with fewer than ``min_N`` rungs are
     skipped (you can't extrapolate one N).
     """
-    ladder = collect_ladder(conn, potential_label, N_list, require_passed)
+    ladder = collect_ladder(conn, potential_label, N_list, require_passed, x_rtol=x_rtol)
     fits = {}
     for x, pts in ladder.items():
         if len(pts) < min_N:

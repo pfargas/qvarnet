@@ -23,7 +23,7 @@ import sys
 
 import db
 import sweep
-from point import HP, SS10
+from point import HP, Potential
 
 
 def detect_gpus() -> list[str]:
@@ -38,6 +38,12 @@ def detect_gpus() -> list[str]:
 
 def main():
     p = argparse.ArgumentParser()
+    # soft-sphere potential: only R is free (V0 fixed by a=1). R=10 -> SS10, R=5 -> SS5; decreasing
+    # R toward 1 stiffens the core toward the hard sphere (R=1 is the HS limit, V0 -> inf, NOT
+    # representable — use R slightly above 1, e.g. 1.2, to approach it). Label becomes "SS<R>".
+    p.add_argument("--R", type=float, nargs="+", default=[10.0],
+                   help="soft-sphere core range(s) in units of a (R>1); pass several to sweep "
+                        "multiple potentials at once, e.g. --R 10 5 2")
     p.add_argument("--N", type=int, nargs="+", default=[64], help="particle counts (N-ladder)")
     p.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2])
     p.add_argument("--n-x", type=int, default=7)
@@ -55,6 +61,10 @@ def main():
     # The DeepSet alone is mean-field (sits at Eq.31); --jastrow adds the r_ij correlation hole.
     p.add_argument("--jastrow", action="store_true",
                    help="multiply in the analytic soft-core two-body Jastrow (Σ_{i<j} j(r_ij))")
+    # bare-Jastrow baseline: drop the DeepSet entirely (no trainable params) -> lowest-order
+    # two-body-correlated energy (IPC/SR analog). Use together with --jastrow.
+    p.add_argument("--no-network", action="store_true",
+                   help="no neural net — bare analytic Jastrow only (pair with --jastrow)")
     # learning rate + schedule (Adam). cosine/exponential decay lr → lr·lr-final-frac over n_epochs.
     p.add_argument("--lr", type=float, default=3e-3, help="initial Adam learning rate")
     p.add_argument("--lr-schedule", choices=["constant", "cosine", "exponential"],
@@ -106,14 +116,23 @@ def main():
         hutchinson_n_terms=args.hutchinson_n_terms,
         hidden_internal_dim=args.hidden_internal_dim,
         use_jastrow=args.jastrow,
+        use_network=not args.no_network,
         lr=args.lr,
         lr_schedule=args.lr_schedule,
         lr_final_frac=args.lr_final_frac,
     )
-    n = sweep.enqueue_sweep(conn, SS10, args.N, args.seeds, hp,
-                            n_x=args.n_x, x_lo=args.x_lo, x_hi=args.x_hi)
-    print(f"enqueued sweep: N={args.N} seeds={args.seeds} "
-          f"x in [{args.x_lo:g}, {args.x_hi:g}] n_x={args.n_x} -> {n} new todo points")
+    potentials = [Potential.from_R(R) for R in args.R]  # from_R raises if R <= 1 (HS limit, V0->inf)
+    total = 0
+    for potential in potentials:
+        # feasible_x_grid clips x to this potential's own box ceiling x<N/(8R^3), so each R gets its
+        # own feasible range from the shared --x-lo/--x-hi/--n-x (smaller R reaches higher x).
+        n = sweep.enqueue_sweep(conn, potential, args.N, args.seeds, hp,
+                                n_x=args.n_x, x_lo=args.x_lo, x_hi=args.x_hi)
+        total += n
+        print(f"  {potential.label}: R={potential.R:g} V0={potential.V0_paper:.6g} -> {n} new todo")
+    print(f"enqueued {len(potentials)} potential(s) {[p.label for p in potentials]}: "
+          f"{total} new todo points  (N={args.N} seeds={args.seeds} "
+          f"x in [{args.x_lo:g}, {args.x_hi:g}] n_x={args.n_x})")
     print(f"queue status: {db.status_counts(conn)}")
     conn.close()  # workers open their own connections
 
