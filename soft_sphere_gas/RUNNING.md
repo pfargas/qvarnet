@@ -91,7 +91,73 @@ skipped. To run a single GPU by hand: `CUDA_VISIBLE_DEVICES=0 python worker.py -
 
 > **Same node only (SQLite).** The shared-queue coordination relies on a local-filesystem SQLite
 > DB. For multiple GPUs on one node this is ideal. Across nodes, give each node its own `--db` and
-> merge afterwards (every row is keyed, so `INSERT OR IGNORE` merges cleanly).
+> merge afterwards (every row is keyed, so `INSERT OR IGNORE` merges cleanly). See *Multi-PC* below.
+
+### Multi-PC (independent machines, merge afterwards)
+
+SQLite coordinates within **one** machine only. To spread a sweep over several independent PCs
+(no shared filesystem), run each one independently and merge at the end. Two rules:
+
+1. **Identical HP on every PC** — same flags ⇒ same `hp_json` hash ⇒ the rows are the same physics
+   points and merge (and the per-run dir names match the physics axes). *Only the partition flags
+   and `--db`/`--gpus` may differ.*
+2. **Partition the work so no two PCs run the same point** — easiest by **seed** (one seed per PC,
+   each running the full `--N` ladder); after merging, every `(x, N, seed)` is present so the
+   `1/N` extrapolation works unchanged. (Alternatively split by `--N` to put the heavy N=256 on the
+   strongest GPU.)
+
+First push the code from your dev machine, then on **each PC** pull + install (the engine changed —
+`init_params` for warm-start — so an editable install is required):
+
+```bash
+cd ~/qvarnet && git pull
+conda run -n jax pip install -e ~/qvarnet --no-deps
+conda run -n jax pip install pandas          # used by analysis
+```
+
+Then the sweep — run inside `tmux` (an SSH drop kills the run otherwise). Identical except
+`--seeds`, `--db`, `--gpus`:
+
+```bash
+# PC 1
+tmux new -s sweep ; conda activate jax ; cd ~/soft-hard-bosons
+python ~/qvarnet/soft_sphere_gas/run_workers.py \
+  --gpus 0 --seeds 0 \
+  --N 32 64 128 256 --n-x 10 \
+  --jastrow --laplacian hutchinson --hutchinson-n-terms 32 \
+  --lr 3e-3 --lr-schedule cosine \
+  --chains 1024 --epochs 2000 --plateau-rel 0.005 --es-min-epochs 300 \
+  --db outputs/pc1.db
+# PC 2:  --seeds 1 ... --db outputs/pc2.db
+# PC 3:  --seeds 2 ... --db outputs/pc3.db
+```
+
+`--gpus` is a device *index*, not a count (single-GPU box ⇒ `0`). If N=256 OOMs, lower `--chains`
+on **all** PCs (keep HP identical). Validate on PC 1 first: let one point finish, then
+`check_db.py --db outputs/pc1.db` and confirm `--jastrow` energies drop below Eq.31 toward
+Lee-Yang before committing the other machines.
+
+Gather + merge on one machine (`merge_db.py`: `INSERT OR IGNORE` for new keys + a done-precedence
+pass so a finished result never loses to a leftover `todo`):
+
+```bash
+rsync -av user@pc1:~/soft-hard-bosons/outputs/ ./merge/pc1/
+rsync -av user@pc2:~/soft-hard-bosons/outputs/ ./merge/pc2/
+rsync -av user@pc3:~/soft-hard-bosons/outputs/ ./merge/pc3/
+
+conda run -n jax python ~/qvarnet/soft_sphere_gas/merge_db.py \
+  ./merge/merged.db  ./merge/pc1/pc1.db ./merge/pc2/pc2.db ./merge/pc3/pc3.db
+
+# union the per-run artifact dirs (names unique since partitioned by seed)
+rsync -a ./merge/pc1/runs/ ./merge/runs/
+rsync -a ./merge/pc2/runs/ ./merge/runs/
+rsync -a ./merge/pc3/runs/ ./merge/runs/
+
+conda run -n jax python ~/qvarnet/soft_sphere_gas/check_db.py --db ./merge/merged.db
+```
+
+WAL note: rsync the whole tree (it grabs the `-wal` sidecar with the newest writes), or
+`PRAGMA wal_checkpoint(TRUNCATE)` each source first.
 
 ### Early stopping (don't waste epochs)
 

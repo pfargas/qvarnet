@@ -120,6 +120,26 @@ def soft_sphere_scattering_length(V0: float, R: float = 1.0) -> float:
     return R * a_over_R
 
 
+def softcore_jastrow_params(V0_paper: float, R: float) -> tuple[float, float]:
+    r"""``(alpha, Rc)`` for the analytic two-body soft-core Jastrow (see ``jastrow.py``).
+
+    The zero-energy s-wave solution of the soft core sets the short-range pair correlation. Its
+    core strength is ``alpha = sqrt(2 mu V0 / hbar^2) a_s``; in paper units (hbar^2/2m=1, mu=m/2,
+    a_s=1) that is exactly ``K0 = sqrt(V0/2)`` — the *same* constant that fixes the scattering
+    length, so ``alpha`` and ``Rc = R`` automatically satisfy the ``a_s = 1`` constraint
+    ``Rc - tanh(alpha Rc)/alpha = 1`` (no separate root-find). ``V0_paper`` is in paper units.
+    """
+    alpha = math.sqrt(V0_paper / HBAR2_OVER_M)  # = K0
+    Rc = R
+    constraint = Rc - math.tanh(alpha * Rc) / alpha
+    assert abs(constraint - 1.0) < 1e-9, (
+        f"soft-core Jastrow constraint Rc - tanh(αRc)/α = {constraint} ≠ 1 "
+        f"(α={alpha}, Rc={Rc}); V0_paper must be the a=1 value from Potential.from_R"
+    )
+    assert Rc > 1.0, f"need Rc > 1 (a_s=1); got Rc={Rc} (Rc=1 is the hard-sphere limit)"
+    return alpha, Rc
+
+
 def soft_sphere_V0_for_scattering_length(a: float, R: float = 1.0,
                                          tol: float = 1e-12) -> float:
     r"""Invert Eq. (10): barrier height ``V0`` giving scattering length ``a`` at range ``R``.

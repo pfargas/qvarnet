@@ -75,6 +75,7 @@ def train(
     callbacks: list = None,
     select="std",
     k_best: int = 3,
+    init_params=None,
 ):
     """Train a VMC model using Metropolis-Hastings sampling.
 
@@ -116,6 +117,14 @@ def train(
     state = load_checkpoint(
         state, path=training_config.checkpoint_path, filename="checkpoint.msgpack"
     )
+    # Warm-start from supplied parameters (e.g. the best snapshot of an earlier run): replace the
+    # freshly-initialised params but keep the *new* optimizer's fresh state and step=0 — i.e. a
+    # genuinely separate training that merely starts from a good point (a low-LR/exact-AD fine-tune
+    # after a fast Hutchinson run). Structure must match model.init (the snapshot stores state.params
+    # = {"params": ...}). Takes precedence over a fresh init; a real checkpoint above still wins if
+    # both are present (resume > warm-start).
+    if init_params is not None:
+        state = state.replace(params=init_params)
 
     if model_name is not None and model_args is not None:
         save_run_config(

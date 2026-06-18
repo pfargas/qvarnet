@@ -43,6 +43,20 @@ def main():
     p.add_argument("--n-x", type=int, default=7)
     p.add_argument("--epochs", type=int, default=2000, help="epoch ceiling (early-stop ends sooner)")
     p.add_argument("--chains", type=int, default=1024)
+    # DeepSet pooled-latent width (the real capacity bottleneck; was hardcoded 20). Bump toward N
+    # (e.g. 256) to test how far a one-body ansatz can go before a Jastrow is needed.
+    p.add_argument("--hidden-internal-dim", type=int, default=20,
+                   help="DeepSet pooled-latent size (default 20; try 256)")
+    # analytic two-body soft-core Jastrow as the short-range correlation factor (jastrow.py).
+    # The DeepSet alone is mean-field (sits at Eq.31); --jastrow adds the r_ij correlation hole.
+    p.add_argument("--jastrow", action="store_true",
+                   help="multiply in the analytic soft-core two-body Jastrow (Σ_{i<j} j(r_ij))")
+    # learning rate + schedule (Adam). cosine/exponential decay lr → lr·lr-final-frac over n_epochs.
+    p.add_argument("--lr", type=float, default=3e-3, help="initial Adam learning rate")
+    p.add_argument("--lr-schedule", choices=["constant", "cosine", "exponential"],
+                   default="constant", help="LR schedule over the epochs")
+    p.add_argument("--lr-final-frac", type=float, default=0.1,
+                   help="final LR as a fraction of --lr (cosine/exponential)")
     # sampler: per-epoch Laplacian batch = chains * n_eff, n_eff=(chain_len-therm)//thin.
     # Default 21/20/1 = keep 1 sample/chain/epoch (warm walkers carry the chain across epochs).
     p.add_argument("--chain-length", type=int, default=21)
@@ -60,6 +74,12 @@ def main():
     p.add_argument("--es-check-every", type=int, default=50)
     p.add_argument("--es-patience", type=int, default=2)
     p.add_argument("--no-early-stop", action="store_true", help="run the full --epochs (no early stop)")
+    # kinetic-energy Laplacian estimator: forward_ad (exact, default) vs hutchinson (stochastic,
+    # cheaper at large N, adds variance). --hutchinson-n-terms sets the number of probe vectors.
+    p.add_argument("--laplacian", choices=["forward_ad", "hutchinson", "central_difference"],
+                   default="forward_ad", help="kinetic-energy Laplacian estimator")
+    p.add_argument("--hutchinson-n-terms", type=int, default=16,
+                   help="probe vectors for --laplacian hutchinson (higher = less variance, more cost)")
     p.add_argument("--db", default="outputs/soft_sphere.db")
     args = p.parse_args()
 
@@ -78,6 +98,13 @@ def main():
         es_min_epochs=args.es_min_epochs,
         es_check_every=args.es_check_every,
         es_patience=args.es_patience,
+        laplacian_method=args.laplacian,
+        hutchinson_n_terms=args.hutchinson_n_terms,
+        hidden_internal_dim=args.hidden_internal_dim,
+        use_jastrow=args.jastrow,
+        lr=args.lr,
+        lr_schedule=args.lr_schedule,
+        lr_final_frac=args.lr_final_frac,
     )
     n = sweep.enqueue_sweep(conn, SS10, args.N, args.seeds, hp, n_x=args.n_x)
     print(f"enqueued sweep: N={args.N} seeds={args.seeds} n_x={args.n_x} -> {n} new todo points")

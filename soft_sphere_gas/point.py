@@ -29,8 +29,10 @@ from dilute_gas import (
     engine_V0,
     first_order_energy_upper_bound,
     soft_sphere_V0_for_scattering_length,
+    softcore_jastrow_params,
     to_paper_energy,
 )
+from jastrow import SoftCoreJastrow
 
 from qvarnet import PenetrableSphereHamiltonian, PeriodicBoundary
 from qvarnet.callbacks import EarlyStopCallback
@@ -87,8 +89,37 @@ class HP:
     # model (DeepSet inside a LogWavefunction)
     phi_hidden: tuple[int, ...] = (64,)
     F_hidden: tuple[int, ...] = (64,)
+    # Analytic two-body soft-core Jastrow (jastrow.py) as the short-range correlation factor:
+    # log Ψ = Σ_{i<j} j(r_ij) + log Ψ_NN. Off by default (the DeepSet alone is mean-field and sits
+    # at the uncorrelated UB Eq.31); turn on to capture the r_ij correlation hole and head toward
+    # Lee-Yang. α/Rc are fixed by the potential (frozen, no params), so it adds zero optimiser cost.
+    use_jastrow: bool = False
+    # Pooled-latent size of the DeepSet (the φ output / aggregation width). This is the real
+    # capacity bottleneck: phi_hidden/F_hidden only widen the per-particle and readout MLPs, while
+    # *all* particle information is squeezed through this one vector before F sees it. The Deep Sets
+    # universality result needs it ≥ N for the mean-pool to be injective; the default 20 is far
+    # below that. Bumping it (e.g. 256) tests how much a one-body ansatz can fake correlations — it
+    # still can't build an r_ij-dependent correlation hole (that needs a Jastrow), so expect
+    # marginal gains at rising cost. (Was hardcoded to 20 in DeepSet.)
+    hidden_internal_dim: int = 20
+    # Laplacian (kinetic energy) estimator. "forward_ad" is exact, O(DoF) JVPs/sample — fine at
+    # small N but the per-epoch cost grows with N·d (768 JVPs at N=256, d=3). "hutchinson" is the
+    # stochastic trace estimator: hutchinson_n_terms probe vectors instead of DoF, vmapped (often
+    # faster on GPU at large N), at the price of extra kinetic-energy variance — raise n_terms if
+    # the error bars or gradient noise blow up. The engine threads a fresh per-epoch key, so it is
+    # unbiased. Keep "forward_ad" when you need the cleanest E/N for the N→∞ extrapolation.
+    laplacian_method: str = "forward_ad"  # "forward_ad" | "hutchinson" | "central_difference"
+    hutchinson_n_terms: int = 16
+    hutchinson_distribution: str = "rademacher"  # "rademacher" (variance-optimal) | "gaussian"
     # optimizer
     lr: float = 3e-3
+    # LR schedule (Adam): "constant" (default), "cosine" (lr → lr·lr_final_frac over n_epochs,
+    # smooth — good default to settle into a minimum), or "exponential" (same endpoint, geometric).
+    # One optimizer step per epoch, so decay_steps = n_epochs; with early stopping the schedule
+    # simply isn't fully traversed. For the low-LR exact-AD fine-tune, set a small lr + "constant"
+    # (or a short "cosine"). Stops you from hand-hunting a single fixed LR.
+    lr_schedule: str = "constant"  # "constant" | "cosine" | "exponential"
+    lr_final_frac: float = 0.1     # final LR as a fraction of lr (cosine alpha / exp decay_rate)
     n_epochs: int = 400
     # sampler
     n_chains: int = 512
@@ -134,6 +165,13 @@ class HP:
         return {
             "phi_hidden": list(self.phi_hidden),
             "F_hidden": list(self.F_hidden),
+            "use_jastrow": self.use_jastrow,
+            "lr_schedule": self.lr_schedule,
+            "lr_final_frac": self.lr_final_frac,
+            "hidden_internal_dim": self.hidden_internal_dim,
+            "laplacian_method": self.laplacian_method,
+            "hutchinson_n_terms": self.hutchinson_n_terms,
+            "hutchinson_distribution": self.hutchinson_distribution,
             "lr": self.lr,
             "n_epochs": self.n_epochs,
             "n_chains": self.n_chains,
@@ -193,12 +231,37 @@ class PointResult:
 # ── the run ────────────────────────────────────────────────────────────────────────
 
 
-def _build_model(N: int, L: float, hp: HP) -> LogWavefunction:
+def _build_optimizer(hp: HP) -> optax.GradientTransformation:
+    """Adam with the HP's LR schedule. ``optax.adam`` accepts a float or a step→lr schedule."""
+    steps = max(1, hp.n_epochs)  # one optimizer update per epoch
+    if hp.lr_schedule == "constant":
+        lr = hp.lr
+    elif hp.lr_schedule == "cosine":
+        lr = optax.cosine_decay_schedule(hp.lr, decay_steps=steps, alpha=hp.lr_final_frac)
+    elif hp.lr_schedule == "exponential":
+        lr = optax.exponential_decay(hp.lr, transition_steps=steps, decay_rate=hp.lr_final_frac)
+    else:
+        raise ValueError(f"unknown lr_schedule {hp.lr_schedule!r}")
+    return optax.adam(lr)
+
+
+def _build_model(N: int, L: float, hp: HP, potential: Potential) -> LogWavefunction:
+    jastrow = None
+    if hp.use_jastrow:
+        # Analytic two-body soft-core correlation factor (the r_ij-dependent hole the DeepSet
+        # can't build). α/Rc are fixed by the potential (a_s=1); see jastrow.py / spec §9.
+        alpha, Rc = softcore_jastrow_params(potential.V0_paper, potential.R)
+        jastrow = SoftCoreJastrow(n_particles=N, n_dim=N_DIM, L=L, alpha=alpha, Rc=Rc)
     return LogWavefunction(
         n_particles=N,
         n_dim=N_DIM,
         transform=PeriodicBoundary(L=L) if hp.model_with_pbc else None,
-        network=DeepSet(phi_hidden=list(hp.phi_hidden), F_hidden=list(hp.F_hidden)),
+        network=DeepSet(
+            phi_hidden=list(hp.phi_hidden),
+            F_hidden=list(hp.F_hidden),
+            hidden_internal_dim=hp.hidden_internal_dim,
+        ),
+        jastrow=jastrow,
     )
 
 
@@ -210,12 +273,19 @@ def run_point(
     hp: HP,
     *,
     checkpoint_dir: str | None = None,
+    init_params=None,
 ) -> PointResult:
     """Train one (potential, x, N) point and return E/N etc. in paper units.
 
     ``checkpoint_dir`` (set by the sweep to this run's own dir) is where the engine drops its
     end-of-run ``checkpoints/final_state.msgpack``; leaving it ``None`` writes under the cwd
     (fine for one-off calls, but the sweep always passes a per-run dir to avoid collisions).
+
+    ``init_params`` warm-starts from an earlier run's parameters (a ``{"params": ...}`` pytree, e.g.
+    ``artifacts.load_params(dir)["params"][0]``) with a *fresh* optimizer — a separate training that
+    merely begins at a good point. The fine-tune pattern: fast ``laplacian_method="hutchinson"`` run
+    → reload its best params → re-run here with a small ``lr`` and ``laplacian_method="forward_ad"``.
+    See :func:`fine_tune`.
     """
     L = box_side_for_gas_parameter(x, a=1.0, N=N)
     boundary = PeriodicBoundary(
@@ -235,6 +305,9 @@ def run_point(
         R=potential.R,
         V0=engine_V0(potential.V0_paper),  # ← /2 : paper -> engine (ℏ=m=1)
         boundary=boundary,
+        laplacian_method=hp.laplacian_method,
+        hutchinson_n_terms=hp.hutchinson_n_terms,
+        hutchinson_distribution=hp.hutchinson_distribution,
     )
 
     callbacks = []
@@ -249,8 +322,8 @@ def run_point(
 
     result = train(
         shape=(hp.n_chains, N * N_DIM),
-        model=_build_model(N, L, hp),
-        optimizer=optax.adam(hp.lr),
+        model=_build_model(N, L, hp, potential),
+        optimizer=_build_optimizer(hp),
         hamiltonian=hamiltonian,
         training_config=TrainingConfig(
             n_epochs=hp.n_epochs,
@@ -275,6 +348,7 @@ def run_point(
         callbacks=callbacks,
         select=hp.select,
         k_best=hp.k_best(),  # retain the best snapshot_frac of epochs (by `select`)
+        init_params=init_params,
     )
 
     verdict = result.diagnose(print_report=False)
@@ -315,6 +389,40 @@ def run_point(
         upper_bound=first_order_energy_upper_bound(x, potential.V0_paper, potential.R),
         history_rows=history_rows,
         snapshots=snapshots,
+    )
+
+
+def fine_tune(
+    potential: Potential,
+    x: float,
+    N: int,
+    seed: int,
+    ft_hp: HP,
+    *,
+    from_run_dir: str,
+    snapshot_index: int = 0,
+    checkpoint_dir: str | None = None,
+) -> PointResult:
+    """Warm-started fine-tune: a *separate* training that starts from a previous run's best params.
+
+    Reloads ``best_params.msgpack`` from ``from_run_dir`` (an ``outputs/runs/<run_id>/`` dir, e.g.
+    the fast Hutchinson run) and trains afresh with ``ft_hp`` — typically a small ``lr`` and
+    ``laplacian_method="forward_ad"`` (exact, low-variance) to polish the Hutchinson minimum. The
+    optimizer state is fresh (step 0); only the parameters carry over. ``snapshot_index`` picks
+    which retained snapshot to seed from (0 = best by the source run's ``select``).
+
+    Tip: the source run's snapshots are ranked by ``hp.select`` (default "std"); under Hutchinson
+    noise σ_E is jittery, so seeding from a run trained with ``select="energy"`` or
+    ``select="e_plus_sigma"`` often gives a cleaner starting point.
+    """
+    import os
+
+    import artifacts
+
+    lp = artifacts.load_params(os.path.join(from_run_dir, "best_params.msgpack"))
+    init = lp["params"][snapshot_index]
+    return run_point(
+        potential, x, N, seed, ft_hp, checkpoint_dir=checkpoint_dir, init_params=init
     )
 
 

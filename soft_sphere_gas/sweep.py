@@ -171,17 +171,20 @@ def feasible_x_grid(potential, N, x_lo=1e-5, x_hi=1e-2, n=8) -> np.ndarray:
 def enqueue_sweep(conn, potential, N_list, seeds, hp, *, n_x=7, x_lo=1e-5, x_hi=1e-2) -> int:
     """Insert all ``todo`` rows for a (potential, N-ladder, seeds, hp) sweep; return #enqueued.
 
-    One row per ``(potential, x, N, seed, hp)`` over the box-feasible x-grid *per N* (the grid
-    ceiling ``x < N/(8R^3)`` depends on N). Infeasible points are recorded ``skipped_box`` and not
-    counted. Idempotent (``INSERT OR IGNORE``), so it is safe to re-run to extend a sweep — already
-    present points keep their status. Workers then drain the queue via :func:`db.claim_next`.
+    One row per ``(potential, x, N, seed, hp)`` over a **single shared x-grid** used for every N in
+    the ladder. The grid is clipped to the box ceiling ``x < N/(8R^3)`` of the *smallest* N (the most
+    restrictive), so every x is feasible at every N — this is what makes the fixed-x, multi-N data a
+    clean set for the ``1/N -> 0`` finite-size extrapolation (the whole point of an N-ladder). A
+    per-N grid (the old behaviour) would put each N on different x and leave nothing to extrapolate.
+    Idempotent (``INSERT OR IGNORE``), so it is safe to re-run to extend a sweep — already present
+    points keep their status. Workers then drain the queue via :func:`db.claim_next`.
     """
     n = 0
+    xs = feasible_x_grid(potential, min(N_list), x_lo=x_lo, x_hi=x_hi, n=n_x)  # shared across all N
     for N in N_list:
-        xs = feasible_x_grid(potential, N, x_lo=x_lo, x_hi=x_hi, n=n_x)
         for x in (float(v) for v in xs):
             for seed in seeds:
-                if not box_fits_interaction(potential, x, N):
+                if not box_fits_interaction(potential, x, N):  # safety net (grid is clipped to min N)
                     db.mark_skipped_box(conn, potential, x, N, seed, hp,
                                         box_side_for_gas_parameter(x, 1.0, N))
                     continue
