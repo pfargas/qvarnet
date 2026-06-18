@@ -41,6 +41,10 @@ def main():
     p.add_argument("--N", type=int, nargs="+", default=[64], help="particle counts (N-ladder)")
     p.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2])
     p.add_argument("--n-x", type=int, default=7)
+    # x-grid bounds (log-spaced, clipped to the box ceiling x<N/(8R^3) of the smallest N). For a
+    # SINGLE x point set --n-x 1 and --x-lo to that x (geomspace returns the low end when n=1).
+    p.add_argument("--x-lo", type=float, default=1e-5, help="low end of the x grid")
+    p.add_argument("--x-hi", type=float, default=1e-2, help="high end of the x grid")
     p.add_argument("--epochs", type=int, default=2000, help="epoch ceiling (early-stop ends sooner)")
     p.add_argument("--chains", type=int, default=1024)
     # DeepSet pooled-latent width (the real capacity bottleneck; was hardcoded 20). Bump toward N
@@ -106,8 +110,10 @@ def main():
         lr_schedule=args.lr_schedule,
         lr_final_frac=args.lr_final_frac,
     )
-    n = sweep.enqueue_sweep(conn, SS10, args.N, args.seeds, hp, n_x=args.n_x)
-    print(f"enqueued sweep: N={args.N} seeds={args.seeds} n_x={args.n_x} -> {n} new todo points")
+    n = sweep.enqueue_sweep(conn, SS10, args.N, args.seeds, hp,
+                            n_x=args.n_x, x_lo=args.x_lo, x_hi=args.x_hi)
+    print(f"enqueued sweep: N={args.N} seeds={args.seeds} "
+          f"x in [{args.x_lo:g}, {args.x_hi:g}] n_x={args.n_x} -> {n} new todo points")
     print(f"queue status: {db.status_counts(conn)}")
     conn.close()  # workers open their own connections
 
