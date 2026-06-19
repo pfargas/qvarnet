@@ -96,6 +96,13 @@ class HP:
     # at the uncorrelated UB Eq.31); turn on to capture the r_ij correlation hole and head toward
     # Lee-Yang. α/Rc are fixed by the potential (frozen, no params), so it adds zero optimiser cost.
     use_jastrow: bool = False
+    # Build the analytic Jastrow from a *different* potential than the Hamiltonian (ablation): the
+    # short-range correlation hole is then tuned for the WRONG potential, and the DeepSet has to
+    # repair it. None ⇒ use the run's own (physical) potential — the normal, matched case. Set to a
+    # core range R' (e.g. 5.0 on an R=10 / SS10 run) to plug SS5's Jastrow into an SS10 calculation.
+    # α/Rc are taken from Potential.from_R(jastrow_R) (V0 fixed by a=1), so only R' is needed. Must
+    # satisfy Rc'=R' < L/2 of every run point (guaranteed when jastrow_R ≤ the physical R).
+    jastrow_R: float | None = None
     # Include the neural network (DeepSet) at all. False ⇒ bare analytic Jastrow only (no trainable
     # params): a fixed two-body-correlated trial whose energy is the lowest-order (Bijl–Jastrow)
     # value — the analog of the paper's IPC/SR. Pair with use_jastrow=True (else log ψ = 0 = ideal
@@ -173,6 +180,7 @@ class HP:
             "phi_hidden": list(self.phi_hidden),
             "F_hidden": list(self.F_hidden),
             "use_jastrow": self.use_jastrow,
+            "jastrow_R": self.jastrow_R,
             "use_network": self.use_network,
             "lr_schedule": self.lr_schedule,
             "lr_final_frac": self.lr_final_frac,
@@ -272,7 +280,10 @@ def _build_model(N: int, L: float, hp: HP, potential: Potential) -> LogWavefunct
     if hp.use_jastrow:
         # Analytic two-body soft-core correlation factor (the r_ij-dependent hole the DeepSet
         # can't build). α/Rc are fixed by the potential (a_s=1); see jastrow.py / spec §9.
-        alpha, Rc = softcore_jastrow_params(potential.V0_paper, potential.R)
+        # hp.jastrow_R lets the Jastrow be tuned for a DIFFERENT potential than the Hamiltonian
+        # (mismatch ablation): None ⇒ matched (the run's own potential).
+        jastrow_pot = Potential.from_R(hp.jastrow_R) if hp.jastrow_R is not None else potential
+        alpha, Rc = softcore_jastrow_params(jastrow_pot.V0_paper, jastrow_pot.R)
         jastrow = SoftCoreJastrow(n_particles=N, n_dim=N_DIM, L=L, alpha=alpha, Rc=Rc)
     network = (
         DeepSet(

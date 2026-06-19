@@ -65,6 +65,13 @@ def main():
     # two-body-correlated energy (IPC/SR analog). Use together with --jastrow.
     p.add_argument("--no-network", action="store_true",
                    help="no neural net — bare analytic Jastrow only (pair with --jastrow)")
+    # MISMATCH ablation: build the Jastrow for a DIFFERENT potential than the Hamiltonian. The
+    # Hamiltonian is still --R (e.g. 10 = SS10); --jastrow-R 5 plugs SS5's correlation hole into it,
+    # so the Jastrow is "wrong" and the DeepSet has to repair it. Goes into hp_json -> distinct DB
+    # key + run-id hash, so these never collide with the matched runs. Pair with --jastrow.
+    p.add_argument("--jastrow-R", type=float, default=None,
+                   help="core range R' for the Jastrow only (mismatch); Hamiltonian stays --R. "
+                        "e.g. --R 10 --jastrow-R 5 = SS10 Hamiltonian with SS5 Jastrow")
     # learning rate + schedule (Adam). cosine/exponential decay lr → lr·lr-final-frac over n_epochs.
     p.add_argument("--lr", type=float, default=3e-3, help="initial Adam learning rate")
     p.add_argument("--lr-schedule", choices=["constant", "cosine", "exponential"],
@@ -97,6 +104,14 @@ def main():
     p.add_argument("--db", default="outputs/soft_sphere.db")
     args = p.parse_args()
 
+    if args.jastrow_R is not None:
+        if not args.jastrow:
+            p.error("--jastrow-R has no effect without --jastrow (there is no Jastrow to mismatch)")
+        Potential.from_R(args.jastrow_R)  # fail fast on R'<=1 (HS limit) before enqueuing anything
+        if any(args.jastrow_R > R for R in args.R):
+            print(f"WARNING: --jastrow-R {args.jastrow_R:g} exceeds a Hamiltonian R "
+                  f"{args.R}; the Jastrow Rc' may not fit L/2 of the smaller-R box.")
+
     conn = db.connect(args.db)
     requeued = db.requeue_interrupted(conn)
     if requeued:
@@ -116,6 +131,7 @@ def main():
         hutchinson_n_terms=args.hutchinson_n_terms,
         hidden_internal_dim=args.hidden_internal_dim,
         use_jastrow=args.jastrow,
+        jastrow_R=args.jastrow_R,
         use_network=not args.no_network,
         lr=args.lr,
         lr_schedule=args.lr_schedule,
