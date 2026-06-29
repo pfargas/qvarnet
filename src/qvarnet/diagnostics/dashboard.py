@@ -2,16 +2,14 @@
 
 One figure from a ``TrainResult``: energy vs exact/MC-floor, the optimisation diagnostics
 (grad norm, θ-step), sampler health (acceptance, per-chain energy spread), and the
-three-referee verdict as text. Uses a non-interactive backend so it works headless.
+three-referee verdict as text. Built via the object-oriented ``Figure`` API so it is
+headless-safe without touching the process-wide matplotlib backend.
 """
 
-import matplotlib
+import numpy as np
+from matplotlib.figure import Figure
 
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
-import numpy as np  # noqa: E402
-
-from .verdict import format_verdict, three_referee_verdict  # noqa: E402
+from .verdict import format_verdict, three_referee_verdict
 
 
 def plot_dashboard(result, exact_energy=None, save_path=None, title="qvarnet run"):
@@ -21,7 +19,8 @@ def plot_dashboard(result, exact_energy=None, save_path=None, title="qvarnet run
     energy = h.get("energy")
     err = h.get("error_of_mean")
 
-    fig, axes = plt.subplots(2, 3, figsize=(16, 8))
+    fig = Figure(figsize=(16, 8))
+    axes = fig.subplots(2, 3)
     fig.suptitle(title, fontsize=14, fontweight="bold")
 
     ax = axes[0, 0]
