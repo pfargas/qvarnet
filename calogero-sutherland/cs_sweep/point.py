@@ -111,8 +111,11 @@ class HP:
     es_patience: int = 2
     es_target_rel_err: float = 0.0  # 0 = verdict-only
     es_plateau_rel: float = 0.0     # >0: also stop on tail-E plateau
-    # parameter retrieval: keep the best ``snapshot_frac`` of epochs by ``select`` (lower=better)
+    # parameter retrieval: keep the best snapshots by ``select`` (lower=better). ``n_snapshots``
+    # is an absolute count (e.g. 100); if None, fall back to ``snapshot_frac`` of the epochs.
+    # Prefer the absolute count for long runs — ``snapshot_frac`` of 50k epochs is 5000 pytrees.
     select: str = "std"
+    n_snapshots: int | None = 100
     snapshot_frac: float = 0.10
 
     def hidden(self) -> list[int]:
@@ -122,7 +125,10 @@ class HP:
         return [self.mlp_width] * self.mlp_layers
 
     def k_best(self) -> int:
+        """Number of param snapshots to retain: absolute ``n_snapshots`` if set, else a fraction."""
         import math
+        if self.n_snapshots is not None:
+            return max(1, self.n_snapshots)
         return max(1, math.ceil(self.snapshot_frac * self.n_epochs))
 
     def to_dict(self) -> dict:
@@ -153,6 +159,7 @@ class HP:
             "es_target_rel_err": self.es_target_rel_err,
             "es_plateau_rel": self.es_plateau_rel,
             "select": self.select,
+            "n_snapshots": self.n_snapshots,
             "snapshot_frac": self.snapshot_frac,
         }
 

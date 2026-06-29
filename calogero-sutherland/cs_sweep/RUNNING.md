@@ -60,6 +60,13 @@ same command to extend (add seeds / axes); finished points are skipped. Auto-det
 CUDA_VISIBLE_DEVICES=0 python worker.py --db outputs/cs.db --out-root outputs
 ```
 
+**Progress bars with >1 GPU.** Two workers sharing one terminal make their tqdm bars clobber each
+other. So with more than one worker each is redirected to its own log file (`<out-root>/logs/
+worker_gpu<N>.log`); the terminal shows only the launcher summary. Watch one with `tail -f
+outputs/logs/worker_gpu0.log` (the `\r` bar renders live). Flags: `--progress off` disables the bar
+entirely (`TQDM_DISABLE`); `--tqdm-mininterval S` throttles refreshes (default 5 s, keeps logs
+small over long runs); `--log-dir` relocates the logs. A single worker keeps output on the terminal.
+
 > **One worker per *distinct* GPU.** JAX preallocates most of a GPU's VRAM per process — don't point
 > two workers at the same device (you'll OOM) unless you set `XLA_PYTHON_CLIENT_MEM_FRACTION` low.
 

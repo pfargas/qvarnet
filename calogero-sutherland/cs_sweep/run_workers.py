@@ -71,6 +71,13 @@ def main() -> None:
     ap.add_argument("--gpus", default=None, help="comma list, e.g. 0,1 (default: auto-detect)")
     ap.add_argument("--db", default=db.DEFAULT_DB)
     ap.add_argument("--out-root", default="outputs")
+    # progress / logging: multiple workers sharing one terminal makes tqdm bars clobber each
+    # other, so with >1 worker each is redirected to its own log file (tail -f to watch one).
+    ap.add_argument("--log-dir", default=None, help="per-worker log dir (default: <out-root>/logs)")
+    ap.add_argument("--progress", choices=("bar", "off"), default="bar",
+                    help="'off' disables the tqdm bar in workers (TQDM_DISABLE)")
+    ap.add_argument("--tqdm-mininterval", type=float, default=5.0,
+                    help="min seconds between bar refreshes (throttles log growth)")
     args = ap.parse_args()
 
     physics_axes = _parse_axes(args.axis, Physics())
@@ -89,16 +96,35 @@ def main() -> None:
         print("no GPU detected — running a single CPU worker.")
         gpus = [""]  # empty CUDA_VISIBLE_DEVICES
 
-    procs = []
+    # >1 worker on one terminal ⇒ tqdm bars clobber. Give each its own log file instead.
+    redirect = len(gpus) > 1
+    log_dir = args.log_dir or os.path.join(args.out_root, "logs")
+    if redirect:
+        os.makedirs(log_dir, exist_ok=True)
+
+    procs, logs = [], []
     for g in gpus:
-        env = dict(os.environ, CUDA_VISIBLE_DEVICES=g, MPLBACKEND="Agg")
-        cmd = [sys.executable, os.path.join(HERE, "worker.py"),
+        env = dict(os.environ, CUDA_VISIBLE_DEVICES=g, MPLBACKEND="Agg",
+                   TQDM_MININTERVAL=str(args.tqdm_mininterval))
+        if args.progress == "off":
+            env["TQDM_DISABLE"] = "1"
+        cmd = [sys.executable, "-u", os.path.join(HERE, "worker.py"),
                "--db", args.db, "--out-root", args.out_root]
-        print(f"launch worker on GPU {g or '(cpu)'}: {' '.join(cmd)}")
-        procs.append(subprocess.Popen(cmd, env=env))
+        if redirect:
+            path = os.path.join(log_dir, f"worker_gpu{g or 'cpu'}.log")
+            fh = open(path, "w")
+            logs.append(fh)
+            print(f"launch worker on GPU {g or '(cpu)'} -> {path}   (tail -f to watch)")
+            procs.append(subprocess.Popen(cmd, env=env, stdout=fh, stderr=subprocess.STDOUT))
+        else:
+            print(f"launch worker on GPU {g or '(cpu)'} (output below)")
+            procs.append(subprocess.Popen(cmd, env=env))
+
     rc = 0
     for p in procs:
         rc |= p.wait()
+    for fh in logs:
+        fh.close()
     print(f"all workers exited. final status={db.status_counts(conn)}")
     sys.exit(rc)
 
