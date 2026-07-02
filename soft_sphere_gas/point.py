@@ -1,17 +1,16 @@
 """The atomic experiment unit: one VMC training run of the dilute soft-sphere gas.
 
-``run_point(potential, x, N, seed, hp)`` trains a neural wavefunction for ``N`` bosons at
-gas parameter ``x`` for a given soft-sphere ``potential`` and returns a :class:`PointResult`
-in **paper units** (see ``CONVENTIONS.md``). Everything else in this study — the x-sweep,
-the finite-N extrapolation, the seed averaging, the shape sweep — just orchestrates calls to
-this function.
+The **runq target** is the flat :func:`run_point` at the bottom — one plain function with
+keyword defaults, one flat namespace:
 
-Split of responsibilities (see ``CONVENTIONS.md`` §7):
+    runq run point.py --axis x=1e-5,1e-4,1e-3 --axis N=32,64 --seeds 0 1 2 --gpus 0,1
 
-* ``potential``, ``x``, ``N``  — the **physics** (define the true answer);
-* ``seed``                     — RNG;
-* ``hp``                       — the **solver** (optimizer / sampler / model / epochs), the
-                                 only thing the hyperparameter tuner varies.
+(use ``enqueue_curve.py`` for the box-feasible log-spaced x grid). Internally the code keeps
+the conceptual grouping: :class:`Potential` + ``x`` + ``N`` are the **physics** (define the
+true answer), :class:`HyperParams` is the **solver**, and
+:func:`train_point(potential, x, N, seed, hyper_params)` does one training run, returning a
+:class:`PointResult` in **paper units** (see ``CONVENTIONS.md``). A box-infeasible point
+(``R >= L/2``) raises :class:`runq.Skip` and is recorded as skipped, not failed.
 
 The single factor-of-two engine bridge (paper ``ℏ²/2m=1`` ↔ engine ``ℏ=m=1``) lives in
 ``dilute_gas.engine_V0`` / ``dilute_gas.to_paper_energy`` and is applied here, nowhere else.
@@ -35,6 +34,7 @@ from dilute_gas import (
 )
 from flax import linen as nn
 from jastrow import SoftCoreJastrow
+from runq import Skip
 
 from qvarnet import PenetrableSphereHamiltonian, PeriodicBoundary
 from qvarnet.callbacks import EarlyStopCallback
@@ -84,10 +84,9 @@ SS5 = Potential.from_R(5.0, "SS5")
 
 
 @dataclass(frozen=True)
-class HP:
-    """Solver knobs. Frozen + serializable, so ``(potential, x, N, seed, hp)`` is a DB key."""
+class HyperParams:
+    """Solver knobs — everything about *how* we solve, nothing about *what* we solve."""
 
-    # HP means HyperParameters
     # model (DeepSet inside a LogWavefunction)
     phi_hidden: tuple[int, ...] = (64,)
     F_hidden: tuple[int, ...] = (64,)
@@ -122,9 +121,13 @@ class HP:
     # faster on GPU at large N), at the price of extra kinetic-energy variance — raise n_terms if
     # the error bars or gradient noise blow up. The engine threads a fresh per-epoch key, so it is
     # unbiased. Keep "forward_ad" when you need the cleanest E/N for the N→∞ extrapolation.
-    laplacian_method: str = "forward_ad"  # "forward_ad" | "hutchinson" | "central_difference"
+    # "folx" = forward-Laplacian (LapNet): one forward pass yields gradient + Laplacian
+    # together — exact like forward_ad but without the O(DoF) sequential JVP loop, so it
+    # is the fast exact path at large N (where hutchinson was previously the only escape).
+    laplacian_method: str = "forward_ad"  # "forward_ad" | "folx" | "hutchinson" | "central_difference"
     hutchinson_n_terms: int = 16
     hutchinson_distribution: str = "rademacher"  # "rademacher" (variance-optimal) | "gaussian"
+    folx_sparsity_threshold: int = 0  # folx only; 0 = dense (see folx docs; helps at large N)
     # optimizer
     lr: float = 3e-3
     # LR schedule (Adam): "constant" (default), "cosine" (lr → lr·lr_final_frac over n_epochs,
@@ -188,6 +191,7 @@ class HP:
             "laplacian_method": self.laplacian_method,
             "hutchinson_n_terms": self.hutchinson_n_terms,
             "hutchinson_distribution": self.hutchinson_distribution,
+            "folx_sparsity_threshold": self.folx_sparsity_threshold,
             "lr": self.lr,
             "n_epochs": self.n_epochs,
             "n_chains": self.n_chains,
@@ -222,7 +226,7 @@ class PointResult:
     x: float
     N: int
     seed: int
-    hp: HP
+    hp: HyperParams
 
     e_per_n: float  # E/N, paper units (ℏ²/2ma²)
     err_per_n: float  # error of the mean, paper units
@@ -247,8 +251,8 @@ class PointResult:
 # ── the run ────────────────────────────────────────────────────────────────────────
 
 
-def _build_optimizer(hp: HP) -> optax.GradientTransformation:
-    """Adam with the HP's LR schedule. ``optax.adam`` accepts a float or a step→lr schedule."""
+def _build_optimizer(hp: HyperParams) -> optax.GradientTransformation:
+    """Adam with the chosen LR schedule. ``optax.adam`` accepts a float or a step→lr schedule."""
     steps = max(1, hp.n_epochs)  # one optimizer update per epoch
     if hp.lr_schedule == "constant":
         lr = hp.lr
@@ -275,7 +279,7 @@ class _ZeroNetwork(nn.Module):
         return jnp.zeros((*x.shape[:-2], 1), dtype=x.dtype)
 
 
-def _build_model(N: int, L: float, hp: HP, potential: Potential) -> LogWavefunction:
+def _build_model(N: int, L: float, hp: HyperParams, potential: Potential) -> LogWavefunction:
     jastrow = None
     if hp.use_jastrow:
         # Analytic two-body soft-core correlation factor (the r_ij-dependent hole the DeepSet
@@ -303,12 +307,12 @@ def _build_model(N: int, L: float, hp: HP, potential: Potential) -> LogWavefunct
     )
 
 
-def run_point(
+def train_point(
     potential: Potential,
     x: float,
     N: int,
     seed: int,
-    hp: HP,
+    hp: HyperParams,
     *,
     checkpoint_dir: str | None = None,
     init_params=None,
@@ -346,6 +350,7 @@ def run_point(
         laplacian_method=hp.laplacian_method,
         hutchinson_n_terms=hp.hutchinson_n_terms,
         hutchinson_distribution=hp.hutchinson_distribution,
+        folx_sparsity_threshold=hp.folx_sparsity_threshold,
     )
 
     callbacks = []
@@ -435,7 +440,7 @@ def fine_tune(
     x: float,
     N: int,
     seed: int,
-    ft_hp: HP,
+    ft_hp: HyperParams,
     *,
     from_run_dir: str,
     snapshot_index: int = 0,
@@ -459,7 +464,7 @@ def fine_tune(
 
     lp = artifacts.load_params(os.path.join(from_run_dir, "best_params.msgpack"))
     init = lp["params"][snapshot_index]
-    return run_point(
+    return train_point(
         potential, x, N, seed, ft_hp, checkpoint_dir=checkpoint_dir, init_params=init
     )
 
@@ -489,10 +494,138 @@ def _history_row(record) -> dict:
         "error_of_mean_engine": val("error_of_mean"),
         "acceptance": val("acceptance_rate"),
         "step_size": val("step_size"),
+        "grad_norm": val("grad_norm"),
+        "theta_ratio": val("theta_ratio"),
         "cm_mean": val("cm_mean"),
         "cm_std": val("cm_std"),
         "wall_time": val("wall_time"),
     }
+
+
+# ── the runq target: one flat function, one flat namespace ─────────────────────────
+#
+# Defaults here MUST mirror the HyperParams dataclass — test_point_contract.py enforces it.
+# Representation notes for the flat interface:
+#   * phi_hidden / F_hidden : dash-separated widths as a string ("64", "128-128"), because
+#     the CLI already uses commas to separate axis values;
+#   * jastrow_R             : 0.0 means "matched" (build the Jastrow from the run's own
+#     potential, i.e. the dataclass's None); pass e.g. 5.0 for the mismatch ablation.
+
+
+def _parse_hidden(spec: str) -> tuple[int, ...]:
+    """``"64" -> (64,)``, ``"128-128" -> (128, 128)`` (dash-separated layer widths)."""
+    try:
+        widths = tuple(int(w) for w in str(spec).split("-") if w != "")
+    except ValueError:
+        widths = ()
+    if not widths:
+        raise ValueError(f"bad hidden spec {spec!r}; use dash-separated widths, e.g. 128-128")
+    return widths
+
+
+def run_point(
+    # physics (potential R at a=1; gas parameter x; particle number N)
+    R=10.0,
+    x=1e-4,
+    N=64,
+    # solver: model
+    phi_hidden="64",
+    F_hidden="64",
+    use_jastrow=False,
+    jastrow_R=0.0,  # 0 = matched (the run's own potential); >1 = mismatch ablation R'
+    use_network=True,
+    hidden_internal_dim=20,
+    laplacian_method="forward_ad",
+    hutchinson_n_terms=16,
+    hutchinson_distribution="rademacher",
+    folx_sparsity_threshold=0,
+    # solver: optimizer
+    lr=3e-3,
+    lr_schedule="constant",
+    lr_final_frac=0.1,
+    n_epochs=400,
+    # solver: sampler
+    n_chains=512,
+    sampler="mh",
+    step_size=0.0,
+    chain_length=21,
+    thermalization_steps=20,
+    thinning_factor=1,
+    target_acceptance=0.5,
+    init_positions="uniform",
+    warm_walkers=True,
+    # solver: early stopping
+    early_stop=True,
+    es_check_every=50,
+    es_min_epochs=200,
+    es_patience=2,
+    es_target_rel_err=0.0,
+    es_plateau_rel=0.0,
+    # solver: parameter retention + boundary features
+    select="std",
+    snapshot_frac=0.10,
+    model_with_pbc=True,
+    # runq
+    seed=0,
+    run_dir=None,
+) -> dict:
+    """Train one soft-sphere point (the runq target). Returns scalar metrics in paper units.
+
+    Raises :class:`runq.Skip` when the box is infeasible (``R >= L/2``), so the point is
+    recorded as skipped rather than failed. Artifacts (``meta.json``, ``history.csv``,
+    ``verdict.json``, ``best_params.msgpack``) go into ``run_dir`` (injected by runq).
+    """
+    import artifacts
+
+    potential = Potential.from_R(R)
+    if not box_fits_interaction(potential, x, N):
+        L = box_side_for_gas_parameter(x, a=1.0, N=N)
+        raise Skip(f"R={R:g} >= L/2={L / 2:g} (box too small; needs x < N/(8R^3))")
+
+    hyper_params = HyperParams(
+        phi_hidden=_parse_hidden(phi_hidden),
+        F_hidden=_parse_hidden(F_hidden),
+        use_jastrow=use_jastrow,
+        jastrow_R=jastrow_R if jastrow_R else None,
+        use_network=use_network,
+        hidden_internal_dim=hidden_internal_dim,
+        laplacian_method=laplacian_method,
+        hutchinson_n_terms=hutchinson_n_terms,
+        hutchinson_distribution=hutchinson_distribution,
+        folx_sparsity_threshold=folx_sparsity_threshold,
+        lr=lr, lr_schedule=lr_schedule, lr_final_frac=lr_final_frac, n_epochs=n_epochs,
+        n_chains=n_chains, sampler=sampler, step_size=step_size,
+        chain_length=chain_length, thermalization_steps=thermalization_steps,
+        thinning_factor=thinning_factor, target_acceptance=target_acceptance,
+        init_positions=init_positions, warm_walkers=warm_walkers,
+        early_stop=early_stop, es_check_every=es_check_every,
+        es_min_epochs=es_min_epochs, es_patience=es_patience,
+        es_target_rel_err=es_target_rel_err, es_plateau_rel=es_plateau_rel,
+        select=select, snapshot_frac=snapshot_frac, model_with_pbc=model_with_pbc,
+    )
+    result = train_point(potential, x, N, seed, hyper_params, checkpoint_dir=run_dir)
+    if run_dir is not None:
+        artifacts.write_artifacts(run_dir, result)
+    return {
+        "e_per_n": result.e_per_n,
+        "err_per_n": result.err_per_n,
+        "sigma_e_per_n": result.sigma_e_per_n,
+        "acceptance": result.acceptance,
+        "passed": result.passed,
+        "L": result.L,
+        "upper_bound": result.upper_bound,
+        "epochs_ran": result.verdict.get("epochs_ran"),
+    }
+
+
+def feasible_x_grid(potential: Potential, N: int, x_lo=1e-5, x_hi=1e-2, n=8) -> np.ndarray:
+    """Log-spaced x grid clipped to the box-feasible range ``R < L/2 <=> x < N/(8R^3)``.
+
+    For an N-ladder, build the grid with the *smallest* N (the most restrictive), so every x
+    is feasible at every N and the fixed-x ``1/N -> 0`` extrapolation has data at each rung.
+    """
+    x_max_box = N / (8.0 * potential.R**3)
+    return np.geomspace(x_lo, min(x_hi, 0.999 * x_max_box), n)
 
 
 # ── free, training-free correctness gate: uniform gas ⟨V⟩/N must equal Eq. 31 ──────

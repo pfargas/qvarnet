@@ -1,18 +1,16 @@
 """The atomic experiment unit: one VMC training run of the Calogero-Sutherland model.
 
-``run_point(physics, seed, hp)`` trains a wavefunction for ``physics.N`` particles at coupling
-``physics.L`` and returns a :class:`CSResult`. Everything else in the study — the grid sweep, the
-seed averaging — just orchestrates calls to this function.
+The **runq target** is the flat :func:`run_point` at the bottom — one plain function with
+keyword defaults, one flat namespace (no physics/solver split at the interface):
 
-Split of responsibilities (mirrors ``soft_sphere_gas/point.py``):
+    runq run point.py --axis L=0.5,0.8 --axis N=2,5 --axis kind=jastrow,mlp_jastrow --seeds 0 1
 
-* ``physics`` (``L``, ``N``, ``n_dim``, ``epsilon``) — defines the **true answer**
-  ``E0 = N(1 + L(N-1))`` (code convention ℏ²/m=1, ω=1);
-* ``seed``  — RNG;
-* ``hp``    — the **solver** (model / optimizer / sampler / epochs): the only thing a tuner varies.
-
-The harness never hardcodes which of these vary — see ``sweep.build_grid``: you can grid over any
-subset of physics *or* solver fields. ``(physics, seed, hp)`` is the DB key.
+Internally the code keeps the conceptual grouping: :class:`Physics` (``L``, ``N``, ``n_dim``,
+``epsilon``) defines the **true answer** ``E0 = N(1 + L(N-1))`` (code convention ℏ²/m=1, ω=1);
+:class:`HyperParams` is the **solver** (model / optimizer / sampler / epochs);
+:func:`train_point(physics, seed, hyper_params)` does one training run. The flat ``run_point``
+just builds these from its arguments, trains, writes the artifacts into runq's ``run_dir``, and
+returns the scalar metrics.
 """
 
 from __future__ import annotations
@@ -42,7 +40,7 @@ from qvarnet.hamiltonian.continuous import CalogeroSutherlandHamiltonian
 
 @dataclass(frozen=True)
 class Physics:
-    """The CS problem. Frozen + serializable, so it is part of the DB key.
+    """The CS problem — defines the exact ground-state energy.
 
     ``L`` is the coupling (exact Jastrow exponent λ = L; L>1 repulsive, L<1 attractive/harder).
     ``epsilon`` softens the 1/(x_i-x_j)² singularity in the Hamiltonian — it is a property of the
@@ -79,8 +77,8 @@ class Physics:
 
 
 @dataclass(frozen=True)
-class HP:
-    """Solver knobs. Frozen + serializable, so ``(physics, seed, hp)`` is a DB key."""
+class HyperParams:
+    """Solver knobs — everything about *how* we solve, nothing about *what* we solve."""
 
     # model
     kind: str = "mlp_jastrow"  # "mlp_jastrow" | "jastrow" | "analytic" | "mlp"
@@ -88,6 +86,11 @@ class HP:
     mlp_layers: int = 1        # number of MLP hidden layers (grid axis)
     mlp_hidden: tuple[int, ...] | None = None  # explicit per-layer widths; overrides width/layers
     lambda_init: float = 1.2  # Jastrow exponent start; should drift toward L
+    # kinetic-energy Laplacian: "forward_ad" (exact, O(DoF) JVPs) | "folx" (forward-
+    # Laplacian/LapNet — exact, one forward pass, fastest at large N) | "hutchinson"
+    # (stochastic) | "central_difference"
+    laplacian_method: str = "forward_ad"
+    folx_sparsity_threshold: int = 0  # folx only; 0 = dense
     # optimizer
     lr: float = 1e-3
     lr_schedule: str = "constant"  # "constant" | "cosine" | "exponential"
@@ -138,6 +141,8 @@ class HP:
             "mlp_layers": self.mlp_layers,
             "mlp_hidden": list(self.mlp_hidden) if self.mlp_hidden is not None else None,
             "lambda_init": self.lambda_init,
+            "laplacian_method": self.laplacian_method,
+            "folx_sparsity_threshold": self.folx_sparsity_threshold,
             "lr": self.lr,
             "lr_schedule": self.lr_schedule,
             "lr_final_frac": self.lr_final_frac,
@@ -164,7 +169,7 @@ class HP:
         }
 
     @classmethod
-    def from_dict(cls, d: dict) -> "HP":
+    def from_dict(cls, d: dict) -> "HyperParams":
         d = dict(d)
         mh = d.get("mlp_hidden")
         d["mlp_hidden"] = tuple(mh) if mh is not None else None
@@ -180,7 +185,7 @@ class CSResult:
 
     physics: Physics
     seed: int
-    hp: HP
+    hp: HyperParams
 
     e_total: float       # tail-averaged E
     e_per_n: float       # E / N
@@ -210,7 +215,7 @@ class _NoNetwork(nn.Module):
         return jnp.zeros((*x.shape[:-1], 1))
 
 
-def _build_optimizer(hp: HP) -> optax.GradientTransformation:
+def _build_optimizer(hp: HyperParams) -> optax.GradientTransformation:
     steps = max(1, hp.n_epochs)
     if hp.lr_schedule == "constant":
         lr = hp.lr
@@ -223,8 +228,8 @@ def _build_optimizer(hp: HP) -> optax.GradientTransformation:
     return optax.adam(lr)
 
 
-def _build_model(physics: Physics, hp: HP) -> object:
-    """Mirror of the calogero_sutherland notebook's ``make_model`` (HP-parametrised)."""
+def _build_model(physics: Physics, hp: HyperParams) -> object:
+    """Mirror of the calogero_sutherland notebook's ``make_model``."""
     N, kind = physics.N, hp.kind
     if kind == "analytic":
         return CalogeroSutherlandAnalyticModel(lambda_init=hp.lambda_init)
@@ -252,15 +257,15 @@ def _build_model(physics: Physics, hp: HP) -> object:
     raise ValueError(f"unknown model kind {kind!r}")
 
 
-def run_point(
+def train_point(
     physics: Physics,
     seed: int,
-    hp: HP,
+    hp: HyperParams,
     *,
     checkpoint_dir: str | None = None,
     init_params=None,
 ) -> CSResult:
-    """Train one (physics, seed, hp) point and return E etc. in the code convention."""
+    """Train one (physics, seed, hyper-params) point; energies in the code convention."""
     callbacks = []
     if hp.early_stop:
         callbacks.append(EarlyStopCallback(
@@ -275,7 +280,11 @@ def run_point(
         shape=(hp.n_chains, physics.dof),
         model=_build_model(physics, hp),
         optimizer=_build_optimizer(hp),
-        hamiltonian=CalogeroSutherlandHamiltonian(L=physics.L, epsilon=physics.epsilon),
+        hamiltonian=CalogeroSutherlandHamiltonian(
+            L=physics.L, epsilon=physics.epsilon,
+            laplacian_method=hp.laplacian_method,
+            folx_sparsity_threshold=hp.folx_sparsity_threshold,
+        ),
         training_config=TrainingConfig(
             n_epochs=hp.n_epochs,
             rng_seed=seed,
@@ -355,7 +364,99 @@ def _history_row(record) -> dict:
         "error_of_mean": val("error_of_mean"),
         "acceptance": val("acceptance_rate"),
         "step_size": val("step_size"),
+        "grad_norm": val("grad_norm"),
+        "theta_ratio": val("theta_ratio"),
         "cm_mean": val("cm_mean"),
         "cm_std": val("cm_std"),
         "wall_time": val("wall_time"),
+    }
+
+
+# ── the runq target: one flat function, one flat namespace ───────────────────────────
+#
+# Defaults here MUST mirror the Physics / HyperParams dataclasses above —
+# test_point_contract.py enforces it. (`mlp_hidden`, the explicit per-layer override, is not
+# exposed: use mlp_width × mlp_layers.)
+
+
+def run_point(
+    # physics (defines the exact answer E0 = N(1 + L(N-1)))
+    L=0.8,
+    N=5,
+    n_dim=1,
+    epsilon=1e-4,
+    # solver: model
+    kind="mlp_jastrow",
+    mlp_width=128,
+    mlp_layers=1,
+    lambda_init=1.2,
+    # solver: kinetic-energy estimator
+    laplacian_method="forward_ad",
+    folx_sparsity_threshold=0,
+    # solver: optimizer
+    lr=1e-3,
+    lr_schedule="constant",
+    lr_final_frac=0.1,
+    n_epochs=2000,
+    # solver: sampler
+    n_chains=4096,
+    step_size=0.5,
+    chain_length=21,
+    thermalization_steps=20,
+    thinning_factor=1,
+    target_acceptance=0.5,
+    init_positions="normal",
+    warm_walkers=True,
+    min_step=1e-5,
+    max_step=5.0,
+    # solver: early stopping
+    early_stop=False,
+    es_check_every=50,
+    es_min_epochs=300,
+    es_patience=2,
+    es_target_rel_err=0.0,
+    es_plateau_rel=0.0,
+    # solver: parameter retention
+    select="std",
+    n_snapshots=100,
+    snapshot_frac=0.10,
+    # runq
+    seed=0,
+    run_dir=None,
+) -> dict:
+    """Train one CS point (the runq target). Returns the scalar metrics of the run.
+
+    Artifacts (``meta.json``, ``history.csv``, ``verdict.json``, ``best_params.msgpack``) are
+    written into ``run_dir`` (injected by runq; ``None`` for a bare in-process call skips them).
+    """
+    import artifacts
+
+    physics = Physics(L=L, N=N, n_dim=n_dim, epsilon=epsilon)
+    hyper_params = HyperParams(
+        kind=kind, mlp_width=mlp_width, mlp_layers=mlp_layers, lambda_init=lambda_init,
+        laplacian_method=laplacian_method, folx_sparsity_threshold=folx_sparsity_threshold,
+        lr=lr, lr_schedule=lr_schedule, lr_final_frac=lr_final_frac, n_epochs=n_epochs,
+        n_chains=n_chains, step_size=step_size, chain_length=chain_length,
+        thermalization_steps=thermalization_steps, thinning_factor=thinning_factor,
+        target_acceptance=target_acceptance, init_positions=init_positions,
+        warm_walkers=warm_walkers, min_step=min_step, max_step=max_step,
+        early_stop=early_stop, es_check_every=es_check_every, es_min_epochs=es_min_epochs,
+        es_patience=es_patience, es_target_rel_err=es_target_rel_err,
+        es_plateau_rel=es_plateau_rel, select=select, n_snapshots=n_snapshots,
+        snapshot_frac=snapshot_frac,
+    )
+    result = train_point(physics, seed, hyper_params, checkpoint_dir=run_dir)
+    if run_dir is not None:
+        artifacts.write_artifacts(run_dir, result)
+    return {
+        "e_total": result.e_total,
+        "e_per_n": result.e_per_n,
+        "err_total": result.err_total,
+        "err_per_n": result.err_per_n,
+        "sigma_e": result.sigma_e,
+        "acceptance": result.acceptance,
+        "passed": result.passed,
+        "e_exact": result.e_exact,
+        "gap": result.gap,
+        "epochs_ran": result.verdict.get("epochs_ran"),
     }

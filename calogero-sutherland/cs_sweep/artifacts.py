@@ -1,56 +1,34 @@
-"""Per-run output artifacts — the portable, self-contained layout under ``outputs/``.
+"""Per-run output artifacts, written into the run directory that runq hands the target.
 
-A sweep produces one **run directory** per ``(physics, seed, hp)`` under ``outputs/runs/<run_id>/``,
-alongside the index DB ``outputs/cs.db``. The whole ``outputs/`` tree is self-contained and copyable
-between machines: nothing here references an absolute path or a live JAX device.
+runq owns the run-dir naming/layout (``outputs/runs/<label>/`` next to the DB); this module
+only knows *what* a CS run leaves behind:
 
-``run_id``
-----------
-``<physics-label>_s<seed>_<hp8>`` — e.g. ``L0.8_N5_s0_3f9a1c2b``. The physics axes are
-human-readable; ``hp8`` is the first 8 hex of a hash of the *full* hyperparameter dict, so two runs
-that differ only in solver settings get distinct dirs. The full HP + physics are in ``meta.json``
-and the DB, so the hash is never inverted.
+* ``meta.json``           — identity + full physics/hyper-params + exact energy + result;
+* ``history.csv``         — per-epoch metrics;
+* ``verdict.json``        — the full three-referee ``diagnose()`` dict;
+* ``best_params.msgpack`` — the best retained param snapshots by ``select`` (best first).
 
-Run-dir contents: ``meta.json`` (identity + full physics/hp + exact energy + result),
-``history.csv`` (per-epoch metrics), ``verdict.json`` (three-referee diagnose dict),
-``best_params.msgpack`` (best ``snapshot_frac`` of epochs by ``select``, best first).
+Nothing here references an absolute path or a live JAX device, so the whole ``outputs/``
+tree stays copyable between machines.
 """
 
 from __future__ import annotations
 
 import csv
-import hashlib
 import json
 import os
 
 from flax import serialization
 
-RUNS_SUBDIR = "runs"
 
-
-def run_id(physics, seed: int, hp) -> str:
-    """Filesystem-safe, human-readable label, unique per ``(physics, seed, hp)``."""
-    hp8 = hashlib.sha1(json.dumps(hp.to_dict(), sort_keys=True).encode()).hexdigest()[:8]
-    return f"{physics.label}_s{seed}_{hp8}"
-
-
-def run_dir(result) -> str:
-    """Relative path (under out_root) of the run dir for ``result``."""
-    return os.path.join(RUNS_SUBDIR, run_id(result.physics, result.seed, result.hp))
-
-
-def write_run_artifacts(out_root: str, result) -> str:
-    """Write meta/history/verdict/params for one run. Returns the run dir *relative* to out_root."""
-    rel = run_dir(result)
-    full = os.path.join(out_root, rel)
-    os.makedirs(full, exist_ok=True)
-
-    _write_meta(os.path.join(full, "meta.json"), result)
-    _write_history(os.path.join(full, "history.csv"), result)
-    with open(os.path.join(full, "verdict.json"), "w") as fh:
+def write_artifacts(run_dir: str, result) -> None:
+    """Write meta/history/verdict/params for one run into ``run_dir``."""
+    os.makedirs(run_dir, exist_ok=True)
+    _write_meta(os.path.join(run_dir, "meta.json"), result)
+    _write_history(os.path.join(run_dir, "history.csv"), result)
+    with open(os.path.join(run_dir, "verdict.json"), "w") as fh:
         json.dump(_json_safe(result.verdict), fh, indent=2)
-    _write_params(os.path.join(full, "best_params.msgpack"), result)
-    return rel
+    _write_params(os.path.join(run_dir, "best_params.msgpack"), result)
 
 
 def _write_meta(path: str, result) -> None:
@@ -59,7 +37,7 @@ def _write_meta(path: str, result) -> None:
         "units": "code convention (hbar^2/m=1, omega=1); H = -sum d^2/dx^2 + sum x^2 + 2L(L-1) sum 1/(xi-xj)^2",
         "physics": result.physics.to_dict(),
         "seed": result.seed,
-        "hp": result.hp.to_dict(),
+        "hyper_params": result.hp.to_dict(),
         "exact_energy": result.e_exact,
         "result": {
             "e_total": result.e_total, "e_per_n": result.e_per_n,
@@ -77,7 +55,7 @@ def _write_history(path: str, result) -> None:
     if not rows:
         return
     fields = ["epoch", "energy", "std", "error_of_mean", "acceptance",
-              "step_size", "cm_mean", "cm_std", "wall_time"]
+              "step_size", "grad_norm", "theta_ratio", "cm_mean", "cm_std", "wall_time"]
     with open(path, "w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=fields)
         w.writeheader()

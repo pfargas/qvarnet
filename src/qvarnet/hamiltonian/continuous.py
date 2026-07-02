@@ -1,11 +1,18 @@
+import jax.numpy as jnp
+from flax import struct
+
+from qvarnet.config.coord_mode import CoordMode, LabCoords
+from qvarnet.particles import Particles
+
 from .base import BaseHamiltonian
 from .hamiltonian_registry import register_hamiltonian
 from .kinetic import kinetic_log
-from .laplacian import laplacian_forward_ad, laplacian_full_hessian, laplacian_central_difference, laplacian_hutchinson
-from flax import struct
-
-import jax.numpy as jnp
-from qvarnet.config.coord_mode import CoordMode, LabCoords
+from .laplacian import (
+    laplacian_central_difference,
+    laplacian_forward_ad,
+    laplacian_full_hessian,
+    laplacian_hutchinson,
+)
 
 
 @struct.dataclass
@@ -23,15 +30,25 @@ class ContinuousHamiltonian(BaseHamiltonian):
     coord_mode is set by train() — subclasses never need to handle it.
 
     laplacian_method options:
-        "forward_ad"          — forward-over-reverse AD, O(DoF), recommended
+        "forward_ad"          — forward-over-reverse AD, O(DoF), exact, default
+        "folx"                — forward-Laplacian (LapNet), one forward pass for
+                                gradient + Laplacian together; exact, fastest at large
+                                DoF (requires the folx package)
+        "hutchinson"          — stochastic trace estimator, O(n_terms) JVPs
         "central_difference"  — finite differences, no AD required
         "full_hessian"        — full Hessian trace, O(DoF^2), debug only
+
+    particles (optional) declares the (N, n_dim, masses) structure of the flat dof
+    vector; with unequal masses the kinetic energy becomes -Σ_i 1/(2m_i) ∇²_i (every
+    laplacian_method supports it). None = current behaviour (all masses equal).
     """
 
     laplacian_method: str = struct.field(pytree_node=False, default="forward_ad")
     coord_mode: CoordMode = struct.field(pytree_node=False, default=None)
     hutchinson_n_terms: int = struct.field(pytree_node=False, default=10)
     hutchinson_distribution: str = struct.field(pytree_node=False, default="rademacher")
+    folx_sparsity_threshold: int = struct.field(pytree_node=False, default=0)
+    particles: Particles = struct.field(pytree_node=False, default=None)
 
     def _get_laplacian_fn(self):
         method = self.laplacian_method
@@ -50,8 +67,22 @@ class ContinuousHamiltonian(BaseHamiltonian):
             )
         raise ValueError(f"Unknown laplacian_method: {method!r}")
 
+    def _kinetic(self, params, samples, model_apply, key=None):
+        """The dispatch point every subclass must route kinetic energy through."""
+        weights = self.particles.dof_weights() if self.particles is not None else None
+        if self.laplacian_method == "folx":
+            return kinetic_log(
+                params, samples, model_apply, use_folx=True,
+                sparsity_threshold=self.folx_sparsity_threshold,
+                dof_weights=weights, key=key,
+            )
+        return kinetic_log(
+            params, samples, model_apply,
+            laplacian_fn=self._get_laplacian_fn(), dof_weights=weights, key=key,
+        )
+
     def kinetic_local_energy(self, params, samples, model_apply, key=None):
-        return kinetic_log(params, samples, model_apply, self._get_laplacian_fn(), key=key)
+        return self._kinetic(params, samples, model_apply, key=key)
 
     def potential_energy(self, samples):
         raise NotImplementedError("Subclass must implement potential_energy().")
@@ -135,7 +166,8 @@ class CalogeroSutherlandHamiltonian(ContinuousHamiltonian):
 
     def kinetic_local_energy(self, params, samples, model_apply, key=None):
         # Factor of 2: CS convention is H = -d²/dx² + V (ℏ²/m = 1, not ℏ²/2m = 1).
-        return 2 * kinetic_log(params, samples, model_apply, self._get_laplacian_fn(), key=key)
+        # Routed through _kinetic so laplacian_method (incl. "folx") and masses apply here too.
+        return 2 * self._kinetic(params, samples, model_apply, key=key)
 
     def potential_energy(self, samples):
         import jax

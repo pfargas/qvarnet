@@ -102,6 +102,77 @@ class TrainResult:
             result[m] = sorted(records, key=key_fn)[:n]
         return result if len(metric) > 1 else result[metric[0]]
 
+    def summary(self, print_report: bool = True) -> dict:
+        """End-of-run statistics: what you want to see after training in a notebook.
+
+        Reports the best retained model (by the snapshot ``select`` metric), the best and
+        final epochs' energy ± error and σ_E, acceptance, total wall time, epochs ran and
+        parameter count. Printed automatically at the end of ``train()`` unless
+        ``TrainingConfig.print_summary=False``. Returns the same values as a dict.
+
+        Deliberately **no** mean over the training history: those samples come from a
+        moving distribution, so their average is not a physical estimator — measure with
+        ``qvarnet.evaluate`` / ``evaluate_result`` (frozen params, block-averaged errors).
+        """
+        import numpy as np
+
+        h = self.history
+        n = len(h)
+        if n == 0:
+            if print_report:
+                print("TrainResult.summary: empty history (no epochs ran).")
+            return {}
+
+        energy = h.get("energy")
+        err = h.get("error_of_mean")
+        std = h.get("std")
+        tail = slice(n // 2, None)
+        acceptance = float(np.mean(np.asarray(h.get("acceptance_rate"))[tail]))
+        wall = float(np.sum(h.get("wall_time")))
+        i_best = int(np.argmin(energy))
+
+        n_params = None
+        if self.final_params is not None:
+            from jax.flatten_util import ravel_pytree
+            n_params = int(ravel_pytree(self.final_params)[0].size)
+
+        out = {
+            "epochs_ran": n,
+            "wall_time_s": wall,
+            "n_parameters": n_params,
+            "final": {"energy": float(energy[-1]), "error_of_mean": float(err[-1]),
+                      "std": float(std[-1])},
+            "best_epoch": {"step": int(h.get("step")[i_best]), "energy": float(energy[i_best]),
+                           "error_of_mean": float(err[i_best]), "std": float(std[i_best])},
+            "acceptance_tail": acceptance,
+            "n_snapshots_kept": len(self.snapshots),
+        }
+        if self.snapshots:
+            s = min(self.snapshots, key=lambda s: s["metric"])
+            out["best_snapshot"] = {"step": int(s["step"]), "metric": float(s["metric"])}
+
+        if print_report:
+            mins, secs = divmod(wall, 60.0)
+            lines = [
+                "── training summary " + "─" * 40,
+                f"epochs ran       : {n}   ({int(mins)}m {secs:04.1f}s wall"
+                + (f", {n_params} parameters)" if n_params is not None else ")"),
+                f"final epoch      : E = {out['final']['energy']:.6f} "
+                f"± {out['final']['error_of_mean']:.2e}   σ_E = {out['final']['std']:.4f}",
+                f"best epoch ({out['best_epoch']['step']:>5}) : E = {out['best_epoch']['energy']:.6f} "
+                f"± {out['best_epoch']['error_of_mean']:.2e}   σ_E = {out['best_epoch']['std']:.4f}",
+                f"acceptance (tail): {acceptance:.3f}",
+            ]
+            if "best_snapshot" in out:
+                lines.append(
+                    f"best snapshot    : epoch {out['best_snapshot']['step']} "
+                    f"(select metric = {out['best_snapshot']['metric']:.6g}; "
+                    f"{len(self.snapshots)} kept — result.best_params() to load)"
+                )
+            lines.append("─" * 60)
+            print("\n".join(lines))
+        return out
+
     def diagnose(self, print_report: bool = True, **kwargs) -> dict:
         """Run the three-referee convergence verdict on the history (roadmap §3).
 

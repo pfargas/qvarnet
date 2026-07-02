@@ -1,22 +1,19 @@
-from typing import Callable
+"""Log-space MLP + analytic-envelope ansätze (the paper's ``mlp-*-decay`` family).
+
+All models here output **log|ψ|** = MLP(x) − α·(envelope), with a trainable envelope
+strength α. The psi-space originals from before the log-only engine migration were
+removed 2026-07-02 (git history has them).
+"""
+
+from collections.abc import Callable
 
 from flax import linen as nn
 from jax import numpy as jnp
-import jax
 
-from .layers.custom_dense import CustomDense
-from .mlp import MLP
 from .base import BaseModel
-
+from .mlp import MLP
 from .registry import register_model
 
-
-class ExponentialWavefunction(nn.Module):
-
-    @nn.compact
-    def __call__(self, x):
-        alpha = self.param("alpha", nn.initializers.constant(1.0), ())
-        return jnp.exp(-alpha * jnp.sum(x**2, axis=-1))
 
 @register_model("log-analytic")
 class LogAnalyticWavefunction(BaseModel):
@@ -33,40 +30,6 @@ class LogAnalyticWavefunction(BaseModel):
     @classmethod
     def get_input_shape(cls, model_args: dict, batch_size: int) -> tuple:
         return (batch_size, model_args["input_dim"])
-
-
-@register_model("exponential-mlp-fourth-decay")
-class ExponentialMLPwithPenalty(BaseModel):
-    architecture: list
-    hidden_activation: Callable = nn.tanh
-    kernel_init: Callable = nn.initializers.lecun_normal()
-    bias_init: Callable = nn.initializers.zeros_init()
-
-    @nn.compact
-    def __call__(self, x):
-        mlp = MLP(
-            architecture=self.architecture,
-            hidden_activation=self.hidden_activation,
-            kernel_init=self.kernel_init,
-            bias_init=self.bias_init,
-        )
-        envelope_param = self.param("envelope_param", nn.initializers.constant(1.0), ())
-        mlp_output = mlp(x)
-        exp_wf = jnp.exp(
-            mlp_output - envelope_param * jnp.sum(x**4, axis=-1, keepdims=True)
-        )
-        return exp_wf
-
-    def build_from_params(self, params):
-        pass
-
-    @classmethod
-    def from_config(cls, model_args: dict):
-        return cls(architecture=model_args["architecture"])
-
-    @classmethod
-    def get_input_shape(cls, model_args: dict, batch_size: int) -> tuple:
-        return (batch_size, model_args["architecture"][0])
 
 
 @register_model("mlp-fourth-decay")
@@ -132,39 +95,6 @@ class LogExponentialMLPwithGaussianPenalty(BaseModel):
     @classmethod
     def get_input_shape(cls, model_args: dict, batch_size: int) -> tuple:
         return (batch_size, model_args["architecture"][0])
-    
-@register_model("pair-exponential-mlp-gaussian-decay")
-class PairLogExponentialMLPwithGaussianPenalty(BaseModel):
-    hidden_arch: list
-    hidden_activation: Callable = nn.tanh
-    kernel_init: Callable = nn.initializers.lecun_normal()
-    bias_init: Callable = nn.initializers.zeros_init()
-    # jax.debug.print("NOT IMPLEMENTED YET: PairLogExponentialMLPwithGaussianPenalty") # TODO
-
-    @nn.compact
-    def __call__(self, x):
-        mlp = MLP(
-            architecture=self.hidden_arch, # Nope, should have N(N-1)/2 input features, not DoF
-            hidden_activation=self.hidden_activation,
-            kernel_init=self.kernel_init,
-            bias_init=self.bias_init,
-        )
-        envelope_param = self.param("envelope_param", nn.initializers.constant(1.0), ())
-        mlp_output = mlp(x)
-        pairwise_distances = jnp.sum((x[:, None, :] - x[None, :, :])**2, axis=-1)
-        log_wf = mlp_output - envelope_param * jnp.sum(pairwise_distances, axis=(-2, -1), keepdims=True)
-        return log_wf
-
-    def build_from_params(self, params):
-        pass
-
-    @classmethod
-    def from_config(cls, model_args: dict):
-        return cls(hidden_arch=model_args["hidden_arch"])
-
-    @classmethod
-    def get_input_shape(cls, model_args: dict, batch_size: int) -> tuple:
-        return (batch_size, model_args["hidden_arch"][0])
     
 @register_model("j-mlp-gaussian-decay")
 class JastrowLogExponentialMLPwithGaussianPenalty(BaseModel):

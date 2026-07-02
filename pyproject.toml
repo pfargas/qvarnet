@@ -22,7 +22,13 @@ dependencies = [
     "msgpack>=1.1",
     "pyyaml>=6.0",
     "pandas>=3.0.3",
+    # Sweep/queue infrastructure (the sibling repo; on clusters: pip install -e ~/runq)
+    "runq",
+    "folx>=0.2.22",
 ]
+
+[tool.uv.sources]
+runq = { path = "../runq", editable = true }
 
 [project.scripts]
 qvarnet = "qvarnet.runner:main"

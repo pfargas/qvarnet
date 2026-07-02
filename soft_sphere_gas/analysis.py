@@ -66,7 +66,7 @@ def aggregate_seeds(rows) -> tuple[float, float, int]:
     single lowest would bias the bound downward and throw away two-thirds of the data). The error
     is the larger of the across-seed scatter ``std/√n`` and the mean within-seed error, so seed
     disagreement (optimisation noise) can never be hidden by small per-run error bars. This is the
-    same rule ``sweep.load_curve`` uses, factored out so the extrapolation reuses it.
+    same rule :func:`load_curve` uses, factored out so the extrapolation reuses it.
     """
     e = np.array([r["e_per_n"] for r in rows], float)
     within = np.array([r["err_per_n"] or 0.0 for r in rows], float)
@@ -93,7 +93,52 @@ def _cluster_x(xs_sorted, rtol):
     return clusters
 
 
-def collect_ladder(conn, potential_label: str, N_list, require_passed: bool = True,
+def done_rows(conn, R: float | None = None, N: int | None = None,
+              require_passed: bool = True) -> list[dict]:
+    """All done runq rows as flat dicts (params + result merged), optionally filtered.
+
+    Each dict carries the swept params (``R``, ``x``, ``N``, ``seed``, …) and the run's
+    metrics (``e_per_n``, ``err_per_n``, ``passed``, ``upper_bound``, …).
+    """
+    import json
+
+    out = []
+    for r in conn.execute("SELECT params_json, result_json FROM runs WHERE status='done'"):
+        row = {**json.loads(r["params_json"]), **json.loads(r["result_json"])}
+        if R is not None and row.get("R") != R:
+            continue
+        if N is not None and row.get("N") != N:
+            continue
+        if require_passed and not row.get("passed"):
+            continue
+        out.append(row)
+    return out
+
+
+def load_curve(conn, R: float, N: int, require_passed: bool = True) -> dict:
+    """Seed-averaged E/N(x) for one (potential R, N): sorted arrays for :func:`plot_curve`.
+
+    Per x: seeds combined by :func:`aggregate_seeds` (the error can't be understated).
+    """
+    from collections import defaultdict
+
+    by_x: dict = defaultdict(list)
+    for row in done_rows(conn, R=R, N=N, require_passed=require_passed):
+        by_x[row["x"]].append(row)
+
+    xs, e, err, ub, npx = [], [], [], [], []
+    for x in sorted(by_x):
+        mean, sigma, n = aggregate_seeds(by_x[x])
+        xs.append(x)
+        e.append(mean)
+        err.append(sigma)
+        ub.append(by_x[x][0].get("upper_bound"))
+        npx.append(n)
+    return {"x": np.array(xs), "e_per_n": np.array(e), "err": np.array(err),
+            "upper_bound": np.array(ub), "n_per_x": npx}
+
+
+def collect_ladder(conn, R: float, N_list, require_passed: bool = True,
                    x_rtol: float = 0.02) -> dict:
     """Group all done runs into ``{x: [(N, e_per_n, err, n_seeds), ...]}`` (seeds already merged).
 
@@ -105,14 +150,10 @@ def collect_ladder(conn, potential_label: str, N_list, require_passed: bool = Tr
     """
     from collections import defaultdict
 
-    import db
-
     rows_by_xN: dict = defaultdict(list)   # (x, N) -> [rows]
     all_x: set = set()
     for N in N_list:
-        for r in db.fetch_done(conn, potential_label, N):
-            if require_passed and not r["passed"]:
-                continue
+        for r in done_rows(conn, R=R, N=N, require_passed=require_passed):
             rows_by_xN[(r["x"], N)].append(r)
             all_x.add(r["x"])
 
@@ -146,7 +187,7 @@ def _wls_intercept(t, y, s):
     return a, math.sqrt(Stt / D), b, math.sqrt(S / D)
 
 
-def extrapolate_thermodynamic(conn, potential_label: str, N_list,
+def extrapolate_thermodynamic(conn, R: float, N_list,
                               require_passed: bool = True, min_N: int = 2,
                               x_rtol: float = 0.02) -> dict:
     """N→∞ extrapolation of E/N at each fixed x: weighted linear fit in 1/N.
@@ -163,7 +204,7 @@ def extrapolate_thermodynamic(conn, potential_label: str, N_list,
     different power here if a curvature term is needed. Points with fewer than ``min_N`` rungs are
     skipped (you can't extrapolate one N).
     """
-    ladder = collect_ladder(conn, potential_label, N_list, require_passed, x_rtol=x_rtol)
+    ladder = collect_ladder(conn, R, N_list, require_passed, x_rtol=x_rtol)
     fits = {}
     for x, pts in ladder.items():
         if len(pts) < min_N:

@@ -7,13 +7,18 @@ from .hamiltonian import define_hamiltonian, list_hamiltonians
 # also registers "lattice-bose" in the Hamiltonian registry.
 from .hamiltonian.periodic import LatticeBoseHamiltonian, PenetrableSphereHamiltonian
 from .models.layers import AppendPairwiseDiffs, SubtractCM
+from .particles import Particles
 from .utils import load_custom_module
+from .vmc.evaluate import EvalResult, evaluate, evaluate_result
 from .vmc.train import train
 from .vmc.train_result import TrainResult
 
 __all__ = [
     "train",
     "TrainResult",
+    "evaluate",
+    "evaluate_result",
+    "EvalResult",
     "define_hamiltonian",
     "list_hamiltonians",
     "load_custom_module",
@@ -29,4 +34,5 @@ __all__ = [
     "BoundaryHamiltonian",
     "LatticeBoseHamiltonian",
     "PenetrableSphereHamiltonian",
+    "Particles",
 ]

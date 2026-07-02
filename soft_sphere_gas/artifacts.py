@@ -1,34 +1,24 @@
-"""Per-run output artifacts — the portable, self-contained layout under ``outputs/``.
+"""Per-run output artifacts, written into the run directory that runq hands the target.
 
-A sweep produces one **run directory** per ``(potential, x, N, seed, hp)`` under
-``outputs/runs/<run_id>/``, alongside the index DB ``outputs/soft_sphere.db``. The whole
-``outputs/`` tree is self-contained and copyable between a cluster and a PC (see ``RUNNING.md``):
-nothing here references an absolute path or a live JAX device.
+runq owns the run-dir naming/layout (``outputs/runs/<label>/`` next to the DB); this module
+only knows *what* a soft-sphere run leaves behind:
 
-``run_id`` (the label)
-----------------------
-``<potential>_x<gas-param>_N<particles>_s<seed>_<hp8>`` — e.g. ``SS10_x1.000e-04_N64_s0_3f9a1c2b``.
-The physics axes (potential / x / N / seed) are human-readable; ``hp8`` is the first 8 hex of a
-hash of the *full* hyperparameter dict, so two runs that differ only in solver settings get
-distinct dirs. The full HP is recorded in ``meta.json`` and the DB row, so the hash never has to
-be inverted.
-
-Run-dir contents
-----------------
-* ``meta.json``         — identity, units note, full HP, box L, and the paper benchmarks
-                          (4πx lower bound, Lee-Yang, Eq.31 upper bound) at this point.
+* ``meta.json``         — identity, units note, full hyper-params, box L, and the paper
+                          benchmarks (4πx lower bound, Lee-Yang, Eq.31 upper bound).
 * ``history.csv``       — per epoch: engine-unit energy/std/error + paper-unit E/N and σ/N,
                           acceptance, step_size, cm_*, wall_time.
 * ``verdict.json``      — the full three-referee ``result.diagnose()`` dict.
 * ``best_params.msgpack`` — the best ``snapshot_frac`` of epochs by ``select`` (default σ_E):
-                          ``{"steps", "metrics", "select", "params": [pytree, ...]}`` (best first).
-                          Reload with :func:`load_params`.
+                          ``{"steps", "metrics", "select", "params": [pytree, ...]}`` (best
+                          first). Reload with :func:`load_params`.
+
+Nothing here references an absolute path or a live JAX device, so the whole ``outputs/``
+tree stays copyable between a cluster and a PC (see ``RUNNING.md``).
 """
 
 from __future__ import annotations
 
 import csv
-import hashlib
 import json
 import math
 import os
@@ -36,33 +26,15 @@ import os
 from dilute_gas import lee_yang_energy_per_particle, to_paper_energy
 from flax import serialization
 
-RUNS_SUBDIR = "runs"
 
-
-def run_id(potential, x: float, N: int, seed: int, hp) -> str:
-    """Filesystem-safe, human-readable label, unique per ``(potential, x, N, seed, hp)``."""
-    hp8 = hashlib.sha1(json.dumps(hp.to_dict(), sort_keys=True).encode()).hexdigest()[:8]
-    return f"{potential.label}_x{x:.3e}_N{N}_s{seed}_{hp8}"
-
-
-def run_dir(out_root: str, result) -> str:
-    """Relative path (under ``out_root``) of the run dir for ``result``."""
-    rid = run_id(result.potential, result.x, result.N, result.seed, result.hp)
-    return os.path.join(RUNS_SUBDIR, rid)
-
-
-def write_run_artifacts(out_root: str, result) -> str:
-    """Write meta/history/verdict/params for one run. Returns the run dir *relative* to out_root."""
-    rel = run_dir(out_root, result)
-    full = os.path.join(out_root, rel)
-    os.makedirs(full, exist_ok=True)
-
-    _write_meta(os.path.join(full, "meta.json"), result)
-    _write_history(os.path.join(full, "history.csv"), result)
-    with open(os.path.join(full, "verdict.json"), "w") as fh:
+def write_artifacts(run_dir: str, result) -> None:
+    """Write meta/history/verdict/params for one run into ``run_dir``."""
+    os.makedirs(run_dir, exist_ok=True)
+    _write_meta(os.path.join(run_dir, "meta.json"), result)
+    _write_history(os.path.join(run_dir, "history.csv"), result)
+    with open(os.path.join(run_dir, "verdict.json"), "w") as fh:
         json.dump(_json_safe(result.verdict), fh, indent=2)
-    _write_params(os.path.join(full, "best_params.msgpack"), result)
-    return rel
+    _write_params(os.path.join(run_dir, "best_params.msgpack"), result)
 
 
 def _write_meta(path: str, result) -> None:
@@ -73,7 +45,7 @@ def _write_meta(path: str, result) -> None:
         "potential": {"label": result.potential.label, "R": result.potential.R,
                       "V0_paper": result.potential.V0_paper},
         "x": x, "N": N, "seed": result.seed, "L": result.L,
-        "hp": result.hp.to_dict(),
+        "hyper_params": result.hp.to_dict(),
         "results_paper": {
             "e_per_n": result.e_per_n, "err_per_n": result.err_per_n,
             "sigma_e_per_n": result.sigma_e_per_n, "acceptance": result.acceptance,
@@ -96,7 +68,7 @@ def _write_history(path: str, result) -> None:
     N = result.N
     fields = ["epoch", "energy_engine", "std_engine", "error_of_mean_engine",
               "e_per_n_paper", "sigma_per_n_paper", "acceptance", "step_size",
-              "cm_mean", "cm_std", "wall_time"]
+              "grad_norm", "theta_ratio", "cm_mean", "cm_std", "wall_time"]
     with open(path, "w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=fields)
         w.writeheader()

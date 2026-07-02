@@ -69,7 +69,9 @@ def test_multi_seed_run_rhat(tmp_path):
         model=make_ho_model(),
         optimizer=optax.adam(2e-2),
         hamiltonian=HarmonicOscillatorHamiltonian(omega=1.0),
-        training_config=TrainingConfig(n_epochs=80, rng_seed=0, checkpoint_path=str(tmp_path)),
+        training_config=TrainingConfig(n_epochs=80, rng_seed=0, checkpoint_path=str(tmp_path),
+                                       # calibrated for cold-restart sampling (engine default is now True)
+                                       warm_walkers=False),
         sampler_params=_sampler(),
     )
     assert len(out["results"]) == 3 and len(out["tail_means"]) == 3

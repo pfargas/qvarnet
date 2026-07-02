@@ -115,7 +115,9 @@ def test_verdict_and_vscore_on_ho(tmp_path):
         model=model,
         optimizer=optax.adam(1e-2),
         hamiltonian=HarmonicOscillatorHamiltonian(omega=1.0),
-        training_config=TrainingConfig(n_epochs=400, rng_seed=0, checkpoint_path=str(tmp_path)),
+        training_config=TrainingConfig(n_epochs=400, rng_seed=0, checkpoint_path=str(tmp_path),
+                                       # calibrated for cold-restart sampling (engine default is now True)
+                                       warm_walkers=False),
         sampler_params={
             "step_size": 0.6,
             "chain_length": 200,

@@ -87,7 +87,11 @@ class TrainingConfig:
     n_epochs: int
     rng_seed: int = 0
     init_positions: str = "normal"  # "normal" | "zeros"
-    warm_walkers: bool = False
+    # Carry walker positions across epochs, so the chain equilibrates once instead of
+    # re-thermalising from scratch every epoch. False is only useful for sampler debugging.
+    warm_walkers: bool = True
+    # Print TrainResult.summary() when training ends (notebook-friendly run report).
+    print_summary: bool = True
     is_update_step_size: bool = False
     min_step: float = 1e-5
     max_step: float = 5.0
@@ -145,7 +149,8 @@ def parse_training_params(train_args: dict[str, Any]) -> TrainingConfig:
         n_epochs=int(train_args.get("num_epochs", 3000)),
         rng_seed=int(train_args.get("rng_seed", 0)),
         init_positions=str(train_args.get("init_positions", "normal")),
-        warm_walkers=bool(train_args.get("warm_walkers", False)),
+        warm_walkers=bool(train_args.get("warm_walkers", True)),
+        print_summary=bool(train_args.get("print_summary", True)),
         is_update_step_size=bool(train_args.get("is_update_step_size", False)),
         min_step=float(train_args.get("min_step", 1e-5)),
         max_step=float(train_args.get("max_step", 5.0)),

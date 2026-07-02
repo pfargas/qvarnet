@@ -471,4 +471,7 @@ def train(
     # One host copy of the final params (no per-epoch cost); best-k come from the snapshot policy.
     final_params = jax.device_get(state.params)
     snapshots = snapshot_cb.snapshots if snapshot_cb is not None else []
-    return TrainResult(history=metrics_history, final_params=final_params, snapshots=snapshots)
+    result = TrainResult(history=metrics_history, final_params=final_params, snapshots=snapshots)
+    if training_config.print_summary:
+        result.summary()
+    return result

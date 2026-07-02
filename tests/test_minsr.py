@@ -68,6 +68,8 @@ def test_minsr_trains_end_to_end(tmp_path):
             rng_seed=0,
             use_qgt=True,
             checkpoint_path=str(tmp_path),
+            # calibrated for cold-restart sampling (engine default is now True)
+            warm_walkers=False,
         ),
         qgt_config=QGTConfig(solver="minsr", learning_rate=0.02, regularization=1e-2),
         sampler_params={
