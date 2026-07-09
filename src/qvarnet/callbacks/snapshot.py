@@ -57,7 +57,7 @@ class SnapshotCallback(Callback):
             # keep only if it could be among the k smallest (lower = better)
             if len(self.snapshots) < self.k or value < self.snapshots[-1]["metric"]:
                 self.snapshots.append(
-                    {"step": step, "metric": value, "params": jax.device_get(state.params)}
+                    {"step": step, "metric": value, "params": jax.device_get(state.params), "grads": jax.device_get(state.grads) if hasattr(state, "grads") else None}
                 )
                 self.snapshots.sort(key=lambda s: s["metric"])
                 del self.snapshots[self.k :]
