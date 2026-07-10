@@ -17,7 +17,7 @@ from ..callbacks import (
     SnapshotCallback,
 )
 from ..config.coord_mode import CoordMode, LabCoords
-from ..config.training_setup import SamplingConfig, TrainingConfig, parse_sampler_params
+from ..config.training_setup import ChainInitAndWarmupConfig, SamplingConfig, TrainingConfig, parse_sampler_params
 from ..geometry.qgt import DEFAULT_QGT_CONFIG, QGTConfig
 from ..losses import CuspLoss, make_cusp_configs, make_cusp_pair_indices
 from ..samplers import geometric_betas, sample_and_process, sample_parallel_tempering
@@ -66,6 +66,7 @@ def train(
     optimizer,
     hamiltonian,
     training_config: TrainingConfig,
+    initial_chain_config: ChainInitAndWarmupConfig,
     sampler_params,
     coord_mode: CoordMode = None,
     model_name: str = None,
@@ -172,11 +173,14 @@ def train(
             stacklevel=2,
         )
 
-    if training_config.init_positions == "normal":
-        current_positions = jax.random.normal(key, shape) * 0.5
-    elif training_config.init_positions == "zeros":
+    if initial_chain_config.init_position_params is None:
+        initial_chain_config.init_position_params = {"mean": 0.0, "std": 0.5}
+
+    if initial_chain_config.init_positions == "normal":
+        current_positions = jax.random.normal(key, shape) * initial_chain_config.init_position_params.get("std", 0.5) + initial_chain_config.init_position_params.get("mean", 0.0)
+    elif initial_chain_config.init_positions == "zeros":
         current_positions = jnp.zeros(shape)
-    elif training_config.init_positions == "uniform":
+    elif initial_chain_config.init_positions == "uniform":
         # Uniform over the periodic box [0, L)^dof — the correct prior for a homogeneous
         # (untrapped) gas. Starting from a "normal" speck in a large box (L ~ (N/x)^{1/3}
         # can be hundreds of scattering lengths) leaves the walkers unequilibrated for
@@ -370,6 +374,22 @@ def train(
     )
     if tqdm_available:
         _callbacks.append(ProgressCallback(progress_bar))
+
+    if initial_chain_config.warmup_steps > 0 and initial_chain_config.warmup_starting_positions:
+        current_positions = sample_and_process(
+            key=key,
+            prob_fn=prob_fn,
+            prob_params=state.params,
+            init_positions=current_positions,
+            step_size=initial_chain_config.warmup_step_size,
+            n_chains=n_chains,
+            dof=dof,
+            n_steps=initial_chain_config.warmup_steps,
+            burn_in=initial_chain_config.warmup_steps-1,
+            thinning=1,
+            block_size=sampling_config.block_size,
+            box_L=sampling_config.box_L or 0.0,
+        )[1]  # new_pos
 
     try:
         for step in progress_bar:

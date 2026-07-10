@@ -5,6 +5,21 @@ from typing import Any
 
 
 @dataclass(frozen=True)
+class ChainInitAndWarmupConfig:
+    """Configuration for chain initialization and warmup."""
+
+    init_position_params: dict[str, Any] | None = None
+    warmup_starting_positions: bool = True  # if True, the chains are warmed up before the first epoch, otherwise they are initialized from init_positions
+    init_positions: str = "normal"  # "normal" | "zeros" | "uniform"
+    warmup_steps: int = 300
+    warmup_step_size: float = 0.5
+
+    def __post_init__(self):
+        if self.init_positions not in ("normal", "zeros", "uniform"):
+            raise ValueError(f"init_positions must be 'normal', 'zeros', or 'uniform', got {self.init_positions!r}")
+
+
+@dataclass(frozen=True)
 class CuspConfig:
     """Configuration for the cusp condition auxiliary loss.
 
@@ -86,7 +101,8 @@ class TrainingConfig:
 
     n_epochs: int
     rng_seed: int = 0
-    init_positions: str = "normal"  # "normal" | "zeros"
+    init_chains_config: ChainInitAndWarmupConfig = ChainInitAndWarmupConfig()
+    init_positions: str = init_chains_config.init_positions  # "normal" | "zeros" | "uniform"
     # Carry walker positions across epochs, so the chain equilibrates once instead of
     # re-thermalising from scratch every epoch. False is only useful for sampler debugging.
     warm_walkers: bool = True
@@ -105,10 +121,6 @@ class TrainingConfig:
     def __post_init__(self):
         if self.min_step >= self.max_step:
             raise ValueError(f"min_step ({self.min_step}) must be < max_step ({self.max_step})")
-        if self.init_positions not in ("normal", "zeros", "uniform"):
-            raise ValueError(
-                f"init_positions must be 'normal', 'zeros' or 'uniform', got {self.init_positions!r}"
-            )
 
 
 def parse_sampler_params(sampler_args: dict[str, Any]) -> SamplingConfig:
