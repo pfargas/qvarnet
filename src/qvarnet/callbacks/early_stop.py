@@ -16,6 +16,7 @@ overhead is negligible next to the model.
 converges. ``stopped_at`` records the stopping epoch (``None`` if it ran to the cap).
 """
 
+import jax
 import numpy as np
 
 from ..diagnostics import three_referee_verdict
@@ -57,7 +58,15 @@ class EarlyStopCallback(Callback):
         self.stop_reason: str | None = None
 
     def on_step_end(self, step: int, state, metrics: dict) -> bool:
-        self._hist.append(metrics)
+        # Keep the light copy light: drop any on-device value the loop exposes to callbacks
+        # (e.g. the "grads" pytree) — retaining those per-epoch would pin them in VRAM.
+        self._hist.append(
+            {
+                k: v
+                for k, v in metrics.items()
+                if not any(isinstance(leaf, jax.Array) for leaf in jax.tree_util.tree_leaves(v))
+            }
+        )
         if len(self._hist) < self.min_epochs or step % self.check_every != 0:
             return False
 

@@ -41,7 +41,23 @@ class SnapshotCallback(Callback):
         self.k = k
         self.metric = metric
         self._key = resolve_metric_fn(metric)
-        self.snapshots: list[dict] = []  # each: {step, metric, params}
+        self.snapshots: list[dict] = []  # each: {step, metric, params, **cb_metrics}
+
+    @staticmethod
+    def _snap(value, state, metrics):
+        """Host copy of params plus *every* key the loop exposes to callbacks.
+
+        No key is hardcoded here: whatever ``cb_metrics`` in ``vmc/train.py`` contains
+        ("step", scalars, "grads", any future on-device extra) is ``device_get``-ed into
+        the snapshot. To retain something new, add it to ``cb_metrics`` — nothing else.
+        Only two keys are added on top, because they exist nowhere in ``metrics``:
+        "metric" (the resolved selection value used for ranking) and "params".
+        """
+        return {
+            **jax.device_get(metrics),
+            "metric": value,
+            "params": jax.device_get(state.params),
+        }
 
     def on_step_end(self, step, state, metrics) -> bool:
         if self.policy == "none":
@@ -49,16 +65,12 @@ class SnapshotCallback(Callback):
         if self.policy == "every_n" and step % self.every_n != 0:
             return False
         if self.policy in ("all", "every_n"):
-            self.snapshots.append(
-                {"step": step, "metric": self._key(metrics), "params": jax.device_get(state.params)}
-            )
+            self.snapshots.append(self._snap(self._key(metrics), state, metrics))
         elif self.policy == "best_k":
             value = self._key(metrics)
             # keep only if it could be among the k smallest (lower = better)
             if len(self.snapshots) < self.k or value < self.snapshots[-1]["metric"]:
-                self.snapshots.append(
-                    {"step": step, "metric": value, "params": jax.device_get(state.params), "grads": jax.device_get(state.grads) if hasattr(state, "grads") else None}
-                )
+                self.snapshots.append(self._snap(value, state, metrics))
                 self.snapshots.sort(key=lambda s: s["metric"])
                 del self.snapshots[self.k :]
         return False
@@ -68,3 +80,9 @@ class SnapshotCallback(Callback):
         if not self.snapshots:
             return None
         return min(self.snapshots, key=lambda s: s["metric"])["params"]
+
+    def best_snapshot(self):
+        """Full best snapshot dict (params, grads, all metrics), or None."""
+        if not self.snapshots:
+            return None
+        return min(self.snapshots, key=lambda s: s["metric"])

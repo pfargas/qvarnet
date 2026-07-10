@@ -460,7 +460,10 @@ def train(
             # Param retrieval: the SnapshotCallback (best_k by `select`) keeps the k best params
             # off-device; exposed post-run via result.best_params()/best_k_params(). No per-epoch
             # device copy in this hot loop — only the snapshot policy and one final device_get.
-            if any(cb.on_step_end(step, state, metrics) for cb in _callbacks):
+            # Callbacks additionally see the on-device grads pytree under "grads" (raw energy
+            # gradient, pre-QGT); metrics_history itself stays scalar-only.
+            cb_metrics = {**metrics, "grads": grads}
+            if any(cb.on_step_end(step, state, cb_metrics) for cb in _callbacks):
                 break
 
     finally:
