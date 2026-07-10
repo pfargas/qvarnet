@@ -23,7 +23,7 @@ dependencies = [
     "pyyaml>=6.0",
     "pandas>=3.0.3",
     # Sweep/queue infrastructure (the sibling repo; on clusters: pip install -e ~/runq)
-    "runq",
+    # "runq",
     "folx>=0.2.22",
 ]
 
