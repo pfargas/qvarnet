@@ -141,7 +141,7 @@ def evaluate(
             n_steps=sampling_config.chain_length,
             burn_in=sampling_config.thermalization_steps,
             thinning=sampling_config.thinning_factor,
-            block_size=sampling_config.block_size,
+            proposal=sampling_config.proposal,
             box_L=sampling_config.box_L or 0.0,
         )
         e_loc = hamiltonian.local_energy(params, batch, effective_apply, key=lap_key)

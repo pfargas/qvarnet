@@ -21,6 +21,7 @@ from qvarnet.diagnostics import (
 )
 from qvarnet.hamiltonian.continuous import HarmonicOscillatorHamiltonian
 from qvarnet.models.compose import LogWavefunction
+from qvarnet.models.envelopes import GaussianEnvelope
 from qvarnet.models.mlp import MLP
 from qvarnet.train import train
 
@@ -106,8 +107,11 @@ def test_stopper_does_not_stop_on_drift():
 
 
 def test_verdict_and_vscore_on_ho(tmp_path):
+    # Envelope required for a normalizable |psi|^2 (a bare tanh-MLP has flat tails,
+    # so walkers random-walk outward and the energy never settles at E0).
     model = LogWavefunction(
         network=MLP(hidden=[32, 32], output_dim=1, hidden_activation=nn.tanh),
+        envelope=GaussianEnvelope(),
         transform=NoBoundary(),
     )
     result = train(

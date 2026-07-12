@@ -13,9 +13,9 @@ arbitrary fixed distribution.
 import jax
 import jax.numpy as jnp
 import numpy as np
+from conftest import make_ho_model
 from flax import linen as nn
 
-from conftest import make_ho_model
 from qvarnet.geometry import imaginary_time_step, tdvp_residual
 from qvarnet.hamiltonian.continuous import HarmonicOscillatorHamiltonian
 from qvarnet.samplers.kernel import mh_chain
@@ -32,13 +32,13 @@ def sample_psi2(model_apply, params, key, n_chains, dof, n_steps=200, step_size=
     prob_fn = build_prob_fn(model_apply)
     init_key, run_key = jax.random.split(key)
     init_positions = jax.random.normal(init_key, (n_chains, dof))
-    randoms = jax.random.normal(run_key, (n_chains, n_steps, dof + 1))
+    chain_keys = jax.random.split(run_key, n_chains)
 
-    def one_chain(init_pos, rand):
-        positions, _ = mh_chain(rand, prob_fn, params, init_pos, step_size)
+    def one_chain(ckey, init_pos):
+        positions, _ = mh_chain(ckey, prob_fn, params, init_pos, step_size, n_steps)
         return positions[-1]
 
-    return jax.vmap(one_chain)(init_positions, randoms)
+    return jax.vmap(one_chain)(chain_keys, init_positions)
 
 
 def test_residual_zero_at_exact_eigenstate():

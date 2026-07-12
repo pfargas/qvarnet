@@ -42,13 +42,15 @@ def train_discrete(
 
     Args mirror ``train`` where sensible. ``hamiltonian`` must expose ``n_spins`` and the
     standard ``local_energy(params, samples, model_apply, key)`` (e.g. ``TFIMHamiltonian``).
-    On the QGT path the optimizer is replaced by ``optax.sgd(qgt lr)`` exactly as in ``train``.
+    The passed optimizer is honoured on the QGT path too (SR is a preconditioner, the
+    optimizer is the update rule — same contract as ``train``); ``optimizer=None``
+    defaults to ``optax.sgd(qgt lr)`` under ``use_qgt`` (classic SR), Adam otherwise.
     """
     n_spins = hamiltonian.n_spins
-    if use_qgt:
-        if qgt_config is None:
-            qgt_config = DEFAULT_QGT_CONFIG
-        optimizer = optax.sgd(qgt_config.learning_rate)
+    if qgt_config is None:
+        qgt_config = DEFAULT_QGT_CONFIG
+    if optimizer is None:
+        optimizer = optax.sgd(qgt_config.learning_rate) if use_qgt else optax.adam(1e-3)
 
     key = random.PRNGKey(rng_seed)
     key, init_key, spin_key = random.split(key, 3)
@@ -66,7 +68,7 @@ def train_discrete(
         batch, spins, acceptance = sample_spins(
             subkey, prob_fn, state.params, spins, n_chains, n_spins, chain_length, burn_in, thinning
         )
-        state, E, sigma_e, E_chain, _ = compute_step(
+        state, E, sigma_e, E_chain, _, _ = compute_step(
             state=state,
             batch=batch,
             hamiltonian=hamiltonian,

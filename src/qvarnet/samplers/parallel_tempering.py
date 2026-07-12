@@ -8,9 +8,10 @@ inverse temperatures β₁=1 > β₂ > … > β_R, sampling |ψ|^{2β}. Hot repl
 landscape and cross barriers freely; periodic adjacent-replica **swaps** carry that mobility down to
 the cold β=1 replica, which alone provides the unbiased |ψ|² samples used by VMC.
 
-This is purely an addition: with β=1 the per-replica update is **identical** to
-:func:`samplers.kernel.mh_kernel_log` (same Gaussian proposal `x + σ·η`, same acceptance
-`min(1, e^{β(logP'−logP)})`). No Hamiltonian/lattice knowledge enters — only ``prob_fn``.
+This is purely an addition: the per-replica update **is**
+:func:`samplers.kernel.mh_kernel_log` (shared kernel, called with the replica's β; any
+:class:`samplers.kernel.Proposal` family works). No Hamiltonian/lattice knowledge
+enters — only ``prob_fn``.
 
 Replica exchange acceptance for an adjacent pair (r, r+1):
 
@@ -26,21 +27,17 @@ import jax
 import jax.numpy as jnp
 from jax import random
 
+from .kernel import GaussianMove, Proposal, mh_kernel_log
+
 
 def geometric_betas(n_replicas, beta_min=0.1):
     """Geometric inverse-temperature ladder β = 1 … beta_min (β₁=1 is the physical replica)."""
     return tuple(float(b) for b in jnp.geomspace(1.0, beta_min, n_replicas))
 
 
-def _wrap(x, box_L):
-    """Fold into [0, L) when box_L > 0; identity otherwise (matches samplers.kernel)."""
-    folded = x - box_L * jnp.floor(x / jnp.where(box_L > 0, box_L, 1.0))
-    return jnp.where(box_L > 0, folded, x)
-
-
 @partial(
     jax.jit,
-    static_argnames=("prob_fn", "dof", "n_steps", "swap_every", "scale_steps"),
+    static_argnames=("prob_fn", "dof", "n_steps", "swap_every", "scale_steps", "proposal"),
 )
 def pt_chain(
     key,
@@ -54,6 +51,7 @@ def pt_chain(
     swap_every=1,
     box_L=0.0,
     scale_steps=True,
+    proposal: Proposal = GaussianMove(),
 ):
     """One parallel-tempered chain (R replicas). Returns cold-replica positions + acceptance.
 
@@ -68,6 +66,7 @@ def pt_chain(
         swap_every: attempt a replica swap every this many steps.
         box_L: periodic box length (> 0 wraps proposals); matches the rest of the sampler.
         scale_steps: give hotter replicas larger steps (σ/√β) — generic, no Hamiltonian knowledge.
+        proposal: local-move proposal family (jit-static; shared MH kernel).
 
     Returns:
         positions: ``(n_steps, dof)`` configurations of the **cold** (β=1) replica.
@@ -81,14 +80,10 @@ def pt_chain(
     logp0 = jax.vmap(prob_fn, in_axes=(0, None))(pos0, prob_params)  # (R,)
 
     def local_step(rkey, pos, logp, s, beta):
-        kn, ka = random.split(rkey)
-        proposal = _wrap(pos + s * random.normal(kn, pos.shape), box_L)
-        logp_new = prob_fn(proposal, prob_params)
-        accept = jnp.log(random.uniform(ka)) < jnp.minimum(0.0, beta * (logp_new - logp))
-        return (
-            jnp.where(accept, proposal, pos),
-            jnp.where(accept, logp_new, logp),
-            accept,
+        # Shared MH kernel, tempered: accepts on β·ΔlogP, stores untempered logP.
+        return mh_kernel_log(
+            rkey, prob_fn, prob_params, pos, logp, s,
+            proposal=proposal, box_L=box_L, beta=beta,
         )
 
     def maybe_swap(swap_key, pos, logp):
@@ -140,7 +135,7 @@ def pt_chain(
     jax.jit,
     static_argnames=(
         "prob_fn", "n_chains", "dof", "n_steps", "burn_in", "thinning",
-        "swap_every", "scale_steps",
+        "swap_every", "scale_steps", "proposal",
     ),
 )
 def sample_parallel_tempering(
@@ -158,6 +153,7 @@ def sample_parallel_tempering(
     swap_every=1,
     box_L=0.0,
     scale_steps=True,
+    proposal: Proposal = GaussianMove(),
 ):
     """Vectorised parallel tempering over ``n_chains``; drop-in for ``sample_and_process``.
 
@@ -170,7 +166,7 @@ def sample_parallel_tempering(
     def run_chain(ckey, init_pos):
         return pt_chain(
             ckey, prob_fn, prob_params, init_pos, step_size, dof, n_steps,
-            betas, swap_every, box_L, scale_steps,
+            betas, swap_every, box_L, scale_steps, proposal,
         )
 
     raw_batch, acceptance_rates = jax.vmap(run_chain, in_axes=(0, 0))(

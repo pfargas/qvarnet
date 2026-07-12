@@ -10,8 +10,7 @@ Typical usage::
     import jax, jax.numpy as jnp
 
     # run one chain for n_steps steps
-    rand = jax.random.normal(key, (n_steps, dof + 1))
-    positions, _ = mh_chain(rand, prob_fn, params, init_pos, step_size)
+    positions, _ = mh_chain(key, prob_fn, params, init_pos, step_size, n_steps)
     # positions: (n_steps, dof)
 
     tau = integrated_autocorr_time(positions[:, 0])   # IAT on first coord

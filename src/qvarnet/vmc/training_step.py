@@ -5,12 +5,14 @@ from functools import partial
 
 import jax
 import jax.numpy as jnp
+from jax.flatten_util import ravel_pytree
 
 from ..geometry.qgt import (
     DEFAULT_QGT_CONFIG,
     QGTConfig,
     compute_natural_gradient,
     compute_natural_gradient_minsr,
+    resolve_qgt_solver,
 )
 from .vmc_state import VMCState
 
@@ -90,7 +92,10 @@ def compute_step(
     see ``samplers/step.py``); reshaping back to ``(n_chains, n_eff)`` recovers the
     per-chain mean local energies ``E_chain`` used by split-R̂ / Geweke.
 
-    Returns ``(new_state, E, sigma_e, E_chain, grads)``.
+    Returns ``(new_state, E, sigma_e, E_chain, grads, sr_info)`` — ``sr_info`` is the
+    guard-diagnostics dict from the natural-gradient solve (``fisher_norm``,
+    ``trust_scale``, ``solve_ok``, ``nat_grad_norm``), empty when ``use_qgt=False``
+    (``use_qgt`` is static, so the pytree structure is fixed per trace).
     """
     if qgt_config is None:
         qgt_config = DEFAULT_QGT_CONFIG
@@ -105,6 +110,7 @@ def compute_step(
     )
     E_chain = jnp.mean(E_loc.reshape(n_chains, -1), axis=1)  # (n_chains,)
 
+    sr_info = {}
     if not use_qgt:
         new_state = state.apply_gradients(grads=grads)
     else:
@@ -113,7 +119,9 @@ def compute_step(
         # the optimizer (train() sets tx=optax.sgd(qgt_config.learning_rate) when
         # use_qgt), so this both advances state.step and honours optax LR schedules —
         # unlike the old manual state.replace(params=...) which did neither.
-        if qgt_config.solver == "minsr":
+        _n_params = ravel_pytree(state.params)[0].size
+        _solver = resolve_qgt_solver(qgt_config.solver, _n_params, batch.shape[0])
+        if _solver == "minsr":
             # Gram-dual SR — solve the M×M system from the energy residuals directly.
             if auxiliary_losses:
                 raise ValueError(
@@ -121,14 +129,14 @@ def compute_step(
                     "energy gradient via the M×M Gram dual and has no access to aux "
                     "terms. Use a full-SR solver, or drop auxiliary_losses."
                 )
-            natural_grad_flat, unravel_fn = compute_natural_gradient_minsr(
+            natural_grad_flat, unravel_fn, sr_info = compute_natural_gradient_minsr(
                 state.params, batch, E_loc, state.apply_fn, qgt_config
             )
         else:
-            natural_grad_flat, unravel_fn = compute_natural_gradient(
+            natural_grad_flat, unravel_fn, sr_info = compute_natural_gradient(
                 state.params, batch, state.apply_fn, grads, qgt_config
             )
         natural_grads = unravel_fn(natural_grad_flat)
         new_state = state.apply_gradients(grads=natural_grads)
 
-    return new_state, E, sigma_e, E_chain, grads
+    return new_state, E, sigma_e, E_chain, grads, sr_info

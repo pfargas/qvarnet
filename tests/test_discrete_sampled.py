@@ -59,7 +59,7 @@ def test_train_discrete_converges_to_ed():
     result, _state = train_discrete(
         _model(),
         TFIMHamiltonian(n_spins=n, pbc=True, J=1.0, h=1.0),
-        optimizer=None,  # overridden by SGD(qgt lr) on the QGT path
+        optimizer=None,  # None → SGD(qgt lr) default, the classic SR update rule
         n_chains=128,
         n_epochs=100,
         chain_length=200,

@@ -46,25 +46,30 @@ def test_minsr_matches_full_sr_same_reg():
 
     grads = jax.grad(loss)(params)
 
-    cfg = QGTConfig(solver="cholesky", regularization=1e-4)
-    full_flat, _ = compute_natural_gradient(params, batch, model.apply, grads, cfg)
-    minsr_flat, _ = compute_natural_gradient_minsr(params, batch, e_loc, model.apply, cfg)
+    cfg = QGTConfig(solver="cholesky", regularization=1e-2)
+    full_flat, _, _ = compute_natural_gradient(params, batch, model.apply, grads, cfg)
+    minsr_flat, _, _ = compute_natural_gradient_minsr(params, batch, e_loc, model.apply, cfg)
 
     diff = float(jnp.max(jnp.abs(minsr_flat - full_flat)))
     scale = float(jnp.max(jnp.abs(full_flat))) + 1e-12
-    # Exact identity in infinite precision; ~1e-3 here is float32 round-off on the two
-    # differently-conditioned solves (vs O(1) for a genuine mismatch).
-    assert diff / scale < 5e-3, f"minSR vs full-SR (same reg) relative diff {diff / scale:.2e}"
+    # Exact identity in infinite precision (same scale-invariant shift eps*tr/P on both
+    # sides). The residual here is float32 round-off on two differently-conditioned
+    # solves: cond ~ P/eps, so relative error ~ (P/eps)*2^-23 ~ 5e-3 at eps=1e-2
+    # (vs O(1) for a genuine mismatch).
+    assert diff / scale < 2e-2, f"minSR vs full-SR (same reg) relative diff {diff / scale:.2e}"
 
 
 def test_minsr_trains_end_to_end(tmp_path):
     result = train(
         shape=(64, 1),
         model=make_ho_model(),
-        optimizer=optax.adam(1e-2),  # overridden by SGD(qgt lr) on the QGT path
+        optimizer=optax.sgd(0.02),  # classic SR update rule; keep in sync with qgt lr
         hamiltonian=HarmonicOscillatorHamiltonian(omega=1.0),
         training_config=TrainingConfig(
-            n_epochs=120,
+            # 300 epochs: recalibrated for the Jacobi/LM-regularised SR solve (the
+            # per-direction ε damps the stiff envelope direction more than the old
+            # absolute shift, so early progress is slower but numerically safe).
+            n_epochs=300,
             rng_seed=0,
             use_qgt=True,
             checkpoint_path=str(tmp_path),

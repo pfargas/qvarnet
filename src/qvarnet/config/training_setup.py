@@ -3,20 +3,46 @@
 from dataclasses import dataclass
 from typing import Any
 
+from ..samplers.kernel import GaussianMove, Proposal, resolve_proposal
+
 
 @dataclass(frozen=True)
 class ChainInitAndWarmupConfig:
-    """Configuration for chain initialization and warmup."""
+    """Configuration for chain initialization and warmup.
+
+    ``init_positions`` is either a strategy name ("normal" | "zeros" | "uniform") or an
+    explicit ``(n_chains, dof)`` array — e.g. ``result.final_positions`` of a previous
+    run, so a warm-started rerun resumes from equilibrated walkers instead of
+    re-thermalising from scratch.
+
+    ``warmup_adapt_step_size`` runs the warmup in ``warmup_n_blocks`` blocks and retunes
+    the proposal step between blocks toward ``TrainingConfig.target_acceptance``
+    (proportional update, factor clipped per block). The adapted step then seeds the
+    training sampler when ``TrainingConfig.is_update_step_size`` is set — this removes
+    the near-frozen-chain regime of a warm-started run whose converged |ψ|² needs a much
+    smaller step than ``SamplingConfig.step_size``.
+    """
 
     init_position_params: dict[str, Any] | None = None
     warmup_starting_positions: bool = True  # if True, the chains are warmed up before the first epoch, otherwise they are initialized from init_positions
-    init_positions: str = "normal"  # "normal" | "zeros" | "uniform"
+    init_positions: Any = "normal"  # "normal" | "zeros" | "uniform" | (n_chains, dof) array
     warmup_steps: int = 300
     warmup_step_size: float = 0.5
+    warmup_adapt_step_size: bool = False
+    warmup_n_blocks: int = 10
 
     def __post_init__(self):
-        if self.init_positions not in ("normal", "zeros", "uniform"):
-            raise ValueError(f"init_positions must be 'normal', 'zeros', or 'uniform', got {self.init_positions!r}")
+        if isinstance(self.init_positions, str) and self.init_positions not in (
+            "normal",
+            "zeros",
+            "uniform",
+        ):
+            raise ValueError(
+                "init_positions must be 'normal', 'zeros', 'uniform' or an "
+                f"(n_chains, dof) array, got {self.init_positions!r}"
+            )
+        if self.warmup_n_blocks < 1:
+            raise ValueError(f"warmup_n_blocks must be >= 1, got {self.warmup_n_blocks}")
 
 
 @dataclass(frozen=True)
@@ -44,13 +70,21 @@ class CuspConfig:
 
 @dataclass(frozen=True)
 class SamplingConfig:
-    """Immutable sampling configuration for MCMC."""
+    """Immutable sampling configuration for MCMC.
+
+    ``proposal`` selects the MH proposal family (see ``samplers.kernel``): a
+    ``Proposal`` instance, a name ("gaussian" | "uniform"), or ``(name, kwargs)``
+    (e.g. ``("particle-subset", {"n_move": 2, "n_dim": 1})``) — resolved to an
+    instance at construction, so the config stays hashable/jit-static. Subset moves
+    keep acceptance high at large steps for N ≳ 30 (full-configuration moves lose
+    acceptance as N grows).
+    """
 
     step_size: float
     chain_length: int
     thermalization_steps: int
     thinning_factor: int
-    block_size: int = 0  # 0 = disabled; >0 caps peak random-number memory
+    proposal: Any = None  # Proposal | name | (name, kwargs); resolved in __post_init__, None → GaussianMove()
     box_L: float | None = None  # PBC sampler: wrap proposals into [0, L). None = off.
     # Parallel tempering (generic barrier-crossing addition; see samplers/parallel_tempering.py).
     # sampler="mh" (default) is the plain local-move chain; "pt" stacks replicas per chain at
@@ -63,6 +97,14 @@ class SamplingConfig:
     pt_scale_steps: bool = True    # hotter replicas take larger steps (σ/√β)
 
     def __post_init__(self):
+        # Resolve the proposal spec to a frozen Proposal instance (keeps the config
+        # hashable — it is passed as a jit-static argument).
+        resolved = (
+            resolve_proposal(self.proposal) if self.proposal is not None else GaussianMove()
+        )
+        if not isinstance(resolved, Proposal):
+            raise ValueError(f"proposal did not resolve to a Proposal: {self.proposal!r}")
+        object.__setattr__(self, "proposal", resolved)
         if self.step_size <= 0:
             raise ValueError(f"step_size must be positive, got {self.step_size}")
         if self.box_L is not None and self.box_L <= 0:
@@ -79,13 +121,6 @@ class SamplingConfig:
             raise ValueError(
                 f"thermalization_steps ({self.thermalization_steps}) must be "
                 f"< chain_length ({self.chain_length})"
-            )
-        if self.block_size < 0:
-            raise ValueError(f"block_size must be >= 0, got {self.block_size}")
-        if self.block_size > 0 and self.chain_length % self.block_size != 0:
-            raise ValueError(
-                f"block_size ({self.block_size}) must divide "
-                f"chain_length ({self.chain_length}) exactly."
             )
         if self.thermalization_steps < 0:
             raise ValueError(f"thermalization_steps must be >= 0, got {self.thermalization_steps}")
@@ -132,7 +167,7 @@ def parse_sampler_params(sampler_args: dict[str, Any]) -> SamplingConfig:
         chain_length=int(sampler_args.get("chain_length", 500)),
         thermalization_steps=int(sampler_args.get("thermalization_steps", 50)),
         thinning_factor=int(sampler_args.get("thinning_factor", 5)),
-        block_size=int(sampler_args.get("block_size", 0)),
+        proposal=sampler_args.get("proposal", None),
         box_L=float(raw_box_L) if raw_box_L is not None else None,
         sampler=str(sampler_args.get("sampler", "mh")),
         pt_n_replicas=int(sampler_args.get("pt_n_replicas", 4)),

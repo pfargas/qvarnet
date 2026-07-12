@@ -28,6 +28,12 @@ cd calogero-sutherland/cs_sweep
 runq run point.py --axis L=0.5,0.8,1.0,1.5,2.0 --axis N=2,5,10 \
     --axis kind=jastrow,mlp_jastrow --axis n_epochs=2000 --seeds 0 1 2 --gpus 0,1
 
+# sampler axes: MH proposal family (and subset size k) are sweepable too —
+# particle-subset keeps acceptance high at large N (~2× effective samples per
+# model eval at N=30, k=1; docs/SAMPLERS.md)
+runq run point.py --axis L=0.8 --axis N=10,30,60 \
+    --axis proposal=gaussian,particle-subset --axis proposal_k=1 --seeds 0 1 2
+
 runq status                 # queue counts
 runq failed                 # tracebacks of failed points
 runq requeue [--failed]     # reset interrupted (and optionally failed) rows to todo
@@ -41,8 +47,11 @@ With >1 worker each gets its own log (`outputs/logs/worker_gpu<N>.log`, `tail -f
 One worker per *distinct* GPU (JAX preallocates VRAM). Single device by hand:
 `CUDA_VISIBLE_DEVICES=0 python -m runq.worker --db outputs/runq.db --target point.py`.
 
-On SLURM, wrap the same command in an sbatch script (DB on `$SLURM_TMPDIR`, rsync back) —
-see the runq README.
+On SLURM use `sweep.sbatch` (this directory): edit its `AXES` array and `sbatch sweep.sbatch`.
+It puts the DB on `$SLURM_TMPDIR` when available and rsyncs back; partition across nodes with
+`--export=ALL,SEEDS="0 1"` and merge afterwards. Note runq is no longer a qvarnet dependency —
+install both editable in the cluster venv: `pip install -e ~/qvarnet -e ~/runq` (locally:
+`uv pip install -e ../runq`, kept out of pyproject deliberately).
 
 ### From Python / a notebook
 

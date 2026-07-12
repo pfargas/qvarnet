@@ -17,23 +17,26 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace  # noqa: F401  (replace re-exported for sweeps)
 
+import flax.linen as nn
 import jax.numpy as jnp
 import numpy as np
 import optax
-import flax.linen as nn
 
-from qvarnet.train import train
+from qvarnet.boundaries import NoBoundary
 from qvarnet.callbacks import EarlyStopCallback
 from qvarnet.config.coord_mode import LabCoords
-from qvarnet.config.training_setup import SamplingConfig, TrainingConfig
-from qvarnet.boundaries import NoBoundary
+from qvarnet.config.training_setup import (
+    ChainInitAndWarmupConfig,
+    SamplingConfig,
+    TrainingConfig,
+)
+from qvarnet.hamiltonian.continuous import CalogeroSutherlandHamiltonian
+from qvarnet.models.analytic import CalogeroSutherlandAnalyticModel
 from qvarnet.models.compose import LogWavefunction
-from qvarnet.models.mlp import MLP
 from qvarnet.models.envelopes import GaussianEnvelope
 from qvarnet.models.jastrow import LogJastrow
-from qvarnet.models.analytic import CalogeroSutherlandAnalyticModel
-from qvarnet.hamiltonian.continuous import CalogeroSutherlandHamiltonian
-
+from qvarnet.models.mlp import MLP
+from qvarnet.train import train
 
 # ── what we solve: the physics (defines the exact ground-state energy) ───────────────
 
@@ -64,7 +67,7 @@ class Physics:
         return {"L": self.L, "N": self.N, "n_dim": self.n_dim, "epsilon": self.epsilon}
 
     @classmethod
-    def from_dict(cls, d: dict) -> "Physics":
+    def from_dict(cls, d: dict) -> Physics:
         return cls(L=float(d["L"]), N=int(d["N"]),
                    n_dim=int(d.get("n_dim", 1)), epsilon=float(d.get("epsilon", 1e-4)))
 
@@ -103,8 +106,18 @@ class HyperParams:
     thermalization_steps: int = 20
     thinning_factor: int = 1
     target_acceptance: float = 0.5
+    # MH proposal family: "gaussian" | "uniform" (move all N·d coords) or
+    # "particle-subset" | "dof-subset" (move proposal_k particles / coords per step —
+    # keeps acceptance high at large steps for N ≳ 30; measured ~2× effective samples
+    # per model eval at N=30 with particle-subset k=1; see docs/SAMPLERS.md).
+    proposal: str = "gaussian"
+    proposal_k: int = 1  # subset size; ignored by the full-configuration families
     init_positions: str = "normal"
     warm_walkers: bool = True
+    # warmup: block-adaptive step retuning toward target_acceptance before epoch 0
+    # (without it the first epochs sample at a possibly-far-off step size)
+    warmup_steps: int = 300
+    warmup_adapt: bool = True
     min_step: float = 1e-5
     max_step: float = 5.0
     # early stopping (n_epochs is then a ceiling). early_stop=False ⇒ fixed-length run.
@@ -153,8 +166,12 @@ class HyperParams:
             "thermalization_steps": self.thermalization_steps,
             "thinning_factor": self.thinning_factor,
             "target_acceptance": self.target_acceptance,
+            "proposal": self.proposal,
+            "proposal_k": self.proposal_k,
             "init_positions": self.init_positions,
             "warm_walkers": self.warm_walkers,
+            "warmup_steps": self.warmup_steps,
+            "warmup_adapt": self.warmup_adapt,
             "min_step": self.min_step,
             "max_step": self.max_step,
             "early_stop": self.early_stop,
@@ -169,7 +186,7 @@ class HyperParams:
         }
 
     @classmethod
-    def from_dict(cls, d: dict) -> "HyperParams":
+    def from_dict(cls, d: dict) -> HyperParams:
         d = dict(d)
         mh = d.get("mlp_hidden")
         d["mlp_hidden"] = tuple(mh) if mh is not None else None
@@ -257,6 +274,17 @@ def _build_model(physics: Physics, hp: HyperParams) -> object:
     raise ValueError(f"unknown model kind {kind!r}")
 
 
+def _proposal_spec(physics: Physics, hp: HyperParams):
+    """Flat (proposal, proposal_k) axes → the SamplingConfig proposal spec."""
+    if hp.proposal in ("gaussian", "uniform"):
+        return hp.proposal
+    if hp.proposal == "particle-subset":
+        return ("particle-subset", {"n_move": hp.proposal_k, "n_dim": physics.n_dim})
+    if hp.proposal == "dof-subset":
+        return ("dof-subset", {"k": hp.proposal_k})
+    raise ValueError(f"unknown proposal {hp.proposal!r}")
+
+
 def train_point(
     physics: Physics,
     seed: int,
@@ -292,7 +320,6 @@ def train_point(
             target_acceptance=hp.target_acceptance,
             save_checkpoints=False,
             checkpoint_path=checkpoint_dir or "./",
-            init_positions=hp.init_positions,
             warm_walkers=hp.warm_walkers,
             min_step=hp.min_step,
             max_step=hp.max_step,
@@ -302,7 +329,18 @@ def train_point(
             chain_length=hp.chain_length,
             thermalization_steps=hp.thermalization_steps,
             thinning_factor=hp.thinning_factor,
+            proposal=_proposal_spec(physics, hp),
             sampler="mh",
+        ),
+        # NOTE: init_positions must go through ChainInitAndWarmupConfig — the
+        # TrainingConfig.init_positions field is a dead duplicate that train()
+        # never reads (the old code passed it there, so hp.init_positions and any
+        # warmup tuning silently did nothing).
+        initial_chain_config=ChainInitAndWarmupConfig(
+            init_positions=hp.init_positions,
+            init_position_params={"mean": 0.0, "std": 0.5},
+            warmup_steps=hp.warmup_steps,
+            warmup_adapt_step_size=hp.warmup_adapt,
         ),
         coord_mode=LabCoords(),
         callbacks=callbacks,
@@ -405,8 +443,12 @@ def run_point(
     thermalization_steps=20,
     thinning_factor=1,
     target_acceptance=0.5,
+    proposal="gaussian",
+    proposal_k=1,
     init_positions="normal",
     warm_walkers=True,
+    warmup_steps=300,
+    warmup_adapt=True,
     min_step=1e-5,
     max_step=5.0,
     # solver: early stopping
@@ -438,8 +480,10 @@ def run_point(
         lr=lr, lr_schedule=lr_schedule, lr_final_frac=lr_final_frac, n_epochs=n_epochs,
         n_chains=n_chains, step_size=step_size, chain_length=chain_length,
         thermalization_steps=thermalization_steps, thinning_factor=thinning_factor,
-        target_acceptance=target_acceptance, init_positions=init_positions,
-        warm_walkers=warm_walkers, min_step=min_step, max_step=max_step,
+        target_acceptance=target_acceptance, proposal=proposal, proposal_k=proposal_k,
+        init_positions=init_positions, warm_walkers=warm_walkers,
+        warmup_steps=warmup_steps, warmup_adapt=warmup_adapt,
+        min_step=min_step, max_step=max_step,
         early_stop=early_stop, es_check_every=es_check_every, es_min_epochs=es_min_epochs,
         es_patience=es_patience, es_target_rel_err=es_target_rel_err,
         es_plateau_rel=es_plateau_rel, select=select, n_snapshots=n_snapshots,

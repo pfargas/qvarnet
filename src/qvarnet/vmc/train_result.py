@@ -8,7 +8,11 @@ def e_plus_sigma_metric(alpha: float = 1.0):
 
 def v_score_metric(n_particles: int, e_inf: float = 0.0):
     """Model-selection key = V-score N·Var(E_loc)/(Ē−E_∞)² (arXiv:2302.04919); lower is better."""
-    return lambda s: n_particles * float(s.std) ** 2 / ((float(s.energy) - e_inf) ** 2 + 1e-12)
+    return (
+        lambda s: n_particles
+        * float(s.std) ** 2
+        / ((float(s.energy) - e_inf) ** 2 + 1e-12)
+    )
 
 
 class TrainResult:
@@ -22,13 +26,30 @@ class TrainResult:
                  per-epoch memory bomb).
         cm_mean / cm_std: per-epoch centre-of-mass diagnostics (lists, derived
                  from history for backward compatibility).
+        final_positions / final_step_size: last walker positions ``(n_chains, dof)``
+                 and last (possibly adapted) MH step size. Feed them into the next run
+                 (``ChainInitAndWarmupConfig(init_positions=result.final_positions)``,
+                 ``sampler_params={"step_size": result.final_step_size, ...}``) so a
+                 warm-started rerun resumes sampling where this one left off instead of
+                 re-thermalising at the default step size.
     """
 
-    def __init__(self, history, final_params=None, snapshots=None):
+    def __init__(
+        self,
+        history,
+        final_params=None,
+        snapshots=None,
+        final_positions=None,
+        final_step_size=None,
+    ):
         self.history = history
-        self.final_params = final_params  # host pytree of the last-epoch params, or None
+        self.final_params = (
+            final_params  # host pytree of the last-epoch params, or None
+        )
         # each snapshot: {"step", "metric", "params"} — from the SnapshotCallback policy
         self.snapshots = list(snapshots) if snapshots else []
+        self.final_positions = final_positions  # host (n_chains, dof) array, or None
+        self.final_step_size = final_step_size  # float, or None
 
     def best_params(self):
         """Parameters of the single best retained snapshot (lowest selection metric).
@@ -129,27 +150,38 @@ class TrainResult:
         tail = slice(n // 2, None)
         acceptance = float(np.mean(np.asarray(h.get("acceptance_rate"))[tail]))
         wall = float(np.sum(h.get("wall_time")))
-        i_best = int(np.argmin(energy))
+        i_best = int(np.argmin(std))
 
         n_params = None
         if self.final_params is not None:
             from jax.flatten_util import ravel_pytree
+
             n_params = int(ravel_pytree(self.final_params)[0].size)
 
         out = {
             "epochs_ran": n,
             "wall_time_s": wall,
             "n_parameters": n_params,
-            "final": {"energy": float(energy[-1]), "error_of_mean": float(err[-1]),
-                      "std": float(std[-1])},
-            "best_epoch": {"step": int(h.get("step")[i_best]), "energy": float(energy[i_best]),
-                           "error_of_mean": float(err[i_best]), "std": float(std[i_best])},
+            "final": {
+                "energy": float(energy[-1]),
+                "error_of_mean": float(err[-1]),
+                "std": float(std[-1]),
+            },
+            "best_epoch": {
+                "step": int(h.get("step")[i_best]),
+                "energy": float(energy[i_best]),
+                "error_of_mean": float(err[i_best]),
+                "std": float(std[i_best]),
+            },
             "acceptance_tail": acceptance,
             "n_snapshots_kept": len(self.snapshots),
         }
         if self.snapshots:
             s = min(self.snapshots, key=lambda s: s["metric"])
-            out["best_snapshot"] = {"step": int(s["step"]), "metric": float(s["metric"])}
+            out["best_snapshot"] = {
+                "step": int(s["step"]),
+                "metric": float(s["metric"]),
+            }
 
         if print_report:
             mins, secs = divmod(wall, 60.0)
