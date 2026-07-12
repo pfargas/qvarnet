@@ -57,8 +57,11 @@ def _write_history(path: str, result) -> None:
     fields = ["epoch", "energy", "std", "error_of_mean", "acceptance",
               "step_size", "grad_norm", "theta_ratio", "cm_mean", "cm_std", "wall_time"]
     with open(path, "w", newline="") as fh:
+        # '#'-prefixed header: gnuplot treats it as a comment (plot "..." u 1:2 just
+        # works with `set datafile separator ','`); pandas readers strip it back —
+        # see RUNNING.md §3.
+        fh.write("# " + ",".join(fields) + "\n")
         w = csv.DictWriter(fh, fieldnames=fields)
-        w.writeheader()
         for r in rows:
             w.writerow({k: r.get(k) for k in fields})
 

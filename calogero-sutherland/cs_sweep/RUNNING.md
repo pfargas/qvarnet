@@ -136,9 +136,18 @@ curve = sel.groupby("L")["e_per_n"].agg(["mean", "sem"])
 
 ### Per-epoch convergence / best params (one run)
 
+The `history.csv` header is a `#` comment line, so gnuplot reads it directly:
+
+```gnuplot
+set datafile separator ','
+plot 'outputs/runs/<label>/history.csv' using 1:2 with lines title 'E'   # epoch:energy
+```
+
 ```python
 import pandas as pd, artifacts
-h = pd.read_csv("outputs/runs/<label>/history.csv")        # h.plot(x="epoch", y="energy")
+h = pd.read_csv("outputs/runs/<label>/history.csv")
+h.columns = h.columns.str.lstrip("# ")                     # strip the gnuplot comment marker
+h.plot(x="epoch", y="energy")
 blob = artifacts.load_params("outputs/runs/<label>/best_params.msgpack")
 best = blob["params"][0]    # full Flax variables dict; rebuild model via point._build_model + apply
 ```
