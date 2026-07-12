@@ -28,11 +28,14 @@ cd calogero-sutherland/cs_sweep
 runq run point.py --axis L=0.5,0.8,1.0,1.5,2.0 --axis N=2,5,10 \
     --axis kind=jastrow,mlp_jastrow --axis n_epochs=2000 --seeds 0 1 2 --gpus 0,1
 
-# sampler axes: MH proposal family (and subset size k) are sweepable too —
-# particle-subset keeps acceptance high at large N (~2× effective samples per
-# model eval at N=30, k=1; docs/SAMPLERS.md)
+# sampler axes: subset proposals keep acceptance high at large N (~2× effective
+# samples per model eval at N=30 moving one particle; docs/SAMPLERS.md).
+# proposal_ratio is a FRACTION resolved per point (n_move = round(ratio·N)), so one
+# axis scales across a mixed-N grid; ratio=1.0 moves all particles ≡ gaussian, so
+# the baseline needs no separate proposal value:
 runq run point.py --axis L=0.8 --axis N=10,30,60 \
-    --axis proposal=gaussian,particle-subset --axis proposal_k=1 --seeds 0 1 2
+    --axis proposal=particle-subset \
+    --axis proposal_ratio=0.1,0.3,0.5,0.7,1.0 --seeds 0 1 2
 
 runq status                 # queue counts
 runq failed                 # tracebacks of failed points

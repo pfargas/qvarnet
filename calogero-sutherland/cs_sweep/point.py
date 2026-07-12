@@ -107,11 +107,15 @@ class HyperParams:
     thinning_factor: int = 1
     target_acceptance: float = 0.5
     # MH proposal family: "gaussian" | "uniform" (move all N·d coords) or
-    # "particle-subset" | "dof-subset" (move proposal_k particles / coords per step —
-    # keeps acceptance high at large steps for N ≳ 30; measured ~2× effective samples
-    # per model eval at N=30 with particle-subset k=1; see docs/SAMPLERS.md).
+    # "particle-subset" | "dof-subset" (move a per-step random subset — keeps
+    # acceptance high at large steps for N ≳ 30; measured ~2× effective samples per
+    # model eval at N=30 moving one particle; see docs/SAMPLERS.md).
     proposal: str = "gaussian"
-    proposal_k: int = 1  # subset size; ignored by the full-configuration families
+    # Subset size as a FRACTION so the same axis scales across a grid with mixed
+    # N / n_dim: particle-subset moves max(1, round(ratio·N)) particles, dof-subset
+    # moves max(1, round(ratio·N·n_dim)) coordinates. ratio=1.0 moves everything —
+    # statistically identical to "gaussian". Ignored by gaussian/uniform.
+    proposal_ratio: float = 1.0
     init_positions: str = "normal"
     warm_walkers: bool = True
     # warmup: block-adaptive step retuning toward target_acceptance before epoch 0
@@ -167,7 +171,7 @@ class HyperParams:
             "thinning_factor": self.thinning_factor,
             "target_acceptance": self.target_acceptance,
             "proposal": self.proposal,
-            "proposal_k": self.proposal_k,
+            "proposal_ratio": self.proposal_ratio,
             "init_positions": self.init_positions,
             "warm_walkers": self.warm_walkers,
             "warmup_steps": self.warmup_steps,
@@ -275,13 +279,21 @@ def _build_model(physics: Physics, hp: HyperParams) -> object:
 
 
 def _proposal_spec(physics: Physics, hp: HyperParams):
-    """Flat (proposal, proposal_k) axes → the SamplingConfig proposal spec."""
+    """Flat (proposal, proposal_ratio) axes → the SamplingConfig proposal spec.
+
+    The ratio resolves against the point's own physics, so one axis value means the
+    same thing at every N / n_dim in a mixed grid.
+    """
+    if not (0.0 < hp.proposal_ratio <= 1.0):
+        raise ValueError(f"proposal_ratio must be in (0, 1], got {hp.proposal_ratio}")
     if hp.proposal in ("gaussian", "uniform"):
         return hp.proposal
     if hp.proposal == "particle-subset":
-        return ("particle-subset", {"n_move": hp.proposal_k, "n_dim": physics.n_dim})
+        n_move = max(1, round(hp.proposal_ratio * physics.N))
+        return ("particle-subset", {"n_move": n_move, "n_dim": physics.n_dim})
     if hp.proposal == "dof-subset":
-        return ("dof-subset", {"k": hp.proposal_k})
+        k = max(1, round(hp.proposal_ratio * physics.dof))
+        return ("dof-subset", {"k": k})
     raise ValueError(f"unknown proposal {hp.proposal!r}")
 
 
@@ -444,7 +456,7 @@ def run_point(
     thinning_factor=1,
     target_acceptance=0.5,
     proposal="gaussian",
-    proposal_k=1,
+    proposal_ratio=1.0,
     init_positions="normal",
     warm_walkers=True,
     warmup_steps=300,
@@ -480,7 +492,7 @@ def run_point(
         lr=lr, lr_schedule=lr_schedule, lr_final_frac=lr_final_frac, n_epochs=n_epochs,
         n_chains=n_chains, step_size=step_size, chain_length=chain_length,
         thermalization_steps=thermalization_steps, thinning_factor=thinning_factor,
-        target_acceptance=target_acceptance, proposal=proposal, proposal_k=proposal_k,
+        target_acceptance=target_acceptance, proposal=proposal, proposal_ratio=proposal_ratio,
         init_positions=init_positions, warm_walkers=warm_walkers,
         warmup_steps=warmup_steps, warmup_adapt=warmup_adapt,
         min_step=min_step, max_step=max_step,
