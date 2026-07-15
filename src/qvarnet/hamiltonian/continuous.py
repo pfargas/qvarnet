@@ -196,3 +196,47 @@ class CalogeroSutherlandHamiltonian(ContinuousHamiltonian):
             interaction = jnp.sum(L * (L - 1) / (diffs**2 + eps), axis=-1)
 
         return 2 * interaction + trap # factor 2 cause g = 2L(L-1) in CS convention, not L(L-1)
+
+@register_hamiltonian("CS-sin-model")
+@struct.dataclass
+class CalogeroSutherlandSinHamiltonian(ContinuousHamiltonian):
+    """Calogero-Sutherland model with sine interaction."""
+
+    L: float = struct.field(pytree_node=False, default=1.0)
+    L_box: float = struct.field(pytree_node=False, default=1.0)
+    epsilon: float = struct.field(pytree_node=False, default=0.0)
+    omega_trap: float = struct.field(pytree_node=False, default=1.0)
+    pairwise_impl: str = struct.field(pytree_node=False, default="vectorized")
+
+    def kinetic_local_energy(self, params, samples, model_apply, key=None):
+        # Factor of 2: CS convention is H = -d²/dx² + V (ℏ²/m = 1, not ℏ²/2m = 1).
+        # Routed through _kinetic so laplacian_method (incl. "folx") and masses apply here too.
+        return 2 * self._kinetic(params, samples, model_apply, key=key)
+
+    def potential_energy(self, samples):
+        import jax
+        n = samples.shape[-1]
+        L, eps, L_box = self.L, self.epsilon, self.L_box
+        trap = (self.omega_trap**2) * jnp.sum(samples**2, axis=-1)
+
+        if self.pairwise_impl == "scan":
+            # O(B·N) peak memory: one row at a time via fori_loop.
+            # i is a traced integer inside fori_loop — dynamic slices are forbidden,
+            # so we gather particle i and mask out j <= i positions.
+            col = jnp.arange(n)
+
+            def body(i, acc):
+                xi = jax.lax.dynamic_index_in_dim(samples, i, axis=1, keepdims=False)
+                diffs = xi[:, None] - samples                       # (batch, N)
+                mask = (col > i).astype(jnp.float32)
+                sin_term = L*(L-1)*(jnp.pi * L_box /  jnp.sin(jnp.pi * diffs / L_box))** 2 * mask
+                return acc + jnp.sum(sin_term, axis=-1)
+
+            interaction = jax.lax.fori_loop(0, n - 1, body, jnp.zeros(samples.shape[0]))
+        else:
+            # O(B·N²/2) peak memory: all pairs at once, max GPU parallelism.
+            i_idx, j_idx = jnp.triu_indices(n, k=1)
+            diffs = samples[:, i_idx] - samples[:, j_idx]     # (batch, n_pairs)
+            interaction = jnp.sum(L * (L - 1) / (diffs**2 + eps), axis=-1)
+
+        return 2 * interaction + trap # factor 2 cause g = 2L(L-1) in CS convention, not L(L-1)
