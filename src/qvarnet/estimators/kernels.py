@@ -98,6 +98,50 @@ def pair_correlation(samples, n_particles, n_dim=1, bins=60, L=None, value_range
     return centers, hist / M  # average pair count per sample per bin
 
 
+def pair_correlation_grid(samples, grid, n_particles, n_dim=1, L=None):
+    """Full pair correlation g(x, x′) = ρ₂(x, x′) / (ρ(x)·ρ(x′)) on ``grid`` (1-D).
+
+    Unlike ``pair_correlation`` (which collapses to a distribution of |x_i − x_j|
+    and only has a clean g(r) normalisation for periodic/homogeneous systems), this
+    keeps both coordinates explicit and divides by the *actual* (possibly
+    position-dependent) one-body density at each point, so it's valid for trapped
+    systems too. g → 1 (or (N−1)/N exactly, for independent particles) where the
+    system is uncorrelated; bins where ρ(x)·ρ(x′) ≈ 0 (empty tails) are ``nan``
+    rather than spuriously large.
+
+    For a periodic box pass ``L`` to fold coordinates into ``[0, L)`` first
+    (consistent with ``density_histogram``).
+
+    Returns ``(grid, g)``, g symmetric ``(G, G)``.
+    """
+    if n_dim != 1:
+        raise NotImplementedError("pair_correlation_grid currently supports n_dim=1")
+    if n_particles < 2:
+        raise ValueError("pair_correlation_grid needs at least 2 particles")
+    s = np.asarray(samples)
+    M = s.shape[0]
+    x = s.reshape(M, n_particles)
+    if L is not None:
+        x = np.mod(x, L)
+    grid = np.asarray(grid, dtype=float)
+    G = grid.shape[0]
+    width = grid[1] - grid[0]
+    edges = np.concatenate([grid - width / 2, grid[-1:] + width / 2])
+
+    # ρ₂(x,x′): 2-D histogram of *ordered* pairs (i,j), i≠j. triu_indices gives each
+    # unordered pair once; adding the transpose supplies the missing (j,i) term, since
+    # histogramming (x_j, x_i) is exactly the mirror image of histogramming (x_i, x_j).
+    i, j = np.triu_indices(n_particles, k=1)
+    hist2d, _, _ = np.histogram2d(x[:, i].ravel(), x[:, j].ravel(), bins=[edges, edges])
+    hist2d = hist2d + hist2d.T
+    rho2 = hist2d / (M * width**2)  # ∫∫ ρ₂ dx dx′ = N(N−1)
+
+    _, rho = density_histogram(s, n_particles, n_dim=n_dim, bins=edges, L=L)
+    denom = np.outer(rho, rho)
+    g = np.divide(rho2, denom, out=np.full_like(rho2, np.nan), where=denom > 1e-12)
+    return grid, g
+
+
 # ---------------------------------------------------------------------------
 # Static structure factor S(k)
 # ---------------------------------------------------------------------------

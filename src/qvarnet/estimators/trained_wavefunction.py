@@ -25,7 +25,8 @@ import jax.numpy as jnp
 import numpy as np
 
 from ..config.coord_mode import CoordMode, JacobiCoords, LabCoords
-from ..samplers import resolve_proposal, sample_and_process
+from ..samplers import mh_chain, resolve_proposal
+from ..samplers.diagnostics import chain_stats
 from ..vmc.probability import build_prob_fn
 from . import kernels
 
@@ -169,23 +170,37 @@ class TrainedWavefunction:
             else:
                 init = jax.random.normal(init_key, (n_chains, self._sampler_dof))
 
-        raw, last_positions, acc = sample_and_process(
-            key=key,
-            prob_fn=self._prob_fn,
-            prob_params=self.params,
-            init_positions=init,
-            step_size=self._step_size,
-            n_chains=n_chains,
-            dof=self._sampler_dof,
-            n_steps=n_steps,
-            burn_in=burn_in,
-            thinning=thinning,
-            proposal=resolve_proposal(proposal),
-            box_L=self.box_L,
-        )
-        self._last_positions = last_positions
+        # Run the raw per-chain trajectories ourselves (rather than going through
+        # sample_and_process, which flattens (n_chains, n_steps, dof) -> (M, dof)
+        # before we ever see it) so chain_stats has real chain/step structure to
+        # diagnose *before* we burn-in/thin/flatten into the final sample batch.
+        chain_keys = jax.random.split(key, n_chains)
+        raw_batch, acc = jax.vmap(
+            lambda k, x0: mh_chain(
+                k,
+                self._prob_fn,
+                self.params,
+                x0,
+                self._step_size,
+                n_steps,
+                resolve_proposal(proposal),
+                self.box_L,
+            )
+        )(chain_keys, init)  # raw_batch: (n_chains, n_steps, sampler_dof)
+
+        self._last_positions = raw_batch[:, -1, :]
         self.acceptance_rate = float(jnp.mean(acc))
-        self._samples = np.asarray(self.coord_mode.samples_to_lab(raw))
+
+        cropped = raw_batch[:, n_steps - burn_in :, :]  # keep the last `burn_in` steps
+        taus, ess = chain_stats(cropped)  # diagnose on raw sampler-space chains
+        self._iat = float(jnp.mean(taus))
+        print(f"IAT: {self._iat:.2f}  mean ESS: {float(jnp.mean(ess)):.1f}")
+
+        thin = int(np.ceil(self._iat))
+        processed = cropped[:, ::thin, :]
+        batch_flat = processed.reshape(-1, self._sampler_dof)
+
+        self._samples = np.asarray(self.coord_mode.samples_to_lab(batch_flat))
         self._obdm_cache = None  # samples changed — cached ρ₁ is stale
         return self._samples
 
@@ -195,6 +210,14 @@ class TrainedWavefunction:
         if self._samples is None:
             raise RuntimeError("No samples yet — call wf.sample(...) first.")
         return self._samples
+    
+    @property
+    @staticmethod
+    def samples_diagnostics(samples):
+        """Diagnostics of the last ``sample()`` call: dict with keys ``n_chains``, ``n_steps``, ``burn_in``, ``thinning``, ``step_size``, ``acceptance_rate``."""
+        iat, ess = chain_stats(samples)
+        print(f"IAT: {iat}, ESS: {ess}")
+        return {"iat": iat, "ess": ess}
 
     # -- estimators -----------------------------------------------------------
 
@@ -224,6 +247,20 @@ class TrainedWavefunction:
             bins=bins,
             L=self._L(),
             value_range=value_range,
+        )
+
+    def pair_correlation_grid(self, grid, samples=None):
+        """Full pair correlation g(x, x′) = ρ₂(x, x′)/(ρ(x)ρ(x′)) on ``grid``.
+
+        Unlike ``pair_correlation`` this keeps both coordinates explicit (valid for
+        trapped/inhomogeneous systems too). Returns ``(grid, g)``, g symmetric (G, G).
+        """
+        return kernels.pair_correlation_grid(
+            self._resolve_samples(samples),
+            grid,
+            self.n_particles,
+            self.n_dim,
+            L=self._L(),
         )
 
     def structure_factor(self, k_values=None, n_max=20, samples=None):
