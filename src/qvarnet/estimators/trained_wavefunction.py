@@ -99,7 +99,10 @@ class TrainedWavefunction:
         (``coord_mode``, ``box_L``, ``n_dim``, ``seed``).
         """
         wf = cls(
-            model, params if params is not None else result.best_params(), n_particles, **kwargs
+            model,
+            params if params is not None else result.best_params(),
+            n_particles,
+            **kwargs,
         )
         if result.final_positions is not None:
             wf._last_positions = jnp.asarray(result.final_positions)
@@ -127,7 +130,9 @@ class TrainedWavefunction:
                 raise ValueError(
                     "n_particles cannot be inferred from a LabCoords checkpoint — pass it explicitly"
                 )
-        return cls(run.model, run.params, n_particles, coord_mode=run.coord_mode, **kwargs)
+        return cls(
+            run.model, run.params, n_particles, coord_mode=run.coord_mode, **kwargs
+        )
 
     # -- the wavefunction itself --------------------------------------------
 
@@ -147,35 +152,182 @@ class TrainedWavefunction:
         proposal="gaussian",
         key=None,
         reset: bool = False,
+        accumulate: bool = False,
+        block_chains: int | None = None,
+        diagnose: bool = True,
     ):
         """Draw samples from |ψ|² via Metropolis-Hastings; caches them in lab coords.
 
         Warm-starts from the last walker positions when available (from a
         previous ``sample()`` or ``from_result``) unless ``reset=True`` or
-        ``n_chains`` changed. Returns the lab-coordinate samples
-        ``(n_chains * n_effective, N*d)``, also available as ``wf.samples``.
+        ``n_chains`` changed.
+
+        Memory: chains are generated in blocks of at most ``block_chains``
+        (default: all ``n_chains`` at once). Lower it when a big
+        ``n_chains * n_steps`` trajectory saturates GPU memory — each block is
+        cropped, thinned and moved to host before the next one runs, so peak
+        device memory scales with ``block_chains`` rather than ``n_chains``.
+
+        ``accumulate=True`` appends the new samples to ``wf.samples`` instead of
+        replacing them (walkers continue from where they left off), so the pool
+        can grow across calls; see :meth:`sample_more`. Ignored when
+        ``reset=True``.
+
+        ``thinning`` keeps every k-th retained step (it is no longer derived from
+        the IAT). ``diagnose=True`` still reports per-chain IAT/ESS as a
+        diagnostic, but that number does not drive the thinning.
+
+        Returns the lab-coordinate samples ``(M, N*d)``, also available as
+        ``wf.samples``.
         """
         if key is None:
             self._key, key = jax.random.split(self._key)
         if step_size is not None:
             self._step_size = float(step_size)
+        proposal_fn = resolve_proposal(proposal)
 
         init = self._last_positions
         if reset or init is None or init.shape[0] != n_chains:
             key, init_key = jax.random.split(key)
-            if self.box_L > 0:
-                init = jax.random.uniform(
-                    init_key, (n_chains, self._sampler_dof), maxval=self.box_L
-                )
-            else:
-                init = jax.random.normal(init_key, (n_chains, self._sampler_dof))
+            init = self._init_walkers(init_key, n_chains)
+
+        new_samples, self._last_positions = self._run_blocked(
+            key, init, n_steps, burn_in, thinning, block_chains, proposal_fn, diagnose
+        )
+        if accumulate and not reset and self._samples is not None:
+            self._samples = np.concatenate([self._samples, new_samples], axis=0)
+        else:
+            self._samples = new_samples
+        self._obdm_cache = None  # samples changed — cached ρ₁ is stale
+        return self._samples
+
+    def sample_more(
+        self,
+        n_steps: int = 400,
+        burn_in: int = 100,
+        thinning: int = 1,
+        **kwargs,
+    ):
+        """Grow the pool by making the SAME chains LONGER (more steps), and APPEND.
+
+        Continues the existing ``n_chains`` walkers from where they left off
+        (warm), runs ``n_steps`` more and appends the result — repeated calls
+        extend ``wf.samples`` in the time direction without re-thermalising.
+        Because the walkers are already warm, ``burn_in`` (steps *kept* per
+        chain) can be close to ``n_steps`` here; only cold chains need a big
+        discard. Use :meth:`add_chains` to grow in the *chain* direction
+        instead. Requires a prior ``sample()``. Extra kwargs (``block_chains``,
+        ``proposal``, ``step_size``, ``diagnose``, ``key``) pass through.
+        """
+        if self._last_positions is None:
+            raise RuntimeError("No walkers yet — call sample() first.")
+        return self.sample(
+            n_chains=self._last_positions.shape[0],
+            n_steps=n_steps,
+            burn_in=burn_in,
+            thinning=thinning,
+            accumulate=True,
+            reset=False,
+            **kwargs,
+        )
+
+    def add_chains(
+        self,
+        n_extra_chains: int,
+        n_steps: int = 400,
+        burn_in: int = 100,
+        thinning: int = 1,
+        proposal="gaussian",
+        key=None,
+        block_chains: int | None = None,
+        diagnose: bool = True,
+    ):
+        """Grow the pool by adding NEW independent chains (wider ensemble), and APPEND.
+
+        Spins up ``n_extra_chains`` fresh walkers (cold — so keep the default
+        full ``burn_in`` discard), generates them in blocks of ``block_chains``,
+        appends their samples to ``wf.samples`` and extends the walker set, so a
+        later :meth:`sample_more` continues *all* chains (old + new). Requires a
+        prior ``sample()``. The counterpart of :meth:`sample_more`, which grows
+        the same chains in the time direction.
+        """
+        if self._samples is None or self._last_positions is None:
+            raise RuntimeError("No pool yet — call sample() first.")
+        if key is None:
+            self._key, key = jax.random.split(self._key)
+        proposal_fn = resolve_proposal(proposal)
+
+        key, init_key = jax.random.split(key)
+        init = self._init_walkers(init_key, int(n_extra_chains))
+        new_samples, last = self._run_blocked(
+            key, init, n_steps, burn_in, thinning, block_chains, proposal_fn, diagnose
+        )
+        self._samples = np.concatenate([self._samples, new_samples], axis=0)
+        self._last_positions = jnp.concatenate([self._last_positions, last], axis=0)
+        self._obdm_cache = None  # samples changed — cached ρ₁ is stale
+        return self._samples
+
+    def _run_blocked(
+        self, key, init, n_steps, burn_in, thinning, block_chains, proposal_fn, diagnose
+    ):
+        """Generate from ``init`` walkers in chain-blocks; return (lab samples, last positions).
+
+        Splits ``init`` (n_chains, dof) into blocks of at most ``block_chains``
+        *full-length* independent chains. Each block runs the whole ``n_steps``,
+        is cropped/thinned and moved to host before the next runs, so peak device
+        memory scales with the block, not the total. Because every chain is
+        complete within its block, per-block burn-in is correct. Sets
+        ``acceptance_rate`` (and ``_iat`` + prints IAT/ESS when ``diagnose``).
+        """
+        n_chains = init.shape[0]
+        block = n_chains if block_chains is None else max(1, int(block_chains))
 
         # Run the raw per-chain trajectories ourselves (rather than going through
         # sample_and_process, which flattens (n_chains, n_steps, dof) -> (M, dof)
-        # before we ever see it) so chain_stats has real chain/step structure to
-        # diagnose *before* we burn-in/thin/flatten into the final sample batch.
-        chain_keys = jax.random.split(key, n_chains)
-        raw_batch, acc = jax.vmap(
+        # before we see it) so we keep real chain/step structure to diagnose and
+        # thin before flattening. One GPU block of chains at a time.
+        block_samples, lasts, accs, tau_list, ess_list = [], [], [], [], []
+        for start in range(0, n_chains, block):
+            stop = min(start + block, n_chains)
+            key, bkey = jax.random.split(key)
+            raw_batch, acc = self._run_chains(
+                bkey, init[start:stop], n_steps, proposal_fn
+            )  # raw_batch: (block, n_steps, sampler_dof)
+
+            lasts.append(raw_batch[:, -1, :])
+            accs.append(np.asarray(acc))
+
+            cropped = raw_batch[:, n_steps - burn_in :, :]  # keep last `burn_in` steps
+            if diagnose:
+                taus, ess = chain_stats(cropped)
+                tau_list.append(np.asarray(taus))
+                ess_list.append(np.asarray(ess))
+
+            processed = cropped[:, ::thinning, :]
+            flat = processed.reshape(-1, self._sampler_dof)
+            # to host now so this block's device buffers free before the next
+            block_samples.append(np.asarray(self.coord_mode.samples_to_lab(flat)))
+            del raw_batch, cropped, processed, flat
+
+        self.acceptance_rate = float(np.mean(np.concatenate(accs)))
+        if diagnose:
+            self._iat = float(np.mean(np.concatenate(tau_list)))
+            mean_ess = float(np.mean(np.concatenate(ess_list)))
+            print(f"IAT: {self._iat:.2f}  mean ESS: {mean_ess:.1f}")
+        return np.concatenate(block_samples, axis=0), jnp.concatenate(lasts, axis=0)
+
+    def _init_walkers(self, key, n_chains):
+        """Fresh walker positions in sampler space: uniform in-box or unit normal."""
+        if self.box_L > 0:
+            return jax.random.uniform(
+                key, (n_chains, self._sampler_dof), maxval=self.box_L
+            )
+        return jax.random.normal(key, (n_chains, self._sampler_dof))
+
+    def _run_chains(self, key, init, n_steps, proposal_fn):
+        """One GPU block: vmapped MH chains from ``init`` (n, dof) → raw (n, n_steps, dof), acc."""
+        chain_keys = jax.random.split(key, init.shape[0])
+        return jax.vmap(
             lambda k, x0: mh_chain(
                 k,
                 self._prob_fn,
@@ -183,26 +335,10 @@ class TrainedWavefunction:
                 x0,
                 self._step_size,
                 n_steps,
-                resolve_proposal(proposal),
+                proposal_fn,
                 self.box_L,
             )
-        )(chain_keys, init)  # raw_batch: (n_chains, n_steps, sampler_dof)
-
-        self._last_positions = raw_batch[:, -1, :]
-        self.acceptance_rate = float(jnp.mean(acc))
-
-        cropped = raw_batch[:, n_steps - burn_in :, :]  # keep the last `burn_in` steps
-        taus, ess = chain_stats(cropped)  # diagnose on raw sampler-space chains
-        self._iat = float(jnp.mean(taus))
-        print(f"IAT: {self._iat:.2f}  mean ESS: {float(jnp.mean(ess)):.1f}")
-
-        thin = int(np.ceil(self._iat))
-        processed = cropped[:, ::thin, :]
-        batch_flat = processed.reshape(-1, self._sampler_dof)
-
-        self._samples = np.asarray(self.coord_mode.samples_to_lab(batch_flat))
-        self._obdm_cache = None  # samples changed — cached ρ₁ is stale
-        return self._samples
+        )(chain_keys, init)
 
     @property
     def samples(self):
@@ -210,7 +346,7 @@ class TrainedWavefunction:
         if self._samples is None:
             raise RuntimeError("No samples yet — call wf.sample(...) first.")
         return self._samples
-    
+
     @property
     @staticmethod
     def samples_diagnostics(samples):
