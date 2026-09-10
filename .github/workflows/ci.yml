@@ -1,9 +1,11 @@
 name: CI
 
+# Manual only: run it from the Actions tab when you want it, not on every push.
+# Uncomment the triggers below to make it automatic.
 on:
-  push:
-    branches: [main]
-  pull_request:
+  # push:
+  #   branches: [main]
+  # pull_request:
   workflow_dispatch:
 
 jobs:
