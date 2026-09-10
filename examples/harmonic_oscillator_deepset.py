@@ -31,13 +31,13 @@ import optax
 from flax import linen as nn
 
 from qvarnet import train
-from qvarnet.hamiltonian.continuous import (
-    HarmonicOscillatorHamiltonian,
-)
 
 # Import refactored modules
-from qvarnet.models.deep_set import DeepSet
-from qvarnet.vmc.probability import build_prob_fn
+from qvarnet.ansatz.deep_set import DeepSet
+from qvarnet.ansatz.probability import build_prob_fn
+from qvarnet.physics.hamiltonian.continuous import (
+    HarmonicOscillatorHamiltonian,
+)
 
 
 def create_deepset_model(
@@ -281,7 +281,7 @@ def sample_from_model(
     Returns:
         Samples of shape (n_samples, DoF)
     """
-    from qvarnet.samplers import mh_chain
+    from qvarnet.sampling import mh_chain
 
     key = jax.random.PRNGKey(seed)
     prob_fn = build_prob_fn(model.apply, is_log_model=True)

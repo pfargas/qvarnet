@@ -28,8 +28,8 @@ local-energy spikes poison every gradient before the optimizer can act.
 
 import optax
 
-from .config.training_setup import ChainInitAndWarmupConfig, TrainingConfig
-from .geometry.qgt import QGTConfig
+from qvarnet.optim.qgt import QGTConfig
+from qvarnet.vmc.config import ChainInitAndWarmupConfig, TrainingConfig
 
 _DEFAULT_SAMPLER = {
     "step_size": 0.5,

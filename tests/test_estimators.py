@@ -10,8 +10,8 @@ import jax.numpy as jnp
 import numpy as np
 from flax import linen as nn
 
-from qvarnet.config.coord_mode import JacobiCoords
-from qvarnet.estimators import TrainedWavefunction
+from qvarnet.analysis.estimators import TrainedWavefunction
+from qvarnet.core.coords import JacobiCoords
 
 
 class GaussianLogPsi(nn.Module):

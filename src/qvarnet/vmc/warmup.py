@@ -12,7 +12,7 @@ Both go through ``ctx.sampler``, so a constrained sampler is honoured here too.
 import jax
 import jax.numpy as jnp
 
-from .setup import _as_device_scalar
+from qvarnet.vmc.setup import _as_device_scalar
 
 
 def _draw_positions(ctx, key, step_size, n_steps):

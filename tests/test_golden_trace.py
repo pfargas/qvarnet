@@ -27,15 +27,14 @@ import optax
 import pytest
 from conftest import make_ho_model
 
-from qvarnet import train
-from qvarnet.boundaries import NoBoundary
-from qvarnet.config.coord_mode import LabCoords
-from qvarnet.config.training_setup import ChainInitAndWarmupConfig, TrainingConfig
-from qvarnet.hamiltonian.continuous import HarmonicOscillatorHamiltonian
-from qvarnet.models.compose import LogWavefunction
-from qvarnet.models.envelopes import GaussianEnvelope
-from qvarnet.models.mlp import MLP
-from qvarnet.samplers import OrderedMetropolis, ParticleSubsetMove
+from qvarnet import ChainInitAndWarmupConfig, TrainingConfig, train
+from qvarnet.ansatz.compose import LogWavefunction
+from qvarnet.ansatz.envelopes import GaussianEnvelope
+from qvarnet.ansatz.mlp import MLP
+from qvarnet.core.coords import LabCoords
+from qvarnet.physics.boundaries import NoBoundary
+from qvarnet.physics.hamiltonian.continuous import HarmonicOscillatorHamiltonian
+from qvarnet.sampling import OrderedMetropolis, ParticleSubsetMove
 
 GOLDEN_DIR = Path(__file__).parent / "data"
 N_EPOCHS = 40

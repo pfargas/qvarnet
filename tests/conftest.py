@@ -8,10 +8,10 @@ os.environ.setdefault("XLA_FLAGS", "--xla_force_host_platform_device_count=1")
 
 from flax import linen as nn  # noqa: E402
 
-from qvarnet.boundaries import NoBoundary  # noqa: E402
-from qvarnet.models.compose import LogWavefunction  # noqa: E402
-from qvarnet.models.envelopes import GaussianEnvelope  # noqa: E402
-from qvarnet.models.mlp import MLP  # noqa: E402
+from qvarnet.ansatz.compose import LogWavefunction  # noqa: E402
+from qvarnet.ansatz.envelopes import GaussianEnvelope  # noqa: E402
+from qvarnet.ansatz.mlp import MLP  # noqa: E402
+from qvarnet.physics.boundaries import NoBoundary  # noqa: E402
 
 
 def make_ho_model():

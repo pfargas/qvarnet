@@ -14,14 +14,13 @@ import optax
 import pytest
 from conftest import make_ho_model
 
-from qvarnet import train
-from qvarnet.config.training_setup import TrainingConfig
-from qvarnet.geometry.qgt import (
+from qvarnet import TrainingConfig, train
+from qvarnet.optim.qgt import (
     QGTConfig,
     compute_natural_gradient,
     compute_natural_gradient_minsr,
 )
-from qvarnet.hamiltonian.continuous import HarmonicOscillatorHamiltonian
+from qvarnet.physics.hamiltonian.continuous import HarmonicOscillatorHamiltonian
 from qvarnet.vmc.training_step import compute_local_energy
 
 
@@ -91,7 +90,7 @@ def test_minsr_trains_end_to_end(tmp_path):
 
 
 def test_minsr_rejects_aux_losses(tmp_path):
-    from qvarnet.config.training_setup import CuspConfig
+    from qvarnet import CuspConfig
 
     with pytest.raises(ValueError, match="minSR does not support auxiliary losses"):
         train(

@@ -13,22 +13,24 @@ import jax.numpy as jnp
 import optax
 from jax import random
 
-from ..boundaries import PeriodicBoundary
-from ..callbacks import (
+from qvarnet.ansatz.probability import build_prob_fn
+from qvarnet.callbacks import (
     CheckpointCallback,
     NaNCallback,
     RunOutputCallback,
     SnapshotCallback,
 )
-from ..config.coord_mode import LabCoords
-from ..config.training_setup import ChainInitAndWarmupConfig, SamplingConfig
-from ..geometry.qgt import DEFAULT_QGT_CONFIG, QGTConfig
-from ..losses import CuspLoss, make_cusp_configs, make_cusp_pair_indices
-from ..samplers import Metropolis
-from ..utils import load_checkpoint, save_run_config
-from .context import TrainContext
-from .probability import build_prob_fn
-from .vmc_state import VMCState
+from qvarnet.core.coords import LabCoords
+from qvarnet.core.serialization import load_checkpoint
+from qvarnet.optim.losses import CuspLoss, make_cusp_configs, make_cusp_pair_indices
+from qvarnet.optim.qgt import DEFAULT_QGT_CONFIG, QGTConfig
+from qvarnet.physics.boundaries import PeriodicBoundary
+from qvarnet.sampling import Metropolis
+from qvarnet.sampling.config import SamplingConfig
+from qvarnet.vmc.config import ChainInitAndWarmupConfig
+from qvarnet.vmc.context import TrainContext
+from qvarnet.vmc.run_io import save_run_config
+from qvarnet.vmc.state import VMCState
 
 
 def _is_periodic_ansatz(model) -> bool:

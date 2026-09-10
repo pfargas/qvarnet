@@ -11,7 +11,7 @@ from functools import partial
 import jax
 import jax.numpy as jnp
 
-from .training_step import compute_step
+from qvarnet.vmc.training_step import compute_step
 
 
 @jax.jit

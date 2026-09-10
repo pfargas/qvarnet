@@ -22,21 +22,17 @@ import jax.numpy as jnp
 import numpy as np
 import optax
 
-from qvarnet.boundaries import NoBoundary
+from qvarnet.physics.boundaries import NoBoundary
 from qvarnet.callbacks import EarlyStopCallback
-from qvarnet.config.coord_mode import LabCoords
-from qvarnet.config.training_setup import (
-    ChainInitAndWarmupConfig,
-    SamplingConfig,
-    TrainingConfig,
-)
-from qvarnet.hamiltonian.continuous import CalogeroSutherlandHamiltonian
-from qvarnet.models.analytic import CalogeroSutherlandAnalyticModel
-from qvarnet.models.compose import LogWavefunction
-from qvarnet.models.envelopes import GaussianEnvelope
-from qvarnet.models.jastrow import LogJastrow
-from qvarnet.models.mlp import MLP
-from qvarnet.samplers import (
+from qvarnet.core.coords import LabCoords
+from qvarnet import ChainInitAndWarmupConfig, SamplingConfig, TrainingConfig
+from qvarnet.physics.hamiltonian.continuous import CalogeroSutherlandHamiltonian
+from qvarnet.ansatz.analytic import CalogeroSutherlandAnalyticModel
+from qvarnet.ansatz.compose import LogWavefunction
+from qvarnet.ansatz.envelopes import GaussianEnvelope
+from qvarnet.ansatz.jastrow import LogJastrow
+from qvarnet.ansatz.mlp import MLP
+from qvarnet.sampling import (
     DoFSubsetMove,
     GaussianMove,
     Metropolis,

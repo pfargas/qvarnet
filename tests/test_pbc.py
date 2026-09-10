@@ -20,17 +20,16 @@ import numpy as np
 import optax
 from flax import linen as nn
 
-from qvarnet import train
-from qvarnet.boundaries import PeriodicBoundary
-from qvarnet.config.training_setup import SamplingConfig, TrainingConfig
-from qvarnet.estimators.kernels import density_histogram, structure_factor
-from qvarnet.hamiltonian.periodic import LatticeBoseHamiltonian
-from qvarnet.models.compose import LogWavefunction
-from qvarnet.models.deep_set import DeepSet
-from qvarnet.models.jastrow import LogJastrow
-from qvarnet.models.mlp import MLP
-from qvarnet.samplers import Metropolis
-from qvarnet.vmc.probability import build_prob_fn
+from qvarnet import SamplingConfig, TrainingConfig, train
+from qvarnet.analysis.estimators.kernels import density_histogram, structure_factor
+from qvarnet.ansatz.compose import LogWavefunction
+from qvarnet.ansatz.deep_set import DeepSet
+from qvarnet.ansatz.jastrow import LogJastrow
+from qvarnet.ansatz.mlp import MLP
+from qvarnet.ansatz.probability import build_prob_fn
+from qvarnet.physics.boundaries import PeriodicBoundary
+from qvarnet.physics.hamiltonian.periodic import LatticeBoseHamiltonian
+from qvarnet.sampling import Metropolis
 
 L = 2.0 * np.pi
 

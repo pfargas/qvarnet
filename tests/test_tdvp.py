@@ -16,10 +16,10 @@ import numpy as np
 from conftest import make_ho_model
 from flax import linen as nn
 
-from qvarnet.geometry import imaginary_time_step, tdvp_residual
-from qvarnet.hamiltonian.continuous import HarmonicOscillatorHamiltonian
-from qvarnet.samplers.kernel import mh_chain
-from qvarnet.vmc.probability import build_prob_fn
+from qvarnet.ansatz.probability import build_prob_fn
+from qvarnet.optim import imaginary_time_step, tdvp_residual
+from qvarnet.physics.hamiltonian.continuous import HarmonicOscillatorHamiltonian
+from qvarnet.sampling.kernel import mh_chain
 from qvarnet.vmc.training_step import compute_local_energy
 
 

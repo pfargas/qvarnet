@@ -25,11 +25,11 @@ import optax
 from flax import linen as nn
 
 from qvarnet import train
-from qvarnet.boundaries import NoBoundary
-from qvarnet.config.training_setup import TrainingConfig
-from qvarnet.hamiltonian.continuous import HarmonicOscillatorHamiltonian
-from qvarnet.models.compose import LogWavefunction
-from qvarnet.models.mlp import MLP
+from qvarnet.physics.boundaries import NoBoundary
+from qvarnet import TrainingConfig
+from qvarnet.physics.hamiltonian.continuous import HarmonicOscillatorHamiltonian
+from qvarnet.ansatz.compose import LogWavefunction
+from qvarnet.ansatz.mlp import MLP
 
 N_PARTICLES = 4
 N_DIM = 1

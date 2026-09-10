@@ -21,11 +21,10 @@ import flax.linen as nn
 import jax.numpy as jnp
 import optax
 
-from qvarnet import train
-from qvarnet.config.coord_mode import LabCoords
-from qvarnet.config.training_setup import SamplingConfig, TrainingConfig
-from qvarnet.hamiltonian.continuous import HarmonicOscillatorHamiltonian
-from qvarnet.utils.checkpoint import load_run
+from qvarnet import SamplingConfig, TrainingConfig, train
+from qvarnet.core.coords import LabCoords
+from qvarnet.physics.hamiltonian.continuous import HarmonicOscillatorHamiltonian
+from qvarnet.vmc.run_io import load_run
 
 
 class GaussianAnsatz(nn.Module):

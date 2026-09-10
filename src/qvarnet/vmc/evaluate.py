@@ -36,9 +36,9 @@ import jax.numpy as jnp
 import numpy as np
 from jax import random
 
-from ..config.coord_mode import LabCoords
-from ..samplers import Metropolis
-from .probability import build_prob_fn
+from qvarnet.ansatz.probability import build_prob_fn
+from qvarnet.core.coords import LabCoords
+from qvarnet.sampling import Metropolis
 
 
 @dataclass(frozen=True)

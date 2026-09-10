@@ -12,8 +12,8 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from qvarnet.config.training_setup import SamplingConfig
-from qvarnet.samplers import (
+from qvarnet import SamplingConfig
+from qvarnet.sampling import (
     DoFSubsetMove,
     GaussianMove,
     Metropolis,
@@ -113,9 +113,8 @@ def test_train_end_to_end_with_subset_proposal(tmp_path):
     import optax
     from conftest import make_ho_model
 
-    from qvarnet import train
-    from qvarnet.config.training_setup import TrainingConfig
-    from qvarnet.hamiltonian.continuous import HarmonicOscillatorHamiltonian
+    from qvarnet import TrainingConfig, train
+    from qvarnet.physics.hamiltonian.continuous import HarmonicOscillatorHamiltonian
 
     result = train(
         shape=(32, 2),

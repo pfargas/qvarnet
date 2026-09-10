@@ -29,14 +29,13 @@ import jax.numpy as jnp
 import numpy as np
 import optax
 
-from qvarnet import train
-from qvarnet.boundaries import NoBoundary
-from qvarnet.config.training_setup import SamplingConfig, TrainingConfig
-from qvarnet.hamiltonian.continuous import HarmonicOscillatorHamiltonian
-from qvarnet.models.compose import LogWavefunction
-from qvarnet.models.envelopes import GaussianEnvelope
-from qvarnet.models.mlp import MLP
-from qvarnet.samplers import Metropolis, ParticleSubsetMove
+from qvarnet import SamplingConfig, TrainingConfig, train
+from qvarnet.ansatz.compose import LogWavefunction
+from qvarnet.ansatz.envelopes import GaussianEnvelope
+from qvarnet.ansatz.mlp import MLP
+from qvarnet.physics.boundaries import NoBoundary
+from qvarnet.physics.hamiltonian.continuous import HarmonicOscillatorHamiltonian
+from qvarnet.sampling import Metropolis, ParticleSubsetMove
 
 
 @dataclass(frozen=True)

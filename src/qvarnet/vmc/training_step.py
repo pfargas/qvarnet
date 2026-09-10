@@ -7,14 +7,14 @@ import jax
 import jax.numpy as jnp
 from jax.flatten_util import ravel_pytree
 
-from ..geometry.qgt import (
+from qvarnet.optim.qgt import (
     DEFAULT_QGT_CONFIG,
     QGTConfig,
     compute_natural_gradient,
     compute_natural_gradient_minsr,
     resolve_qgt_solver,
 )
-from .vmc_state import VMCState
+from qvarnet.vmc.state import VMCState
 
 
 def compute_local_energy(

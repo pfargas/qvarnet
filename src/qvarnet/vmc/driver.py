@@ -9,11 +9,11 @@ thing you have to read to understand the flow is short, and the thing you have t
 read to change one phase is only that phase.
 """
 
-from .loop import run_loop
-from .setup import build_context
-from .step import make_update_fn
-from .train_result import TrainResult
-from .warmup import warm_up
+from qvarnet.vmc.loop import run_loop
+from qvarnet.vmc.result import TrainResult
+from qvarnet.vmc.setup import build_context
+from qvarnet.vmc.step import make_update_fn
+from qvarnet.vmc.warmup import warm_up
 
 
 class VMC:

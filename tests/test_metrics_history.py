@@ -6,10 +6,9 @@ import optax
 import pytest
 from conftest import make_ho_model
 
-from qvarnet import train
-from qvarnet.config.training_setup import TrainingConfig
-from qvarnet.hamiltonian.continuous import HarmonicOscillatorHamiltonian
-from qvarnet.vmc.metrics_history import MetricsHistory
+from qvarnet import TrainingConfig, train
+from qvarnet.core.metrics import MetricsHistory
+from qvarnet.physics.hamiltonian.continuous import HarmonicOscillatorHamiltonian
 
 N_CHAINS = 16
 N_EPOCHS = 3

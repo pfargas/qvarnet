@@ -19,9 +19,9 @@ converges. ``stopped_at`` records the stopping epoch (``None`` if it ran to the 
 import jax
 import numpy as np
 
-from ..diagnostics import three_referee_verdict
-from ..vmc.metrics_history import MetricsHistory
-from .base import Callback
+from qvarnet.analysis import three_referee_verdict
+from qvarnet.callbacks.base import Callback
+from qvarnet.core.metrics import MetricsHistory
 
 
 class EarlyStopCallback(Callback):

@@ -13,9 +13,9 @@ import optax
 import pytest
 from conftest import make_ho_model
 
-from qvarnet.config.training_setup import SamplingConfig, TrainingConfig
-from qvarnet.hamiltonian.continuous import HarmonicOscillatorHamiltonian
-from qvarnet.samplers import Metropolis, OrderedMetropolis, ParticleSubsetMove
+from qvarnet import SamplingConfig, TrainingConfig
+from qvarnet.physics.hamiltonian.continuous import HarmonicOscillatorHamiltonian
+from qvarnet.sampling import Metropolis, OrderedMetropolis, ParticleSubsetMove
 from qvarnet.vmc.loop import run_loop
 from qvarnet.vmc.setup import build_context
 from qvarnet.vmc.step import make_update_fn

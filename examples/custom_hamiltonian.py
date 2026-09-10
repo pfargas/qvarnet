@@ -15,11 +15,10 @@ import jax.numpy as jnp
 import optax
 from flax import struct
 
-from qvarnet import train
-from qvarnet.config.coord_mode import LabCoords
-from qvarnet.config.training_setup import TrainingConfig
-from qvarnet.hamiltonian.continuous import ContinuousHamiltonian
-from qvarnet.models.mlp import MLP
+from qvarnet import TrainingConfig, train
+from qvarnet.ansatz.mlp import MLP
+from qvarnet.core.coords import LabCoords
+from qvarnet.physics.hamiltonian.continuous import ContinuousHamiltonian
 
 # ---------------------------------------------------------------------------
 # Step 1–3: define and register the Hamiltonian

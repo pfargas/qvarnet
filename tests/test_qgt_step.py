@@ -5,10 +5,9 @@ state.replace(params=...) and never incremented step / ignored schedules)."""
 import optax
 from conftest import make_ho_model
 
-from qvarnet import train
+from qvarnet import TrainingConfig, train
 from qvarnet.callbacks.base import Callback
-from qvarnet.config.training_setup import TrainingConfig
-from qvarnet.hamiltonian.continuous import HarmonicOscillatorHamiltonian
+from qvarnet.physics.hamiltonian.continuous import HarmonicOscillatorHamiltonian
 
 
 class _StepRecorder(Callback):

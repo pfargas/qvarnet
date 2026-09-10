@@ -8,18 +8,17 @@ Shared machinery -- samplers, Hamiltonians, ansatze, geometry/QGT, analysis --
 lives in sibling packages, so a future method (DMC, PIGS, t-VMC) can reuse it.
 """
 
-from .context import TrainContext
-from .driver import VMC, train
-from .probability import build_prob_fn
-from .step import make_update_fn
-from .train_result import TrainResult
-from .training_step import (
+from qvarnet.vmc.context import TrainContext
+from qvarnet.vmc.driver import VMC, train
+from qvarnet.vmc.result import TrainResult
+from qvarnet.vmc.state import VMCState
+from qvarnet.vmc.step import make_update_fn
+from qvarnet.vmc.training_step import (
     compute_local_energy,
     compute_step,
     energy_and_grads,
     energy_fn,
 )
-from .vmc_state import VMCState
 
 __all__ = [
     "VMC",
@@ -27,7 +26,6 @@ __all__ = [
     "TrainContext",
     "TrainResult",
     "VMCState",
-    "build_prob_fn",
     "make_update_fn",
     "compute_step",
     "energy_fn",

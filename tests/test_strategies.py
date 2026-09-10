@@ -9,12 +9,11 @@ import optax
 import pytest
 from conftest import make_ho_model
 
-from qvarnet import train
+from qvarnet import TrainingConfig, train
+from qvarnet.analysis import welch_t_test
 from qvarnet.callbacks import SnapshotCallback
-from qvarnet.config.training_setup import TrainingConfig
-from qvarnet.diagnostics import welch_t_test
-from qvarnet.hamiltonian.continuous import HarmonicOscillatorHamiltonian
-from qvarnet.vmc.train_result import e_plus_sigma_metric, v_score_metric
+from qvarnet.physics.hamiltonian.continuous import HarmonicOscillatorHamiltonian
+from qvarnet.vmc.result import e_plus_sigma_metric, v_score_metric
 
 
 def _sampler():

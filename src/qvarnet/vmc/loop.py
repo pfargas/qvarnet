@@ -20,8 +20,8 @@ import jax.numpy as jnp
 import optax
 from jax.flatten_util import ravel_pytree
 
-from ..callbacks import ProgressCallback
-from .train_result import TrainResult
+from qvarnet.callbacks import ProgressCallback
+from qvarnet.vmc.result import TrainResult
 
 try:
     from tqdm import tqdm

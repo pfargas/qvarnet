@@ -3,8 +3,8 @@ import os
 
 import jax.numpy as jnp
 
-from ..utils.checkpoint import save_checkpoint
-from .base import Callback
+from qvarnet.callbacks.base import Callback
+from qvarnet.core.serialization import save_checkpoint
 
 _BUILTIN_METRICS = {
     "energy": lambda s: float(s.energy),

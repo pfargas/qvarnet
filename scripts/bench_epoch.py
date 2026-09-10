@@ -39,13 +39,13 @@ def _bench() -> dict:
     import optax
 
     from qvarnet import train
-    from qvarnet.boundaries import NoBoundary
-    from qvarnet.config.coord_mode import LabCoords
-    from qvarnet.config.training_setup import TrainingConfig
-    from qvarnet.hamiltonian.continuous import HarmonicOscillatorHamiltonian
-    from qvarnet.models.compose import LogWavefunction
-    from qvarnet.models.envelopes import GaussianEnvelope
-    from qvarnet.models.mlp import MLP
+    from qvarnet.physics.boundaries import NoBoundary
+    from qvarnet.core.coords import LabCoords
+    from qvarnet import TrainingConfig
+    from qvarnet.physics.hamiltonian.continuous import HarmonicOscillatorHamiltonian
+    from qvarnet.ansatz.compose import LogWavefunction
+    from qvarnet.ansatz.envelopes import GaussianEnvelope
+    from qvarnet.ansatz.mlp import MLP
 
     model = LogWavefunction(
         network=MLP(hidden=[64, 64], output_dim=1),

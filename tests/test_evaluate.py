@@ -11,11 +11,10 @@ import pytest
 
 # NOT `from qvarnet import train`: the legacy shim module qvarnet/train.py shadows the
 # re-exported function on the package as soon as any test imports the submodule.
-from qvarnet import evaluate, evaluate_result, train
-from qvarnet.config.training_setup import SamplingConfig, TrainingConfig
-from qvarnet.hamiltonian.continuous import HarmonicOscillatorHamiltonian
-from qvarnet.models import MLP
-from qvarnet.models.exponential import LogAnalyticWavefunction
+from qvarnet import SamplingConfig, TrainingConfig, evaluate, evaluate_result, train
+from qvarnet.ansatz import MLP
+from qvarnet.ansatz.exponential import LogAnalyticWavefunction
+from qvarnet.physics.hamiltonian.continuous import HarmonicOscillatorHamiltonian
 from qvarnet.vmc.evaluate import block_error
 
 DOF = 3

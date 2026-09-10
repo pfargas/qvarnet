@@ -38,10 +38,11 @@ from runq import Skip
 
 from qvarnet import PenetrableSphereHamiltonian, PeriodicBoundary
 from qvarnet.callbacks import EarlyStopCallback
-from qvarnet.config.coord_mode import LabCoords
-from qvarnet.config.training_setup import SamplingConfig, TrainingConfig
-from qvarnet.models.compose import LogWavefunction
-from qvarnet.models.deep_set import DeepSet
+from qvarnet.core.coords import LabCoords
+from qvarnet import TrainingConfig
+from qvarnet import SamplingConfig
+from qvarnet.ansatz.compose import LogWavefunction
+from qvarnet.ansatz.deep_set import DeepSet
 from qvarnet import train
 
 N_DIM = 3  # this study is 3D only (the dilute_gas parametrization assumes it)

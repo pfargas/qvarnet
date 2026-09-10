@@ -17,17 +17,17 @@ import numpy as np
 import pytest
 
 from qvarnet import NoBoundary, Particles, PeriodicBoundary
-from qvarnet.hamiltonian.continuous import (
+from qvarnet.ansatz import MLP, DeepSet, GaussianEnvelope, LogJastrow, LogWavefunction
+from qvarnet.physics.hamiltonian.continuous import (
     CalogeroSutherlandHamiltonian,
     HarmonicOscillatorHamiltonian,
 )
-from qvarnet.hamiltonian.kinetic import kinetic_log
-from qvarnet.hamiltonian.laplacian import (
+from qvarnet.physics.hamiltonian.kinetic import kinetic_log
+from qvarnet.physics.hamiltonian.laplacian import (
     laplacian_forward_ad,
     laplacian_full_hessian,
     laplacian_hutchinson,
 )
-from qvarnet.models import MLP, DeepSet, GaussianEnvelope, LogJastrow, LogWavefunction
 
 BATCH = 8
 

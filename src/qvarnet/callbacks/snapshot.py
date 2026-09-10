@@ -19,7 +19,7 @@ key present in the per-epoch ``metrics`` dict — or a **callable** ``(metrics_d
 
 import jax
 
-from .base import Callback
+from qvarnet.callbacks.base import Callback
 
 
 def resolve_metric_fn(metric):

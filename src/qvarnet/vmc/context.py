@@ -3,7 +3,7 @@
 from dataclasses import dataclass, field
 from typing import Any
 
-from .metrics_history import MetricsHistory
+from qvarnet.core.metrics import MetricsHistory
 
 
 @dataclass

@@ -5,19 +5,19 @@ import jax.numpy as jnp
 import numpy as np
 
 from qvarnet import train
-from qvarnet.boundaries import NoBoundary
-from qvarnet.config.coord_mode import LabCoords
-from qvarnet.geometry.qgt import (
+from qvarnet.ansatz.compose import LogWavefunction
+from qvarnet.ansatz.envelopes import GaussianEnvelope
+from qvarnet.ansatz.jastrow import LogJastrow
+from qvarnet.ansatz.mlp import MLP
+from qvarnet.core.coords import LabCoords
+from qvarnet.optim.qgt import (
     QGTConfig,
     compute_natural_gradient,
     compute_qgt,
     resolve_qgt_solver,
 )
-from qvarnet.hamiltonian.continuous import CalogeroSutherlandHamiltonian
-from qvarnet.models.compose import LogWavefunction
-from qvarnet.models.envelopes import GaussianEnvelope
-from qvarnet.models.jastrow import LogJastrow
-from qvarnet.models.mlp import MLP
+from qvarnet.physics.boundaries import NoBoundary
+from qvarnet.physics.hamiltonian.continuous import CalogeroSutherlandHamiltonian
 from qvarnet.recipes import adam_train, sr_train
 
 
@@ -182,7 +182,7 @@ def test_use_qgt_honours_passed_optimizer(tmp_path):
     twice — notebook cells ran sgd(1e-3) while claiming adam)."""
     import optax
 
-    from qvarnet.config.training_setup import TrainingConfig
+    from qvarnet import TrainingConfig
 
     captured = {}
 

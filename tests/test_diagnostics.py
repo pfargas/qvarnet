@@ -7,11 +7,8 @@ import optax
 import pytest
 from flax import linen as nn
 
-from qvarnet import train
-from qvarnet.boundaries import NoBoundary
-from qvarnet.config.training_setup import TrainingConfig
-from qvarnet.diagnostics import (
-    StationarityStopper,
+from qvarnet import TrainingConfig, train
+from qvarnet.analysis import (
     ess,
     geweke_z,
     heidelberger_welch_t,
@@ -20,10 +17,12 @@ from qvarnet.diagnostics import (
     split_rhat,
     v_score,
 )
-from qvarnet.hamiltonian.continuous import HarmonicOscillatorHamiltonian
-from qvarnet.models.compose import LogWavefunction
-from qvarnet.models.envelopes import GaussianEnvelope
-from qvarnet.models.mlp import MLP
+from qvarnet.ansatz.compose import LogWavefunction
+from qvarnet.ansatz.envelopes import GaussianEnvelope
+from qvarnet.ansatz.mlp import MLP
+from qvarnet.callbacks.stopper import StationarityStopper
+from qvarnet.physics.boundaries import NoBoundary
+from qvarnet.physics.hamiltonian.continuous import HarmonicOscillatorHamiltonian
 
 
 def ar1(phi, n, seed=0, drift=0.0):
