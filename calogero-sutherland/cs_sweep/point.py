@@ -39,6 +39,7 @@ from qvarnet.models.mlp import MLP
 from qvarnet.samplers import (
     DoFSubsetMove,
     GaussianMove,
+    Metropolis,
     ParticleSubsetMove,
     UniformMove,
 )
@@ -349,9 +350,10 @@ def train_point(
             chain_length=hp.chain_length,
             thermalization_steps=hp.thermalization_steps,
             thinning_factor=hp.thinning_factor,
-            proposal=_proposal_spec(physics, hp),
-            sampler="mh",
         ),
+        # The Sampler owns *how* walkers move (proposal + any constraint); the
+        # SamplingConfig above owns *how long* the chains run.
+        sampler=Metropolis(proposal=_proposal_spec(physics, hp)),
         # NOTE: init_positions must go through ChainInitAndWarmupConfig — the
         # TrainingConfig.init_positions field is a dead duplicate that train()
         # never reads (the old code passed it there, so hp.init_positions and any

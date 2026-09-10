@@ -35,7 +35,7 @@ from qvarnet.hamiltonian.continuous import HarmonicOscillatorHamiltonian
 from qvarnet.models.compose import LogWavefunction
 from qvarnet.models.envelopes import GaussianEnvelope
 from qvarnet.models.mlp import MLP
-from qvarnet.samplers import ParticleSubsetMove
+from qvarnet.samplers import OrderedMetropolis, ParticleSubsetMove
 
 GOLDEN_DIR = Path(__file__).parent / "data"
 N_EPOCHS = 40
@@ -104,13 +104,12 @@ def _run(scenario: str, tmpdir: str):
                 warmup_n_blocks=5,
             ),
             sampler_params={
-                "sampler": "1d-ordered",
                 "step_size": 0.2,
                 "chain_length": 21,
                 "thermalization_steps": 20,
                 "thinning_factor": 1,
-                "proposal": ParticleSubsetMove(n_move=1, n_dim=1),
             },
+            sampler=OrderedMetropolis(proposal=ParticleSubsetMove(n_move=1, n_dim=1)),
             coord_mode=LabCoords(),
         )
 

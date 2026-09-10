@@ -168,33 +168,6 @@ def mh_kernel_log(
     new_log_prob = jnp.where(accept, proposed_log_prob, prob)
     return new_position, new_log_prob, accept
 
-@partial(jax.jit, static_argnames=("prob_fn", "proposal"))
-def mh_kernel_log_1d_ordered(
-    key,
-    prob_fn,
-    prob_params,
-    position,
-    prob,
-    step_size,
-    proposal: Proposal = GaussianMove(),
-    box_L=0.0,
-    beta=1.0,
-):
-    
-    k_prop, k_accept = random.split(key)
-    proposed, log_q_corr = proposal.propose(k_prop, position, step_size)
-    wrapped = proposed - box_L * jnp.floor(proposed / jnp.where(box_L > 0, box_L, 1.0))
-    proposed = jnp.where(box_L > 0, wrapped, proposed)
-    #############################################################
-    proposed = jnp.sort(proposed)  # Ensure ordering for 1D hard rods
-    #############################################################
-    proposed_log_prob = prob_fn(proposed, prob_params)
-    accept_log_prob = jnp.minimum(0.0, beta * (proposed_log_prob - prob) + log_q_corr)
-    accept = jnp.log(random.uniform(k_accept)) < accept_log_prob
-    new_position = jnp.where(accept, proposed, position)
-    new_log_prob = jnp.where(accept, proposed_log_prob, prob)
-    return new_position, new_log_prob, accept
-
 
 @partial(jax.jit, static_argnames=("prob_fn", "n_steps", "proposal"))
 def mh_chain(
@@ -249,39 +222,3 @@ def mh_chain(
     )
     return positions, counts / n_steps
 
-@partial(jax.jit, static_argnames=("prob_fn", "n_steps", "proposal"))
-def mh_chain_1d_ordered(
-    key,
-    prob_fn,
-    prob_params,
-    init_position,
-    step_size,
-    n_steps,
-    proposal: Proposal = GaussianMove(),
-    box_L=0.0,
-):
-    
-    # check that init_positions is sorted in ascending order
-    init_position = jnp.sort(init_position)
-
-    init_prob = prob_fn(init_position, prob_params)
-
-    def body_fn(carry, step_key):
-        position, prob, count = carry
-        new_position, new_prob, accepted = mh_kernel_log_1d_ordered(
-            key=step_key,
-            prob_fn=prob_fn,
-            prob_params=prob_params,
-            position=position,
-            prob=prob,
-            step_size=step_size,
-            proposal=proposal,
-            box_L=box_L,
-        )
-        return (new_position, new_prob, count + accepted), (new_position, accepted)
-
-    step_keys = random.split(key, n_steps)
-    (_, _, counts), (positions, _) = jax.lax.scan(
-        body_fn, (init_position, init_prob, 0), step_keys
-    )
-    return positions, counts / n_steps

@@ -25,7 +25,7 @@ import jax.numpy as jnp
 import numpy as np
 
 from ..config.coord_mode import CoordMode, JacobiCoords, LabCoords
-from ..samplers import GaussianMove, mh_chain
+from ..samplers import Metropolis
 from ..samplers.diagnostics import chain_stats
 from ..vmc.probability import build_prob_fn
 from . import kernels
@@ -57,6 +57,7 @@ class TrainedWavefunction:
         coord_mode: CoordMode | None = None,
         box_L: float = 0.0,
         seed: int = 0,
+        sampler=None,
     ):
         self.model = model
         self.params = params
@@ -64,6 +65,9 @@ class TrainedWavefunction:
         self.n_dim = int(n_dim)
         self.coord_mode = coord_mode if coord_mode is not None else LabCoords()
         self.box_L = float(box_L)
+        # Post-analysis draws with the same Sampler abstraction as training, so a
+        # constrained run (e.g. OrderedMetropolis) is measured under its constraint.
+        self.sampler = sampler if sampler is not None else Metropolis()
 
         if isinstance(self.coord_mode, JacobiCoords):
             if self.coord_mode.n_particles_physical != self.n_particles:
@@ -151,7 +155,7 @@ class TrainedWavefunction:
         burn_in: int = 100,
         thinning: int = 1,
         step_size: float | None = None,
-        proposal=None,
+        sampler=None,
         key=None,
         reset: bool = False,
         accumulate: bool = False,
@@ -186,7 +190,7 @@ class TrainedWavefunction:
             self._key, key = jax.random.split(self._key)
         if step_size is not None:
             self._step_size = float(step_size)
-        proposal_fn = proposal if proposal is not None else GaussianMove()
+        run_sampler = sampler if sampler is not None else self.sampler
 
         init = self._last_positions
         if reset or init is None or init.shape[0] != n_chains:
@@ -194,7 +198,7 @@ class TrainedWavefunction:
             init = self._init_walkers(init_key, n_chains)
 
         new_samples, self._last_positions = self._run_blocked(
-            key, init, n_steps, burn_in, thinning, block_chains, proposal_fn, diagnose
+            key, init, n_steps, burn_in, thinning, block_chains, run_sampler, diagnose
         )
         if accumulate and not reset and self._samples is not None:
             self._samples = np.concatenate([self._samples, new_samples], axis=0)
@@ -219,7 +223,7 @@ class TrainedWavefunction:
         chain) can be close to ``n_steps`` here; only cold chains need a big
         discard. Use :meth:`add_chains` to grow in the *chain* direction
         instead. Requires a prior ``sample()``. Extra kwargs (``block_chains``,
-        ``proposal``, ``step_size``, ``diagnose``, ``key``) pass through.
+        ``sampler``, ``step_size``, ``diagnose``, ``key``) pass through.
         """
         if self._last_positions is None:
             raise RuntimeError("No walkers yet — call sample() first.")
@@ -239,7 +243,7 @@ class TrainedWavefunction:
         n_steps: int = 400,
         burn_in: int = 100,
         thinning: int = 1,
-        proposal=None,
+        sampler=None,
         key=None,
         block_chains: int | None = None,
         diagnose: bool = True,
@@ -257,12 +261,12 @@ class TrainedWavefunction:
             raise RuntimeError("No pool yet — call sample() first.")
         if key is None:
             self._key, key = jax.random.split(self._key)
-        proposal_fn = proposal if proposal is not None else GaussianMove()
+        run_sampler = sampler if sampler is not None else self.sampler
 
         key, init_key = jax.random.split(key)
         init = self._init_walkers(init_key, int(n_extra_chains))
         new_samples, last = self._run_blocked(
-            key, init, n_steps, burn_in, thinning, block_chains, proposal_fn, diagnose
+            key, init, n_steps, burn_in, thinning, block_chains, run_sampler, diagnose
         )
         self._samples = np.concatenate([self._samples, new_samples], axis=0)
         self._last_positions = jnp.concatenate([self._last_positions, last], axis=0)
@@ -270,7 +274,7 @@ class TrainedWavefunction:
         return self._samples
 
     def _run_blocked(
-        self, key, init, n_steps, burn_in, thinning, block_chains, proposal_fn, diagnose
+        self, key, init, n_steps, burn_in, thinning, block_chains, sampler, diagnose
     ):
         """Generate from ``init`` walkers in chain-blocks; return (lab samples, last positions).
 
@@ -293,7 +297,7 @@ class TrainedWavefunction:
             stop = min(start + block, n_chains)
             key, bkey = jax.random.split(key)
             raw_batch, acc = self._run_chains(
-                bkey, init[start:stop], n_steps, proposal_fn
+                bkey, init[start:stop], n_steps, sampler
             )  # raw_batch: (block, n_steps, sampler_dof)
 
             lasts.append(raw_batch[:, -1, :])
@@ -326,19 +330,17 @@ class TrainedWavefunction:
             )
         return jax.random.normal(key, (n_chains, self._sampler_dof))
 
-    def _run_chains(self, key, init, n_steps, proposal_fn):
-        """One GPU block: vmapped MH chains from ``init`` (n, dof) → raw (n, n_steps, dof), acc."""
+    def _run_chains(self, key, init, n_steps, sampler):
+        """One GPU block: vmapped chains from ``init`` (n, dof) → raw (n, n_steps, dof), acc.
+
+        Uses the same Sampler abstraction as training, so a constrained ansatz
+        (e.g. OrderedMetropolis for 1-D hard rods) is post-analysed under the very
+        constraint it was trained with.
+        """
         chain_keys = jax.random.split(key, init.shape[0])
         return jax.vmap(
-            lambda k, x0: mh_chain(
-                k,
-                self._prob_fn,
-                self.params,
-                x0,
-                self._step_size,
-                n_steps,
-                proposal_fn,
-                self.box_L,
+            lambda k, x0: sampler.chain(
+                k, self._prob_fn, self.params, x0, self._step_size, n_steps, self.box_L
             )
         )(chain_keys, init)
 

@@ -37,7 +37,7 @@ import numpy as np
 from jax import random
 
 from ..config.coord_mode import LabCoords
-from ..samplers import sample_and_process
+from ..samplers import Metropolis
 from .probability import build_prob_fn
 
 
@@ -86,6 +86,7 @@ def evaluate(
     *,
     n_epochs: int,
     coord_mode=None,
+    sampler=None,
     rng_seed: int = 0,
     step_size: float | None = None,
     init_positions: str = "normal",
@@ -100,10 +101,13 @@ def evaluate(
     step_size:       MH step; pass the trained run's final step size for the right
                      acceptance (``evaluate_result`` does this automatically).
     burn_in_epochs:  discarded equilibration epochs (default: 10% of n_epochs, ≥ 1).
+    sampler:         the Sampler to draw with (default Metropolis()); pass the
+                     same one the run trained with.
     n_blocks:        blocks for the block-averaged error bar.
     progress:        optional callable(epoch_index) for external progress reporting.
     """
     coord_mode = coord_mode or LabCoords()
+    sampler = sampler or Metropolis()
     hamiltonian = hamiltonian.replace(coord_mode=coord_mode)
     n_chains, dof = shape
     effective_apply = coord_mode.wrap_model_apply(model.apply)
@@ -127,18 +131,17 @@ def evaluate(
     @partial(jax.jit, static_argnames=["prob_fn", "hamiltonian", "sampling_config"])
     def eval_step(params, key, current_pos, prob_fn, hamiltonian, sampling_config, step_size):
         key, subkey, lap_key = jax.random.split(key, 3)
-        batch, new_pos, acceptance = sample_and_process(
+        batch, new_pos, acceptance = sampler.draw(
             key=subkey,
             prob_fn=prob_fn,
             prob_params=params,
-            init_positions=current_pos,
+            init_positions=positions,
             step_size=step_size,
             n_chains=n_chains,
             dof=dof,
             n_steps=sampling_config.chain_length,
             burn_in=sampling_config.thermalization_steps,
             thinning=sampling_config.thinning_factor,
-            proposal=sampling_config.proposal,
             box_L=sampling_config.box_L or 0.0,
         )
         e_loc = hamiltonian.local_energy(params, batch, effective_apply, key=lap_key)

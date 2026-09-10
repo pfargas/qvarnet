@@ -22,7 +22,7 @@ from qvarnet.vmc.train import train
 
 DOF = 3
 CFG = SamplingConfig(step_size=0.5, chain_length=12, thermalization_steps=8,
-                     thinning_factor=1, sampler="mh")
+                     thinning_factor=1)
 
 
 # ── block_error (the error-bar machinery, in isolation) ─────────────────────────────

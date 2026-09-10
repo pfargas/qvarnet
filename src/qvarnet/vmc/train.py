@@ -24,7 +24,7 @@ from ..config.training_setup import (
 )
 from ..geometry.qgt import DEFAULT_QGT_CONFIG, QGTConfig
 from ..losses import CuspLoss, make_cusp_configs, make_cusp_pair_indices
-from ..samplers import sample_and_process, sample_and_process_1d_ordered
+from ..samplers import Metropolis
 from ..utils import load_checkpoint, save_run_config
 from .metrics_history import MetricsHistory
 from .probability import build_prob_fn
@@ -72,6 +72,7 @@ def train(
     initial_chain_config: ChainInitAndWarmupConfig = None,
     sampler_params=None,
     coord_mode: CoordMode = None,
+    sampler=None,
     model_name: str = None,
     model_args: dict = None,
     qgt_config=None,
@@ -96,6 +97,8 @@ def train(
         initial_chain_config = ChainInitAndWarmupConfig()
     if sampler_params is None:
         sampler_params = {}
+    if sampler is None:
+        sampler = Metropolis()
     if qgt_config is None:
         qgt_config = DEFAULT_QGT_CONFIG
     elif isinstance(qgt_config, dict):
@@ -278,36 +281,19 @@ def train(
         key, subkey, lap_key = jax.random.split(key, 3)
         n_chains, dof = current_pos.shape
 
-        if sampling_config.sampler == "1d-ordered":
-            batch, new_pos, acceptance_rate = sample_and_process_1d_ordered(
-                key=subkey,
-                prob_fn=prob_fn,
-                prob_params=state.params,
-                init_positions=current_pos,
-                step_size=step_size,
-                n_chains=n_chains,
-                dof=dof,
-                n_steps=sampling_config.chain_length,
-                burn_in=sampling_config.thermalization_steps,
-                thinning=sampling_config.thinning_factor,
-                proposal=sampling_config.proposal,
-                box_L=sampling_config.box_L or 0.0,
-            )
-        else:
-            batch, new_pos, acceptance_rate = sample_and_process(
-                key=subkey,
-                prob_fn=prob_fn,
-                prob_params=state.params,
-                init_positions=current_pos,
-                step_size=step_size,
-                n_chains=n_chains,
-                dof=dof,
-                n_steps=sampling_config.chain_length,
-                burn_in=sampling_config.thermalization_steps,
-                thinning=sampling_config.thinning_factor,
-                proposal=sampling_config.proposal,
-                box_L=sampling_config.box_L or 0.0,
-            )
+        batch, new_pos, acceptance_rate = sampler.draw(
+            key=subkey,
+            prob_fn=prob_fn,
+            prob_params=state.params,
+            init_positions=current_pos,
+            step_size=step_size,
+            n_chains=n_chains,
+            dof=dof,
+            n_steps=sampling_config.chain_length,
+            burn_in=sampling_config.thermalization_steps,
+            thinning=sampling_config.thinning_factor,
+            box_L=sampling_config.box_L or 0.0,
+        )
 
         cm = jnp.sum(new_pos, axis=1) / new_pos.shape[-1]
         cm_mean_val = jnp.mean(cm)
@@ -415,38 +401,20 @@ def train(
             block_len = initial_chain_config.warmup_steps // n_blocks
             warmup_step = initial_chain_config.warmup_step_size
             for block in range(n_blocks):
-                if sampling_config.sampler == "1d-ordered":
-                    block_key = jax.random.fold_in(key, block)
-                    _, current_positions, warmup_acc = sample_and_process_1d_ordered(
-                        key=block_key,
-                        prob_fn=prob_fn,
-                        prob_params=state.params,
-                        init_positions=current_positions,
-                        step_size=warmup_step,
-                        n_chains=n_chains,
-                        dof=dof,
-                        n_steps=block_len,
-                        burn_in=block_len - 1,
-                        thinning=1,
-                        proposal=sampling_config.proposal,
-                        box_L=sampling_config.box_L or 0.0,
-                    )
-                else:
-                    block_key = jax.random.fold_in(key, block)
-                    _, current_positions, warmup_acc = sample_and_process(
-                        key=block_key,
-                        prob_fn=prob_fn,
-                        prob_params=state.params,
-                        init_positions=current_positions,
-                        step_size=warmup_step,
-                        n_chains=n_chains,
-                        dof=dof,
-                        n_steps=block_len,
-                        burn_in=block_len - 1,
-                        thinning=1,
-                        proposal=sampling_config.proposal,
-                        box_L=sampling_config.box_L or 0.0,
-                    )
+                block_key = jax.random.fold_in(key, block)
+                _, current_positions, warmup_acc = sampler.draw(
+                    key=block_key,
+                    prob_fn=prob_fn,
+                    prob_params=state.params,
+                    init_positions=current_positions,
+                    step_size=warmup_step,
+                    n_chains=n_chains,
+                    dof=dof,
+                    n_steps=block_len,
+                    burn_in=block_len - 1,
+                    thinning=1,
+                    box_L=sampling_config.box_L or 0.0,
+                )
                 acc_mean = float(jnp.mean(warmup_acc))
                 factor = acc_mean / training_config.target_acceptance
                 warmup_step = float(
@@ -461,7 +429,7 @@ def train(
             if training_config.is_update_step_size:
                 step_size = warmup_step
         else:
-            current_positions = sample_and_process(
+            current_positions = sampler.draw(
                 key=key,
                 prob_fn=prob_fn,
                 prob_params=state.params,
@@ -472,11 +440,8 @@ def train(
                 n_steps=initial_chain_config.warmup_steps,
                 burn_in=initial_chain_config.warmup_steps - 1,
                 thinning=1,
-                proposal=sampling_config.proposal,
                 box_L=sampling_config.box_L or 0.0,
-            )[
-                1
-            ]  # new_pos
+            )[1]  # last positions
 
     try:
         for step in progress_bar:

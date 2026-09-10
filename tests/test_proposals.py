@@ -16,9 +16,9 @@ from qvarnet.config.training_setup import SamplingConfig
 from qvarnet.samplers import (
     DoFSubsetMove,
     GaussianMove,
+    Metropolis,
     ParticleSubsetMove,
     UniformMove,
-    sample_and_process,
 )
 
 
@@ -28,7 +28,7 @@ def _gauss_logprob(x, _params):
 
 
 def _run(proposal, dof=4, step_size=0.7, n_steps=800, n_chains=256, seed=0):
-    return sample_and_process(
+    return Metropolis(proposal=proposal).draw(
         key=jax.random.PRNGKey(seed),
         prob_fn=_gauss_logprob,
         prob_params={},
@@ -39,7 +39,6 @@ def _run(proposal, dof=4, step_size=0.7, n_steps=800, n_chains=256, seed=0):
         n_steps=n_steps,
         burn_in=200,
         thinning=2,
-        proposal=proposal,
     )
 
 
@@ -101,17 +100,11 @@ def test_subset_acceptance_survives_large_dof():
 def test_config_defaults_and_hashability():
     cfg = SamplingConfig(step_size=0.5, chain_length=21, thermalization_steps=20,
                          thinning_factor=1)
-    assert cfg.proposal == GaussianMove()          # None -> the default family
-    assert hash(cfg) is not None                    # stays jit-static
+    assert hash(cfg) is not None
 
-    cfg = SamplingConfig(step_size=0.5, chain_length=21, thermalization_steps=20,
-                         thinning_factor=1, proposal=ParticleSubsetMove(2, 1))
-    assert cfg.proposal == ParticleSubsetMove(2, 1)
-
-    # A name is no longer a proposal: pass the object.
-    with pytest.raises(TypeError, match="must be a Proposal instance"):
-        SamplingConfig(step_size=0.5, chain_length=21, thermalization_steps=20,
-                       thinning_factor=1, proposal="gaussian")
+    # The proposal lives on the Sampler, not the config.
+    assert Metropolis().proposal == GaussianMove()
+    assert Metropolis(proposal=ParticleSubsetMove(2, 1)).proposal == ParticleSubsetMove(2, 1)
 
 
 def test_train_end_to_end_with_subset_proposal(tmp_path):
@@ -137,8 +130,8 @@ def test_train_end_to_end_with_subset_proposal(tmp_path):
             "chain_length": 21,
             "thermalization_steps": 20,
             "thinning_factor": 1,
-            "proposal": ParticleSubsetMove(n_move=1),
         },
+        sampler=Metropolis(proposal=ParticleSubsetMove(n_move=1)),
     )
     e = np.array([float(s.energy) for s in result.history])
     assert np.all(np.isfinite(e))

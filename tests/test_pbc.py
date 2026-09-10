@@ -29,7 +29,7 @@ from qvarnet.models.compose import LogWavefunction
 from qvarnet.models.deep_set import DeepSet
 from qvarnet.models.jastrow import LogJastrow
 from qvarnet.models.mlp import MLP
-from qvarnet.samplers import sample_and_process
+from qvarnet.samplers import Metropolis
 from qvarnet.vmc.probability import build_prob_fn
 
 L = 2.0 * np.pi
@@ -136,7 +136,7 @@ def test_pbc_sampler_wraps_into_box():
     x0 = jnp.zeros((8, 3))
     params = model.init(jax.random.PRNGKey(0), x0)
     prob_fn = build_prob_fn(model.apply)
-    samples, _, _ = sample_and_process(
+    samples, _, _ = Metropolis().draw(
         key=jax.random.PRNGKey(4),
         prob_fn=prob_fn,
         prob_params=params,
@@ -159,7 +159,7 @@ def test_pbc_sampler_disabled_leaves_covering_space():
     x0 = jnp.zeros((8, 3))
     params = model.init(jax.random.PRNGKey(0), x0)
     prob_fn = build_prob_fn(model.apply)
-    samples, _, _ = sample_and_process(
+    samples, _, _ = Metropolis().draw(
         key=jax.random.PRNGKey(4),
         prob_fn=prob_fn,
         prob_params=params,

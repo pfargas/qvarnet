@@ -8,18 +8,23 @@ from .kernel import (
     mh_chain,
     mh_kernel_log,
 )
-from .step import sample_and_process, sample_and_process_1d_ordered
+from .sampler import Metropolis, OrderedMetropolis, Sampler
 
 __all__ = [
+    # samplers
+    "Sampler",
+    "Metropolis",
+    "OrderedMetropolis",
+    # proposal families
     "Proposal",
     "GaussianMove",
     "UniformMove",
     "ParticleSubsetMove",
     "DoFSubsetMove",
+    # low-level kernel
     "mh_chain",
     "mh_kernel_log",
-    "sample_and_process",
-    "sample_and_process_1d_ordered",
+    # chain diagnostics
     "autocorr",
     "integrated_autocorr_time",
     "effective_sample_size",

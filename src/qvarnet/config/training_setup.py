@@ -3,8 +3,6 @@
 from dataclasses import dataclass
 from typing import Any
 
-from ..samplers.kernel import GaussianMove, Proposal
-
 
 @dataclass(frozen=True)
 class ChainInitAndWarmupConfig:
@@ -72,35 +70,22 @@ class CuspConfig:
 class SamplingConfig:
     """Immutable sampling configuration for MCMC.
 
-    ``proposal`` is a ``Proposal`` instance (see ``samplers.kernel``), e.g.
-    ``GaussianMove()`` or ``ParticleSubsetMove(n_move=2, n_dim=1)``; ``None``
-    means ``GaussianMove()``. Proposals are frozen dataclasses, so the config
-    stays hashable and jit-static. Subset moves keep acceptance high at large
-    steps for N ≳ 30 (full-configuration moves lose acceptance as N grows).
+How *long* to run the chains. *How* they move is the ``Sampler`` you pass to
+    ``train(sampler=...)`` -- which owns the proposal family and any constraint
+    (see ``qvarnet.samplers.sampler``). One knob, one owner.
     """
 
     step_size: float = 1.0
     chain_length: int = 500
     thermalization_steps: int = 50
     thinning_factor: int = 5
-    proposal: Any = None  # a Proposal instance; None → GaussianMove()
     box_L: float | None = None  # PBC sampler: wrap proposals into [0, L). None = off.
-    sampler: str = "mh"  # "mh" (plain local-move chain) | "1d-ordered"
 
     def __post_init__(self):
-        resolved = self.proposal if self.proposal is not None else GaussianMove()
-        if not isinstance(resolved, Proposal):
-            raise TypeError(
-                f"proposal must be a Proposal instance, got {self.proposal!r}. "
-                "Construct it: GaussianMove(), ParticleSubsetMove(n_move=2, n_dim=3), ..."
-            )
-        object.__setattr__(self, "proposal", resolved)
         if self.step_size <= 0:
             raise ValueError(f"step_size must be positive, got {self.step_size}")
         if self.box_L is not None and self.box_L <= 0:
             raise ValueError(f"box_L must be positive when set, got {self.box_L}")
-        if self.sampler not in ("mh", "1d-ordered"):
-            raise ValueError(f"sampler must be 'mh' or '1d-ordered', got {self.sampler!r}")
         if self.thinning_factor < 1:
             raise ValueError(f"thinning_factor must be >= 1, got {self.thinning_factor}")
         if self.thermalization_steps >= self.chain_length:
