@@ -87,6 +87,20 @@ an ansatz.
 | **Diagnostics** | Geweke, Heidelberger-Welch, split-R̂, a three-referee convergence verdict, V-score, IAT/ESS, gradient SNR, QGT spectrum |
 | **Estimators** | density, pair correlation, structure factor, one-body density matrix, condensate fraction, with blocking errors |
 
+## Learning it
+
+[`notebooks/`](notebooks/) is a guided tour, committed with outputs so you can read it
+without running anything:
+
+| | |
+|---|---|
+| [`01-quickstart`](notebooks/01-quickstart.ipynb) | one full run, and what to read in the trace |
+| [`02-custom-sampler`](notebooks/02-custom-sampler.ipynb) | writing your own sampler — the 1-D hard-rod ordered sector in one method |
+| [`03-estimators`](notebooks/03-estimators.ipynb) | measuring density, g(r), S(k) and error bars after training |
+| [`04-diagnostics-and-sr`](notebooks/04-diagnostics-and-sr.ipynb) | the convergence referees, and SR vs Adam |
+
+[`examples/`](examples/) has the same extension patterns as standalone scripts.
+
 ## Documentation
 
 [`docs/`](docs/) is organised by the question you are asking:
