@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      # The runners have no GPU, and CPU keeps the numerics reproducible:
+      # GPU atomic reductions are non-deterministic, which the golden traces
+      # would (correctly) flag as a change.
+      JAX_PLATFORMS: cpu
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Sync dependencies
+        run: uv sync --no-group cuda || uv sync
+
+      - name: Lint and format
+        run: |
+          uv run ruff check src tests examples
+          uv run ruff format --check src tests examples
+
+      - name: Layering (no upward or sideways imports)
+        run: uv run python scripts/check_layers.py
+
+      - name: Doc budget (prose stays out of the code)
+        run: uv run python scripts/check_docs.py
+
+      - name: Tests
+        run: uv run pytest -q
+
+      - name: Numerics are unchanged
+        run: |
+          uv run pytest tests/test_golden_trace.py tests/test_no_retrace.py -q

@@ -9,6 +9,11 @@ At the time of writing that is 305 completed runs across cs-new, soft-bosons and
 soft-hard-bosons. This test pins the signatures against a committed snapshot so a
 library refactor cannot silently invalidate them.
 
+The targets themselves live in the sibling projects repo, not here -- this repo is
+the library. Each is therefore checked only if present, and a fresh clone with no
+siblings skips them all. That makes this a convenience guard for whoever has the
+projects checked out next door, not a guarantee the library can make alone.
+
 The signature is read **statically, with ast** -- importing the targets would need
 runq, jax and their sibling modules on the path, and would break for targets living
 outside this repo. Nothing here imports qvarnet.
@@ -32,10 +37,11 @@ SNAPSHOT = Path(__file__).parent / "data" / "runq_signatures.json"
 
 # Sweep targets, relative to the repo root. Targets outside the repo are reached by
 # ``..`` and skipped when absent (a fresh clone will not have the sibling projects).
+# Relative to this repo root; ".." reaches the sibling projects. Absent = skipped.
 TARGETS = [
-    "soft_sphere_gas/point.py",
-    "calogero-sutherland/cs_sweep/point.py",
     "../cs-new/cs_sweep/point.py",
+    "../qvarnet-projects/calogero-sutherland/cs_sweep/point.py",
+    "../qvarnet-projects/soft_sphere_gas/point.py",
 ]
 
 # runq injects this one; it is never part of the parameter space or the key.

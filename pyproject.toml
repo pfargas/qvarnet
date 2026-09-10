@@ -71,7 +71,7 @@ packages = ["src/qvarnet"]
 
 [tool.hatch.build.targets.sdist]
 # docs/notes/ is unpublished working material (see docs/notes/README.md).
-exclude = ["docs/notes", "calogero-sutherland", "soft_sphere_gas", "hard-rods", "notebooks", "scripts", "outputs", "tutorial"]
+exclude = ["docs/notes"]
 
 # ---------------------------------------------------------------------------
 # Ruff — linting & formatting
