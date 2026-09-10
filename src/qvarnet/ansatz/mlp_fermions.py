@@ -70,6 +70,7 @@ class FermionicMLP(nn.Module):
 
         return psi
 
+
 class HalfSpinNonInteractingFermion(nn.Module):
     """
     A neural network ansatz for non-interacting fermions with spin.
@@ -98,9 +99,7 @@ class HalfSpinNonInteractingFermion(nn.Module):
         # 2. Trainable Decay Parameter (Alpha)
         # By defining it with self.param, Flax adds it to the parameter collection.
         # We initialize it to 'init_alpha'.
-        self.alpha = self.param(
-            "alpha", nn.initializers.constant(self.init_alpha), (1,)
-        )
+        self.alpha = self.param("alpha", nn.initializers.constant(self.init_alpha), (1,))
 
         # 3. Hidden Layers (The "Backflow" / Correlation part)
         self.hidden_layers = [
@@ -196,6 +195,7 @@ class HalfSpinNonInteractingFermion(nn.Module):
         # Psi_total = Det(Up) * Det(Down) * Envelope
         # Squeeze ensures we return a scalar per batch element
         return (psi_up * psi_down * envelope).squeeze()
+
 
 class FermionicMLP2ferms(nn.Module):
     """Hard-coded 2-fermion Slater determinant (1D only, no n_dim param).

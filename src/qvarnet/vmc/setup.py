@@ -103,9 +103,7 @@ def _init_walkers(key, shape, initial_chain_config, sampling_config):
         # The right prior for a homogeneous (untrapped) gas: a "normal" speck in a
         # large box leaves walkers unequilibrated for thousands of MH steps.
         if not sampling_config.box_L:
-            raise ValueError(
-                "init_positions='uniform' requires sampling_config.box_L (a PBC box)"
-            )
+            raise ValueError("init_positions='uniform' requires sampling_config.box_L (a PBC box)")
         return random.uniform(key, shape) * sampling_config.box_L
     raise ValueError(f"Unknown init_positions: {spec!r}")
 
@@ -134,8 +132,13 @@ def _build_auxiliary_losses(training_config, hamiltonian, shape, extra):
         )
         losses.append(
             CuspLoss(
-                configs, pair_i, pair_j,
-                alpha=cusp.alpha, epsilon=cusp.epsilon, n=cusp.n, C_n=cusp.C_n,
+                configs,
+                pair_i,
+                pair_j,
+                alpha=cusp.alpha,
+                epsilon=cusp.epsilon,
+                n=cusp.n,
+                C_n=cusp.C_n,
             )
         )
     losses.extend(extra)
@@ -213,9 +216,7 @@ def build_context(
     # optax.sgd(η) gives classic SR, optax.adam gives SR-preconditioned Adam.
     # See docs/adr/ for the trust-region caveat under adaptive optimizers.
     if training_config.use_qgt and qgt_config.grad_clip_norm is not None:
-        optimizer = optax.chain(
-            optax.clip_by_global_norm(qgt_config.grad_clip_norm), optimizer
-        )
+        optimizer = optax.chain(optax.clip_by_global_norm(qgt_config.grad_clip_norm), optimizer)
 
     assert len(shape) == 2, f"shape must be (n_chains, dof), got {shape}"
     n_chains, dof = shape

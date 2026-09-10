@@ -34,9 +34,7 @@ class Particles:
             raise ValueError(f"need n > 0 and n_dim > 0, got n={self.n}, n_dim={self.n_dim}")
         if self.masses is not None:
             if len(self.masses) != self.n:
-                raise ValueError(
-                    f"masses has {len(self.masses)} entries for n={self.n} particles"
-                )
+                raise ValueError(f"masses has {len(self.masses)} entries for n={self.n} particles")
             if any(m <= 0 for m in self.masses):
                 raise ValueError(f"masses must be positive, got {self.masses}")
 

@@ -124,7 +124,6 @@ def pair_correlation_grid(samples, grid, n_particles, n_dim=1, L=None):
     if L is not None:
         x = np.mod(x, L)
     grid = np.asarray(grid, dtype=float)
-    G = grid.shape[0]
     width = grid[1] - grid[0]
     edges = np.concatenate([grid - width / 2, grid[-1:] + width / 2])
 
@@ -141,9 +140,7 @@ def pair_correlation_grid(samples, grid, n_particles, n_dim=1, L=None):
     # g = np.divide(rho2, denom, out=np.full_like(rho2, np.nan), where=denom > 1e-12)
     expected = denom * M * width**2 * (n_particles - 1) / n_particles
     min_count = 5  # minimum expected pair count per bin to trust the ratio
-    g = np.divide(
-        rho2, denom, out=np.full_like(rho2, np.nan), where=expected >= min_count
-    )
+    g = np.divide(rho2, denom, out=np.full_like(rho2, np.nan), where=expected >= min_count)
     return grid, g
 
 

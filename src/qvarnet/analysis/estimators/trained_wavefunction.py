@@ -136,29 +136,19 @@ class TrainedWavefunction:
         block_chains: int | None = None,
         diagnose: bool = True,
     ):
-        """Draw samples from |ψ|² via Metropolis-Hastings; caches them in lab coords.
+        """Draw samples from |psi|^2 and cache them in lab coordinates.
 
-        Warm-starts from the last walker positions when available (from a
-        previous ``sample()`` or ``from_result``) unless ``reset=True`` or
-        ``n_chains`` changed.
+        Warm-starts from the last walker positions when available, unless ``reset``
+        or a changed ``n_chains``. Chains run in blocks of at most ``block_chains``
+        (default: all at once) -- lower it when n_chains * n_steps saturates GPU
+        memory, since each block is cropped, thinned and moved to host before the
+        next runs.
 
-        Memory: chains are generated in blocks of at most ``block_chains``
-        (default: all ``n_chains`` at once). Lower it when a big
-        ``n_chains * n_steps`` trajectory saturates GPU memory — each block is
-        cropped, thinned and moved to host before the next one runs, so peak
-        device memory scales with ``block_chains`` rather than ``n_chains``.
+        ``accumulate=True`` appends to ``wf.samples`` instead of replacing, so the
+        pool can grow across calls (see ``sample_more``). ``diagnose=True`` reports
+        per-chain IAT/ESS, which does not drive the thinning -- ``thinning`` does.
 
-        ``accumulate=True`` appends the new samples to ``wf.samples`` instead of
-        replacing them (walkers continue from where they left off), so the pool
-        can grow across calls; see :meth:`sample_more`. Ignored when
-        ``reset=True``.
-
-        ``thinning`` keeps every k-th retained step (it is no longer derived from
-        the IAT). ``diagnose=True`` still reports per-chain IAT/ESS as a
-        diagnostic, but that number does not drive the thinning.
-
-        Returns the lab-coordinate samples ``(M, N*d)``, also available as
-        ``wf.samples``.
+        Returns the lab-coordinate samples ``(M, N*d)``, also on ``wf.samples``.
         """
         if key is None:
             self._key, key = jax.random.split(self._key)
@@ -247,9 +237,7 @@ class TrainedWavefunction:
         self._obdm_cache = None  # samples changed — cached ρ₁ is stale
         return self._samples
 
-    def _run_blocked(
-        self, key, init, n_steps, burn_in, thinning, block_chains, sampler, diagnose
-    ):
+    def _run_blocked(self, key, init, n_steps, burn_in, thinning, block_chains, sampler, diagnose):
         """Generate from ``init`` walkers in chain-blocks; return (lab samples, last positions).
 
         Splits ``init`` (n_chains, dof) into blocks of at most ``block_chains``
@@ -299,9 +287,7 @@ class TrainedWavefunction:
     def _init_walkers(self, key, n_chains):
         """Fresh walker positions in sampler space: uniform in-box or unit normal."""
         if self.box_L > 0:
-            return jax.random.uniform(
-                key, (n_chains, self._sampler_dof), maxval=self.box_L
-            )
+            return jax.random.uniform(key, (n_chains, self._sampler_dof), maxval=self.box_L)
         return jax.random.normal(key, (n_chains, self._sampler_dof))
 
     def _run_chains(self, key, init, n_steps, sampler):

@@ -20,9 +20,7 @@ class CustomDense(nn.Module):
     @nn.compact
     def __call__(self, inputs):
         # inputs: (..., in_features)
-        kernel = self.param(
-            "kernel", self.kernel_init, (inputs.shape[-1], self.features)
-        )
+        kernel = self.param("kernel", self.kernel_init, (inputs.shape[-1], self.features))
         y = jnp.dot(inputs, self.beta * kernel)  # (..., features)
         bias = self.param("bias", self.bias_init, (self.features,))
         return y + bias  # (..., features)

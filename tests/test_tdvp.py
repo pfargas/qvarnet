@@ -92,7 +92,9 @@ def test_imaginary_time_step_reduces_energy():
         key, sk = jax.random.split(key)
         batch = sample_psi2(model.apply, params, sk, n_chains=512, dof=dof)
         e_loc = compute_local_energy(ham, params, batch, model.apply)
-        params = imaginary_time_step(params, batch, e_loc, model.apply, dt=0.05, regularization=1e-3)
+        params = imaginary_time_step(
+            params, batch, e_loc, model.apply, dt=0.05, regularization=1e-3
+        )
 
     key, sk = jax.random.split(key)
     batch_f = sample_psi2(model.apply, params, sk, n_chains=512, dof=dof)

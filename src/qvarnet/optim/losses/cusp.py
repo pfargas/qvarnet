@@ -13,8 +13,8 @@ class CuspLoss(AuxiliaryLoss):
 
     def __init__(self, cusp_configs, pair_i, pair_j, alpha, epsilon, n, C_n, **_):
         self.cusp_configs = cusp_configs  # (n_cusp, dof)
-        self.pair_i = pair_i             # (n_cusp,) int
-        self.pair_j = pair_j             # (n_cusp,) int
+        self.pair_i = pair_i  # (n_cusp,) int
+        self.pair_j = pair_j  # (n_cusp,) int
         self.alpha = alpha
         self.epsilon = epsilon
         self.n = n

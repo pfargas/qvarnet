@@ -10,4 +10,3 @@ from qvarnet.ansatz.exponential import LogExponentialMLPwithPenalty as LogExpone
 from qvarnet.ansatz.jastrow import LogJastrow as LogJastrow
 from qvarnet.ansatz.mlp import MLP as MLP
 from qvarnet.ansatz.mlp_fermions import FermionicMLP as FermionicMLP
-

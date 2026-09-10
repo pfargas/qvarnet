@@ -15,30 +15,20 @@ from qvarnet.physics.particles import Particles
 
 @struct.dataclass
 class ContinuousHamiltonian(BaseHamiltonian):
-    """Base class for continuous-space Hamiltonians.
+    """Base class for continuous-space Hamiltonians: H = T + V.
 
-    Convention:
-        samples: (batch, DoF)      — always in sampler coordinates (Jacobi or lab)
-        potential_energy receives: (batch, DoF_lab)  — always lab coordinates
-        kinetic/potential returns: (batch,)
-        local_energy returns: (batch,)
+    Subclasses implement ``potential_energy(samples) -> (batch,)`` and receive **lab
+    coordinates** whatever the coord_mode -- VMC injects the conversion, so a
+    subclass never handles it.
 
-    The coordinate transform (Jacobi → lab) happens here in local_energy, so
-    every subclass potential_energy always receives lab coordinates.
-    coord_mode is set by train() — subclasses never need to handle it.
+    The kinetic term always uses the log-space form
+    E_kin = -1/2 (lap log|psi| + |grad log|psi||^2), so every ansatz must return
+    log|psi|. ``laplacian_method`` selects how the Laplacian is taken:
+    "forward_ad" (exact), "folx" (forward-Laplacian, fastest at large N),
+    "hutchinson" (stochastic) or "central_difference".
 
-    laplacian_method options:
-        "forward_ad"          — forward-over-reverse AD, O(DoF), exact, default
-        "folx"                — forward-Laplacian (LapNet), one forward pass for
-                                gradient + Laplacian together; exact, fastest at large
-                                DoF (requires the folx package)
-        "hutchinson"          — stochastic trace estimator, O(n_terms) JVPs
-        "central_difference"  — finite differences, no AD required
-        "full_hessian"        — full Hessian trace, O(DoF^2), debug only
-
-    particles (optional) declares the (N, n_dim, masses) structure of the flat dof
-    vector; with unequal masses the kinetic energy becomes -Σ_i 1/(2m_i) ∇²_i (every
-    laplacian_method supports it). None = current behaviour (all masses equal).
+    ``masses`` (via Particles) supports mass-imbalanced species; None means unit
+    masses throughout.
     """
 
     laplacian_method: str = struct.field(pytree_node=False, default="forward_ad")
@@ -58,6 +48,7 @@ class ContinuousHamiltonian(BaseHamiltonian):
             return laplacian_full_hessian
         if method == "hutchinson":
             from functools import partial
+
             return partial(
                 laplacian_hutchinson,
                 n_terms=self.hutchinson_n_terms,
@@ -70,13 +61,21 @@ class ContinuousHamiltonian(BaseHamiltonian):
         weights = self.particles.dof_weights() if self.particles is not None else None
         if self.laplacian_method == "folx":
             return kinetic_log(
-                params, samples, model_apply, use_folx=True,
+                params,
+                samples,
+                model_apply,
+                use_folx=True,
                 sparsity_threshold=self.folx_sparsity_threshold,
-                dof_weights=weights, key=key,
+                dof_weights=weights,
+                key=key,
             )
         return kinetic_log(
-            params, samples, model_apply,
-            laplacian_fn=self._get_laplacian_fn(), dof_weights=weights, key=key,
+            params,
+            samples,
+            model_apply,
+            laplacian_fn=self._get_laplacian_fn(),
+            dof_weights=weights,
+            key=key,
         )
 
     def kinetic_local_energy(self, params, samples, model_apply, key=None):
@@ -164,6 +163,7 @@ class CalogeroSutherlandHamiltonian(ContinuousHamiltonian):
 
     def potential_energy(self, samples):
         import jax
+
         n = samples.shape[-1]
         L, eps = self.L, self.epsilon
         trap = (self.omega_trap**2) * jnp.sum(samples**2, axis=-1)
@@ -176,7 +176,7 @@ class CalogeroSutherlandHamiltonian(ContinuousHamiltonian):
 
             def body(i, acc):
                 xi = jax.lax.dynamic_index_in_dim(samples, i, axis=1, keepdims=False)
-                diffs = xi[:, None] - samples                       # (batch, N)
+                diffs = xi[:, None] - samples  # (batch, N)
                 mask = (col > i).astype(jnp.float32)
                 inv_sq = L * (L - 1) / (diffs**2 + eps) * mask
                 return acc + jnp.sum(inv_sq, axis=-1)
@@ -185,10 +185,11 @@ class CalogeroSutherlandHamiltonian(ContinuousHamiltonian):
         else:
             # O(B·N²/2) peak memory: all pairs at once, max GPU parallelism.
             i_idx, j_idx = jnp.triu_indices(n, k=1)
-            diffs = samples[:, i_idx] - samples[:, j_idx]     # (batch, n_pairs)
+            diffs = samples[:, i_idx] - samples[:, j_idx]  # (batch, n_pairs)
             interaction = jnp.sum(L * (L - 1) / (diffs**2 + eps), axis=-1)
 
-        return 2 * interaction + trap # factor 2 cause g = 2L(L-1) in CS convention, not L(L-1)
+        return 2 * interaction + trap  # factor 2 cause g = 2L(L-1) in CS convention, not L(L-1)
+
 
 @struct.dataclass
 class CalogeroSutherlandSinHamiltonian(ContinuousHamiltonian):
@@ -207,6 +208,7 @@ class CalogeroSutherlandSinHamiltonian(ContinuousHamiltonian):
 
     def potential_energy(self, samples):
         import jax
+
         n = samples.shape[-1]
         L, eps, L_box = self.L, self.epsilon, self.L_box
         trap = (self.omega_trap**2) * jnp.sum(samples**2, axis=-1)
@@ -219,16 +221,18 @@ class CalogeroSutherlandSinHamiltonian(ContinuousHamiltonian):
 
             def body(i, acc):
                 xi = jax.lax.dynamic_index_in_dim(samples, i, axis=1, keepdims=False)
-                diffs = xi[:, None] - samples                       # (batch, N)
+                diffs = xi[:, None] - samples  # (batch, N)
                 mask = (col > i).astype(jnp.float32)
-                sin_term = L*(L-1)*(jnp.pi * L_box /  jnp.sin(jnp.pi * diffs / L_box))** 2 * mask
+                sin_term = (
+                    L * (L - 1) * (jnp.pi * L_box / jnp.sin(jnp.pi * diffs / L_box)) ** 2 * mask
+                )
                 return acc + jnp.sum(sin_term, axis=-1)
 
             interaction = jax.lax.fori_loop(0, n - 1, body, jnp.zeros(samples.shape[0]))
         else:
             # O(B·N²/2) peak memory: all pairs at once, max GPU parallelism.
             i_idx, j_idx = jnp.triu_indices(n, k=1)
-            diffs = samples[:, i_idx] - samples[:, j_idx]     # (batch, n_pairs)
+            diffs = samples[:, i_idx] - samples[:, j_idx]  # (batch, n_pairs)
             interaction = jnp.sum(L * (L - 1) / (diffs**2 + eps), axis=-1)
 
-        return 2 * interaction + trap # factor 2 cause g = 2L(L-1) in CS convention, not L(L-1)
+        return 2 * interaction + trap  # factor 2 cause g = 2L(L-1) in CS convention, not L(L-1)

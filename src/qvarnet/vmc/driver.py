@@ -20,7 +20,7 @@ class VMC:
     """A variational Monte Carlo ground-state optimisation.
 
     Minimises E[theta] = <psi|H|psi> / <psi|psi> over the parameters of a
-    log-amplitude ansatz, sampling |psi|^2 with the given ``sampler``.
+    log-amplitude ansatz, sampling |psi|^2 with the given sampler::
 
         result = VMC(
             shape=(n_chains, n_particles * n_dim),
@@ -31,28 +31,10 @@ class VMC:
             sampler=OrderedMetropolis(),
         ).run()
 
-    Every pluggable part is an object you construct and pass -- the ansatz, the
-    Hamiltonian, the optimizer, the sampler, the callbacks. There is no registry
-    and no name to look up.
+    Every pluggable part -- ansatz, Hamiltonian, optimizer, sampler, callbacks -- is
+    an object you construct and pass. There is nothing to register.
 
-    Args:
-        shape: ``(n_chains, dof)`` of the sampler.
-        model: the ansatz. Must return **log|psi(x)|**, shape ``(..., 1)``.
-        optimizer: any optax GradientTransformation.
-        hamiltonian: a ContinuousHamiltonian.
-        training_config: epochs, seed, checkpointing, step-size adaptation.
-        initial_chain_config: how walkers start and warm up.
-        sampler_params: a SamplingConfig, or a dict of its kwargs.
-        coord_mode: LabCoords (default) or JacobiCoords.
-        sampler: a Sampler; defaults to Metropolis().
-        model_name, model_args: provenance recorded in run_config.json.
-        qgt_config: QGTConfig (or a dict) for the stochastic-reconfiguration path.
-        auxiliary_losses: extra loss terms added to the VMC energy.
-        callbacks: Callback instances; a NaN guard is always prepended.
-        select: metric ranking retained snapshots, lower being better. A key name
-            ("std" default, "energy", ...) or a callable ``(metrics) -> float``.
-        k_best: how many best-by-``select`` parameter sets to retain; 0 keeps none.
-        init_params: warm-start parameters. A resumable checkpoint takes precedence.
+    Arguments are documented on ``build_context`` (vmc/setup.py), which resolves them.
     """
 
     def __init__(

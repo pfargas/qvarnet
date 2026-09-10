@@ -19,62 +19,24 @@ from jax.flatten_util import ravel_pytree
 
 
 class QGTConfig:
-    """Configuration for QGT-based (stochastic reconfiguration) optimisation.
+    """Configuration for stochastic reconfiguration (natural-gradient) optimisation.
 
-    Pass an instance to train(..., qgt_config=QGTConfig(...), use_qgt=True).
+    SR is a *preconditioner*: the optimizer you pass to VMC is still the update rule,
+    and ``learning_rate`` here only feeds the ``sr_train`` recipe and the trust-region
+    derivation. Defaults are validated on Calogero-Sutherland N=30. What these mean,
+    and the measurements behind them: docs/explainers/stochastic-reconfiguration.md.
 
     Args:
-        solver:         "auto" (default): "minsr" when P > M else "cholesky" — the
-                        right formulation per regime, resolved at trace time.
-                        Explicit: "cholesky" (SPD, fails loudly on a broken S),
-                        "direct" (LU — avoid: silently returns garbage on a non-PSD S),
-                        "gmres" (iterative, large systems), "diagonal" (cheap approx),
-                        "minsr" (M×M Gram dual — same regularised step as full SR via
-                        the push-through identity, solved in sample space).
-        learning_rate:  The classic SR step η, used for two things: (a) the sr_train
-                        recipe builds its update rule as optax.sgd(learning_rate), and
-                        (b) resolve_trust_region derives the direction cap as
-                        max_state_change / learning_rate. It does NOT override the
-                        optimizer passed to train() — SR is a preconditioner and the
-                        passed optimizer is the update rule. If you hand train() your
-                        own optimizer under use_qgt, keep this equal to its SGD lr for
-                        exact max_state_change semantics (or set trust_region
-                        directly, e.g. for adaptive optimizers / LR schedules).
-        regularization: ε applied in the Jacobi-preconditioned (unit-diagonal) metric —
-                        equivalent to Levenberg-Marquardt Tikhonov S + ε·diag(S). Per-
-                        direction scale-invariant: the same ε means the same thing
-                        whether the O_k are O(1) (spin nets) or O(1e5) (Jastrow log
-                        terms), and the preconditioning keeps float32 factorisations
-                        reliable (default 1e-2).
-        max_state_change: Fisher-metric cap on the *state change per optimizer step*
-                        (default 0.1): the applied update learning_rate·δ is rescaled
-                        so √(ΔθᵀSΔθ) ≤ max_state_change, whatever the raw gradient
-                        magnitude. This is update-norm control (Sorella-style trust
-                        region) — the energy estimator itself is untouched — and the
-                        standard guard against the heavy-tailed gradient spikes that
-                        make plain-SGD/SR updates blow up (e.g. cusp-residual spikes
-                        in singular interactions). Physical units: it means the same
-                        thing at any learning_rate (the direction cap is derived as
-                        max_state_change/learning_rate internally — the units trap a
-                        raw direction cap would reintroduce). None = off. 0.1 is the
-                        validated default on CS N=30; 0.3 descended 3× faster there
-                        and stayed stable, at more spike risk on harder problems.
-        trust_region:   Advanced override, in *direction* units: cap √(δᵀSδ) ≤ Δ
-                        directly (the state change per step is then learning_rate·Δ).
-                        Takes precedence over max_state_change when set. Required
-                        instead of max_state_change when learning_rate is an optax
-                        schedule (a callable cannot be divided by). None (default) =
-                        derive from max_state_change.
-        grad_clip_norm: None (default) = off. Otherwise clip the (natural) gradient
-                        handed to the optimizer by Euclidean global norm. Do NOT use
-                        this as the SR spike guard: the natural gradient legitimately
-                        has a huge Euclidean norm along flat directions of the model —
-                        that is the point of the S⁻¹ preconditioning — so a Euclidean
-                        clip re-throttles the trust-region-approved step by orders of
-                        magnitude and SR stops descending (measured 2026-07-11: clip
-                        10 bound 100% of epochs at |δ| ~ 3e3, energy flat; without it
-                        SR matched Adam's descent with a 3× cleaner tail).
-        solver_options: Extra kwargs forwarded to the iterative solver (GMRES only).
+        solver: "auto" (minsr when P > M, else cholesky) | "cholesky" | "minsr" |
+            "gmres" | "diagonal" | "direct" (avoid: silent on non-PSD S).
+        learning_rate: the classic SR step eta. Does NOT override the optimizer.
+        regularization: epsilon in the Jacobi-preconditioned metric.
+        max_state_change: Fisher cap on the state change per step.
+        trust_region: advanced override in direction units; required instead of
+            max_state_change when learning_rate is an optax schedule.
+        grad_clip_norm: Euclidean clip on the natural gradient. Usually wrong to
+            enable -- it fights the preconditioning.
+        solver_options: extra kwargs for the iterative solver (GMRES only).
     """
 
     def __init__(
@@ -308,23 +270,15 @@ def compute_natural_gradient(params, batch, model_apply, energy_grads, qgt_confi
 
 
 def _apply_trust_region(natural_grad, dSd, qgt_config: QGTConfig):
-    """Rescale δ so its Fisher-metric norm √(δᵀSδ) ≤ the resolved trust region
-    (``qgt_config.resolve_trust_region()`` — max_state_change/learning_rate unless a
-    direction-space ``trust_region`` override is set).
+    """Rescale delta so its Fisher norm sqrt(delta^T S delta) is within the trust region.
 
-    No-op when the resolved cap is None. The parameter step applied by the optimizer
-    is then bounded by ``max_state_change`` in the Fisher metric regardless of the
-    raw gradient magnitude — the guard against heavy-tailed gradient spikes.
+    No-op when the resolved cap is None. A failed solve (NaN/inf, or dSd < 0 from a
+    non-PSD S) returns a **zero step** rather than poisoning the parameters: the epoch
+    is wasted and the next batch retries, which beats a NaN checkpoint.
 
-    A numerically-failed solve (NaN/inf in δ, or dSd < 0 from a non-PSD S) returns a
-    **zero step** instead of poisoning the parameters: the epoch is wasted, the next
-    batch retries — strictly better than a NaN checkpoint.
-
-    Returns ``(natural_grad, info)`` where ``info`` carries the guard diagnostics
-    needed to see *which* constraint shaped the step (trust region here vs the
-    Euclidean grad clip applied later in the optimizer chain): ``fisher_norm``
-    (pre-rescale √(δᵀSδ)), ``trust_scale`` (the factor actually applied, 1.0 = not
-    binding) and ``solve_ok`` (0.0 = failed solve, zero step taken).
+    Returns ``(natural_grad, info)``, where info says which constraint shaped the step:
+    ``fisher_norm`` (pre-rescale), ``trust_scale`` (1.0 = not binding) and ``solve_ok``
+    (0.0 = failed solve). See docs/explainers/stochastic-reconfiguration.md.
     """
     delta = qgt_config.resolve_trust_region()
     fisher_norm = jnp.sqrt(jnp.maximum(dSd, 0.0))
@@ -346,30 +300,23 @@ def _apply_trust_region(natural_grad, dSd, qgt_config: QGTConfig):
 
 
 def compute_natural_gradient_minsr(params, batch, e_loc, model_apply, qgt_config: QGTConfig):
-    """minSR / SRt: the natural-gradient step via the M×M Gram dual instead of the
-    P×P QGT.
+    """Natural gradient via the M x M Gram dual (minSR).
 
-    Uses the identity  S⁻¹Ōᵀ = Ōᵀ T⁻¹  with  S = ŌᵀŌ/M  (P×P) and  T = ŌŌᵀ/M
-    (M×M), where Ō is the centred log-derivative matrix (M samples × P params). The
-    energy-objective natural gradient is
-
-        δ = S⁻¹ F,   F = 2⟨(E_loc − Ē) O⟩  ⟹  δ = (2/M)·Ōᵀ (T + εI_M)⁻¹ e,
-
-    with e = E_loc − Ē (M,). This is the *same* step as full SR (up to where the
-    regularisation ε is applied) but costs O(M²P + M³) instead of O(P²M + P³), so it
-    wins exactly when P > M — the over-parametrised regime (E1 teacher, pre-multi-GPU).
-    In the healthy M ≫ P regime use full SR; minSR is strictly more expensive there.
+    Solves in sample space instead of parameter space, which is the right
+    formulation when the parameter count P exceeds the sample count M. The
+    push-through identity makes this the same regularised step as full SR.
 
     Args:
-        params:      parameter pytree.
-        batch:       MCMC batch, shape (M, dof).
-        e_loc:       per-sample local energies E_loc(x_i), shape (M,).
-        model_apply: callable(params, x) → log|ψ| scalar.
-        qgt_config:  QGTConfig (uses ``regularization``).
+        params: parameter pytree.
+        batch: samples, ``(M, dof)``.
+        model_apply: the (coord-wrapped) log-amplitude callable.
+        grads: the Euclidean energy gradient pytree.
+        e_loc: local energies, ``(M,)``.
+        regularization: epsilon in the preconditioned metric.
+        trust_region: cap on sqrt(delta^T S delta); None disables it.
 
     Returns:
-        (natural_grad_flat, unravel_fn, info) — same convention as
-        ``compute_natural_gradient``.
+        ``(natural_gradient_pytree, info)``.
     """
     flat_params, unravel_fn = ravel_pytree(params)
     log_derivs = compute_log_derivatives(

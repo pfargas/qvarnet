@@ -102,19 +102,35 @@ def run_loop(ctx, update_fn) -> TrainResult:
                     training_config=ctx.training_config,
                 )
 
-                grad_norm, theta_ratio = _optimisation_diagnostics(
-                    ctx.state, new_state, grads
-                )
+                grad_norm, theta_ratio = _optimisation_diagnostics(ctx.state, new_state, grads)
                 ctx.state = new_state
 
                 # The one host sync of the epoch.
                 (
-                    E_v, sigma_e_v, error_of_mean_v, E_chain_v, acceptance_rate_v,
-                    cm_mean_v, cm_std_v, step_size_v, grad_norm_v, theta_ratio_v, sr_info_v,
+                    E_v,
+                    sigma_e_v,
+                    error_of_mean_v,
+                    E_chain_v,
+                    acceptance_rate_v,
+                    cm_mean_v,
+                    cm_std_v,
+                    step_size_v,
+                    grad_norm_v,
+                    theta_ratio_v,
+                    sr_info_v,
                 ) = jax.device_get(
                     (
-                        E, sigma_e, error_of_mean, E_chain, acceptance_rate,
-                        cm_mean, cm_std, ctx.step_size, grad_norm, theta_ratio, sr_info,
+                        E,
+                        sigma_e,
+                        error_of_mean,
+                        E_chain,
+                        acceptance_rate,
+                        cm_mean,
+                        cm_std,
+                        ctx.step_size,
+                        grad_norm,
+                        theta_ratio,
+                        sr_info,
                     )
                 )
 

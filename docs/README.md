@@ -1,57 +1,42 @@
-# QVarNet: Quantum Variational Monte Carlo with Artificial Neural Networks
+# qvarnet documentation
 
-## Overview
+Four kinds of prose, four homes. Which one a thing belongs in is decided by *what
+question it answers*, not by how long it is.
 
-QVarNet is a high-performance Python library for quantum variational Monte Carlo (VMC) simulations using artificial neural network ansätze. Built on JAX/Flax for efficient GPU acceleration, QVarNet is specifically designed for research-level quantum mechanics calculations, focusing on accuracy, scalability, and reproducibility.
+| where | answers | ships? |
+|---|---|---|
+| **docstrings** | what this callable is and what it takes | yes |
+| **[adr/](adr/)** | *why* a design choice was made | yes |
+| **[explainers/](explainers/)** | what a method is, and how to read its output | yes |
+| **[notes/](notes/)** | working notes, open questions, raw investigation logs | **no** |
 
-### Key Features
+`scripts/check_docs.py` enforces the first row: a docstring over ~14 lines (24 for a
+module) is almost always rationale or a tutorial that belongs in one of the others.
 
-- **JAX/Flax Integration**: Full JAX compatibility with automatic differentiation and Just-In-Time compilation
-- **High-Performance Sampling**: Optimized Metropolis-Hastings sampler with configurable acceptance rates
-- **Modular Architecture**: Pluggable neural network models and activation functions
-- **GPU Acceleration**: Native CUDA support for large-scale simulations
-- **Research-Grade**: Designed for PhD-level quantum VMC research with emphasis on numerical stability
-- **CLI Interface**: Command-line tool for quick experiments and parameter sweeps
+## Explainers
 
-## Research Context
+- [convergence-diagnostics.md](explainers/convergence-diagnostics.md) — Geweke,
+  Heidelberger–Welch, split-R̂, the three-referee verdict, the V-score. **Start here
+  if `result.diagnose()` printed something you could not read.**
+- [autocorrelation.md](explainers/autocorrelation.md) — the autocorrelation function,
+  τ_int, effective sample size, and how much to thin.
+- [stochastic-reconfiguration.md](explainers/stochastic-reconfiguration.md) — SR as a
+  preconditioner, solver choice, the Fisher trust region, and why `grad_clip_norm`
+  usually breaks it.
+- [samplers.md](explainers/samplers.md) — proposal families, why subset moves win at
+  large N, and how to write a constrained sampler.
+- [coordinates.md](explainers/coordinates.md) — lab vs Jacobi coordinates: what the
+  sampler moves and what the ansatz sees.
+- [periodic-systems.md](explainers/periodic-systems.md) — the independent PBC toggles
+  and how they go wrong together.
 
-QVarNet is developed for solving quantum many-body problems using the variational Monte Carlo method. The library focuses on:
+## Decision records
 
-1. **Wavefunction Approximation**: Using neural networks to approximate quantum states $\psi_\theta(\mathbf{x})$
-2. **Energy Minimization**: Finding optimal parameters $\theta$ that minimize the expectation value $\langle E \rangle_\theta$
-3. **Sampling Efficiency**: High-throughput generation of configurations according to $|\psi_\theta(\mathbf{x})|^2$
+- [0001-correlated-error-estimates.md](adr/0001-correlated-error-estimates.md) —
+  observables should carry blocking/τ_int error bars. Accepted, not implemented.
 
-## Quick Start
+## Notes
 
-```bash
-# Install the environment
-conda env create -f environment_config.yaml
-conda activate jax
-
-# Install the package
-pip install -e .
-
-# Run a basic experiment
-qvarnet run
-```
-
-## Documentation Structure
-
-This documentation is organized for different user types:
-
-- **For Researchers**: In-depth theory, architecture details, and performance considerations
-- **For Users**: Installation guides, API reference, and usage examples  
-- **For Contributors**: Development setup and contribution guidelines
-
-## Citation
-
-If you use QVarNet in your research, please cite:
-
-```bibtex
-@software{qvarnet2025,
-  title={QVarNet: Quantum Variational Monte Carlo with Artificial Neural Networks},
-  author={Fargas, Pau},
-  year={2025},
-  url={https://github.com/pfargas/qvarnet}
-}
-```
+`notes/` is unpublished working material and is deleted before any public release.
+Anything you are unsure about starts there with no ceremony, and gets promoted to
+`explainers/` or `adr/` once it is settled.

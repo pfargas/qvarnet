@@ -3,27 +3,24 @@ from jax import numpy as jnp
 
 
 class LogJastrow(nn.Module):
-    """Bosonic Jastrow factor in log space.
+    """Bosonic Jastrow factor in log space, with one learnable exponent lambda.
 
-    Open boundary (``L is None``, default):
-        log J = λ · Σᵢ<ⱼ log|xᵢ − xⱼ|         (1D Calogero-Sutherland-type)
+    Open boundary (``L is None``, the default):
+        log J = lambda * sum_{i<j} log|x_i - x_j|
 
-    Periodic box of side ``L`` (``L`` set):
-        log J = λ · Σᵢ<ⱼ log|sin(π (xᵢ − xⱼ) / L)|   (Sutherland, on a ring)
+    Periodic box of side ``L``:
+        log J = lambda * sum_{i<j} log|sin(pi (x_i - x_j) / L)|
 
-    The Sutherland form is the *exactly L-periodic* analogue: it is invariant under
-    xₖ → xₖ + L and smooth everywhere except the physical coincidence cusp — unlike a
-    minimum-image ``log|xᵢ−xⱼ|`` which would acquire a spurious derivative kink at L/2.
+    The periodic form is the exactly L-periodic analogue, smooth everywhere except
+    the physical coincidence cusp; see docs/explainers/periodic-systems.md for why
+    a minimum-image log|x_i-x_j| is not a substitute.
 
     Applied to raw coordinates; combine with a network via ``LogWavefunction``.
 
-    Parameters
-    ----------
-    n_particles:
-        Number of particles.  Used to build the upper-triangle mask.
-    L:
-        Box length.  ``None`` (default) = open boundary; a float enables the
-        periodic Sutherland form.
+    Args:
+        n_particles: used to build the upper-triangle pair mask.
+        lambda_init: initial value of the learnable exponent.
+        L: box length. None (default) means open boundary.
     """
 
     n_particles: int
@@ -34,8 +31,8 @@ class LogJastrow(nn.Module):
     def __call__(self, x):
         # x: (..., n_particles)  — 1D coordinates (raw, pre-transform)
         lam = self.param("lambda", nn.initializers.constant(self.lambda_init), ())
-        xi = x[..., :, None]   # (..., n, 1)
-        xj = x[..., None, :]   # (..., 1, n)
+        xi = x[..., :, None]  # (..., n, 1)
+        xj = x[..., None, :]  # (..., 1, n)
         dx = xi - xj
         if self.L is None:
             r = jnp.abs(dx)
@@ -45,8 +42,8 @@ class LogJastrow(nn.Module):
         log_r = jnp.where(mask, jnp.log(r + 1e-10), 0.0)
         return (lam * jnp.sum(log_r, axis=(-2, -1)))[..., None]
 
-class OrderedLinear1DJastrow(nn.Module):
 
+class OrderedLinear1DJastrow(nn.Module):
     n_particles: int
     a_rod: float = 1.0
     barrier: float = 1e4  # slope-1 linear penalty past the wall
@@ -56,13 +53,15 @@ class OrderedLinear1DJastrow(nn.Module):
         xi = x[..., :, None]
         xj = x[..., None, :]
         idx = jnp.arange(self.n_particles)
-        min_gap = self.a_rod * (idx[None, :] - idx[:, None])   # [i,j] = (j-i)*a_rod
-        margin = (xj - xi) - min_gap                            # [i,j]; i<j entries meaningful
+        min_gap = self.a_rod * (idx[None, :] - idx[:, None])  # [i,j] = (j-i)*a_rod
+        margin = (xj - xi) - min_gap  # [i,j]; i<j entries meaningful
 
         legal = margin > 0
-        safe_margin = jnp.where(legal, margin, 1.0)   # never hand log() a non-positive value
+        safe_margin = jnp.where(legal, margin, 1.0)  # never hand log() a non-positive value
         log_legal = jnp.log(safe_margin + 1e-10)
-        log_illegal = -self.barrier + margin           # smooth, monotone falloff — not flat -> should change to exp maybe
+        log_illegal = (
+            -self.barrier + margin
+        )  # smooth, monotone falloff — not flat -> should change to exp maybe
         log_term = jnp.where(legal, log_legal, log_illegal)
 
         mask = jnp.triu(jnp.ones((self.n_particles, self.n_particles), bool), k=1)

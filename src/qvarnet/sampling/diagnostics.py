@@ -94,13 +94,13 @@ def chain_stats(chains, max_lag=None):
     """
     n_steps = chains.shape[1]
 
-    def per_coord(x):          # (n_steps,) -> scalar
+    def per_coord(x):  # (n_steps,) -> scalar
         return integrated_autocorr_time(x, max_lag=max_lag)
 
-    def per_chain(chain):      # (n_steps, dof) -> scalar
+    def per_chain(chain):  # (n_steps, dof) -> scalar
         # vmap over the dof axis (axis=1 of chain, i.e. in_axes=1)
         return jnp.mean(jax.vmap(per_coord, in_axes=1)(chain))
 
-    taus = jax.vmap(per_chain)(chains)   # (n_chains,)
+    taus = jax.vmap(per_chain)(chains)  # (n_chains,)
     ess = n_steps / taus
     return taus, ess

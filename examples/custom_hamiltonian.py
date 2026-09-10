@@ -24,6 +24,7 @@ from qvarnet.physics.hamiltonian.continuous import ContinuousHamiltonian
 # Step 1–3: define and register the Hamiltonian
 # ---------------------------------------------------------------------------
 
+
 @struct.dataclass
 class DoubleWellHamiltonian(ContinuousHamiltonian):
     """1-D double-well: V(x) = a·x⁴ − b·x².
@@ -37,8 +38,8 @@ class DoubleWellHamiltonian(ContinuousHamiltonian):
     def potential_energy(self, samples):
         # samples: (batch, dof)  — lab coordinates, always
         # return:  (batch,)
-        x2 = jnp.sum(samples ** 2, axis=-1)
-        x4 = jnp.sum(samples ** 4, axis=-1)
+        x2 = jnp.sum(samples**2, axis=-1)
+        x4 = jnp.sum(samples**4, axis=-1)
         return self.a * x4 - self.b * x2
 
 

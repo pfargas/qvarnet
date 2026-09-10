@@ -17,6 +17,7 @@ from qvarnet.vmc.config import CuspConfig, TrainingConfig
 # Run config serialisation helpers
 # ---------------------------------------------------------------------------
 
+
 def _coord_mode_to_dict(coord_mode: CoordMode) -> dict:
     if isinstance(coord_mode, LabCoords):
         return {"type": "LabCoords"}
@@ -57,6 +58,7 @@ def _training_config_from_dict(d: dict) -> TrainingConfig:
 # High-level run config save / load
 # ---------------------------------------------------------------------------
 
+
 def save_run_config(path, model_name, model_args, sample_shape, coord_mode, training_config):
     """Write a run_config.json that captures everything needed to reconstruct the run.
 
@@ -86,7 +88,9 @@ def save_run_config(path, model_name, model_args, sample_shape, coord_mode, trai
         json.dump(config, f, indent=2)
 
 
-LoadedRun = collections.namedtuple("LoadedRun", ["model", "params", "training_config", "coord_mode"])
+LoadedRun = collections.namedtuple(
+    "LoadedRun", ["model", "params", "training_config", "coord_mode"]
+)
 
 
 def load_run(path, model, checkpoint_filename="checkpoint.msgpack"):

@@ -1,4 +1,3 @@
-
 from flax import linen as nn
 from jax import numpy as jnp
 
@@ -13,11 +12,13 @@ class CalogeroSutherlandAnalyticModel(nn.Module):
     Input:  (..., n_particles)  — 1D particles, batched or unbatched
     Output: (...)               — log|ψ₀|, one scalar per configuration
     """
+
     lambda_init: float = 0.5  # Initial value for λ, learnable parameter
+
     @nn.compact
     def __call__(self, x):
         # x: (..., n_particles)  — works for (batch, N) and bare (N,)
-        lam   = self.param("lam",   nn.initializers.constant(self.lambda_init), ())
+        lam = self.param("lam", nn.initializers.constant(self.lambda_init), ())
         # omega = self.param("omega", nn.initializers.constant(1.0), ())
 
         n = x.shape[-1]  # n_particles lives in the LAST dim, not dim 0

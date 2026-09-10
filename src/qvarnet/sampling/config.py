@@ -11,9 +11,9 @@ from dataclasses import dataclass
 class SamplingConfig:
     """Immutable sampling configuration for MCMC.
 
-How *long* to run the chains. *How* they move is the ``Sampler`` you pass to
-    ``train(sampler=...)`` -- which owns the proposal family and any constraint
-    (see ``qvarnet.sampling.sampler``). One knob, one owner.
+    How *long* to run the chains. *How* they move is the ``Sampler`` you pass to
+        ``train(sampler=...)`` -- which owns the proposal family and any constraint
+        (see ``qvarnet.sampling.sampler``). One knob, one owner.
     """
 
     step_size: float = 1.0

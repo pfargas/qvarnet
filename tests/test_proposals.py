@@ -98,8 +98,7 @@ def test_subset_acceptance_survives_large_dof():
 
 
 def test_config_defaults_and_hashability():
-    cfg = SamplingConfig(step_size=0.5, chain_length=21, thermalization_steps=20,
-                         thinning_factor=1)
+    cfg = SamplingConfig(step_size=0.5, chain_length=21, thermalization_steps=20, thinning_factor=1)
     assert hash(cfg) is not None
 
     # The proposal lives on the Sampler, not the config.
@@ -134,5 +133,3 @@ def test_train_end_to_end_with_subset_proposal(tmp_path):
     )
     e = np.array([float(s.energy) for s in result.history])
     assert np.all(np.isfinite(e))
-
-

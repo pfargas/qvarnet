@@ -1,29 +1,20 @@
-"""Named training recipes — validated config bundles for the common workflows.
+"""Named training recipes: validated bundles of the configuration knobs.
 
-The configuration surface of :func:`qvarnet.train` (TrainingConfig, SamplingConfig,
-ChainInitAndWarmupConfig, QGTConfig, optimizer, ...) exists so every knob has one
-owner; these recipes exist so you never have to remember how the knobs combine.
-Each returns a dict of ``train()`` keyword arguments to splat::
-
-    from qvarnet.recipes import adam_train, sr_train
+The configuration surface exists so every knob has one owner; these exist so you
+need not remember how the knobs combine. Each returns a dict of ``train()`` keyword
+arguments to splat::
 
     r1 = train(shape=shape, model=model, hamiltonian=ham,
-               **adam_train(n_epochs=20_000, learning_rate=1e-2,
-                            checkpoint_path="./runs/adam"))
+               **adam_train(n_epochs=20_000, learning_rate=1e-2))
     r2 = train(shape=shape, model=model, hamiltonian=ham,
-               **sr_train(n_epochs=1_000, prev_result=r1,
-                          checkpoint_path="./runs/sr"))
+               **sr_train(n_epochs=1_000, prev_result=r1))
 
-Both recipes accept ``prev_result`` (a :class:`TrainResult`) to warm-restart: the best
-retained parameters, the final walker positions and the adapted MH step size all carry
-over, so the rerun resumes sampling where the previous run left off instead of
-re-thermalising at the default step size (the near-frozen-chain trap).
+Both accept ``prev_result`` to warm-restart: best parameters, final walker positions
+and the adapted step size all carry over, so the rerun resumes where the last left
+off instead of re-thermalising at the default step.
 
-The SR recipe encodes the numerically-validated stack: ``solver="auto"`` (minSR when
-P > M), Fisher trust region, gradient-norm safety net, block-adaptive warmup. It does
-NOT choose your ansatz — for singular interactions (Calogero-Sutherland etc.) SR from
-scratch additionally needs a cusp-exact Jastrow init (λ_init = L), or the heavy-tailed
-local-energy spikes poison every gradient before the optimizer can act.
+``sr_train`` encodes the numerically validated SR stack -- see
+docs/explainers/stochastic-reconfiguration.md.
 """
 
 import optax
@@ -117,30 +108,19 @@ def sr_train(
     sampler_params: dict = None,
     warmup_steps: int = 300,
 ):
-    """Stochastic reconfiguration (natural gradient), stabilised.
+    """Keyword arguments for a stochastic-reconfiguration run.
 
-    θ ← θ − η·S⁻¹∇E with the validated guard stack: "auto" solver (minSR in the
-    P > M regime — same regularised step, solved full-rank in sample space) and a
-    Fisher-metric trust region. SR is a *preconditioner*; the update rule is the
-    optimizer this recipe sets: optax.sgd(learning_rate), i.e. classic SR. train()
-    honours whatever optimizer it receives, so overriding kwargs["optimizer"] (e.g.
-    with Adam) gives SR-preconditioned Adam — then keep qgt_config.learning_rate in
-    sync or set trust_region explicitly (see QGTConfig).
+    Encodes the validated SR stack: solver="auto" (minSR when P > M), the Fisher
+    trust region, a gradient-norm safety net and block-adaptive warmup. It does not
+    choose your ansatz -- for singular interactions SR from scratch also needs a
+    cusp-exact Jastrow init, or heavy-tailed local-energy spikes poison the gradients
+    before the optimizer can act. See docs/explainers/stochastic-reconfiguration.md.
 
-    ``grad_clip_norm`` defaults to OFF: a Euclidean clip re-throttles the natural
-    gradient (whose Euclidean norm is legitimately huge along the model's flat
-    directions) and SR stops descending — the 2026-07-11 guard-binding probe measured
-    clip 10 binding 100% of epochs with the energy flat, vs Adam-matching descent
-    with a 3× cleaner tail once removed. The trust region alone carries the spike
-    protection (0 failed solves, 0 NaNs across all probe stages).
-
-    ``max_state_change`` is the physical trust-region knob: the maximum wavefunction
-    change per step in the Fisher metric, √(ΔθᵀSΔθ) ≤ max_state_change, whatever the
-    estimator claims — the same thing at any η (QGTConfig derives the direction cap).
-    0.1 is the validated default: big enough to move, small enough to ride out
-    cusp-residual spike epochs. 0.3 descended ~3× faster on CS N=30 (2026-07-11
-    probe 2: tail 726.55±0.24 vs exact 726 in 2000 finetune epochs, trust binding
-    only 31% of early epochs, zero failed solves) — worth trying when spikes are mild.
+    Args:
+        n_epochs: training epochs.
+        learning_rate: SGD step; SR uses optax.sgd(learning_rate) as the update rule.
+        prev_result: a TrainResult to warm-restart from (parameters, walkers, step).
+        **overrides: any TrainingConfig / QGTConfig / sampler field.
     """
     kwargs = _base_kwargs(prev_result, sampler_params, warmup_steps)
     kwargs["optimizer"] = optax.sgd(learning_rate)  # the SR update rule: θ ← θ − η·δ

@@ -54,8 +54,7 @@ def run_point_defaults(path: Path) -> dict:
         (
             n
             for n in tree.body
-            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
-            and n.name == "run_point"
+            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == "run_point"
         ),
         None,
     )

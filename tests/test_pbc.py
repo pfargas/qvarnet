@@ -51,6 +51,7 @@ def _periodic_deepset(n_particles):
 
 # ---------- (1) encoding: periodicity + per-particle grouping ----------
 
+
 def test_encode_is_L_periodic():
     enc = PeriodicBoundary(L)
     x = jnp.array([[0.3, 1.1, -0.7]])
@@ -83,6 +84,7 @@ def test_periodic_deepset_is_permutation_invariant():
 
 # ---------- periodic ansatz: log|ψ| is L-periodic ----------
 
+
 def test_periodic_ansatz_logpsi_is_periodic():
     model = _periodic_mlp()
     x = jnp.array([[0.4, 2.1, 5.0]])
@@ -104,6 +106,7 @@ def test_periodic_jastrow_is_periodic_and_open_is_not():
 
 
 # ---------- (2) Hamiltonian: shift-by-L invariance of the local energy ----------
+
 
 def test_local_energy_invariant_under_global_shift_by_L():
     """Per-sample E_loc(x) == E_loc(x + L) for a periodic ansatz + min-image lattice-Bose H,
@@ -129,6 +132,7 @@ def test_lattice_bose_potential_min_image_used():
 
 
 # ---------- (3) sampler: wrap keeps walkers in the box ----------
+
 
 def test_pbc_sampler_wraps_into_box():
     model = _periodic_mlp()
@@ -176,6 +180,7 @@ def test_pbc_sampler_disabled_leaves_covering_space():
 
 # ---------- end-to-end: free particle on a ring → E₀ = 0 ----------
 
+
 def test_free_particle_on_ring_converges_to_zero(tmp_path):
     result = train(
         shape=(128, 1),
@@ -198,6 +203,7 @@ def test_free_particle_on_ring_converges_to_zero(tmp_path):
 
 
 # ---------- (4) observables: folding & commensurate-k invariance ----------
+
 
 def test_density_histogram_folds_into_box():
     rng = np.random.default_rng(0)

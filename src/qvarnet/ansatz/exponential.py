@@ -14,11 +14,11 @@ from qvarnet.ansatz.mlp import MLP
 
 
 class LogAnalyticWavefunction(nn.Module):
-
     @nn.compact
     def __call__(self, x):
         alpha = self.param("alpha", nn.initializers.constant(1.0), ())
         return -alpha * jnp.sum(x**2, axis=-1)
+
 
 class LogExponentialMLPwithPenalty(nn.Module):
     architecture: list
@@ -38,6 +38,7 @@ class LogExponentialMLPwithPenalty(nn.Module):
         mlp_output = mlp(x)
         log_wf = mlp_output - envelope_param * jnp.sum(x**4, axis=-1, keepdims=True)
         return log_wf
+
 
 class LogExponentialMLPwithGaussianPenalty(nn.Module):
     architecture: list
@@ -60,6 +61,7 @@ class LogExponentialMLPwithGaussianPenalty(nn.Module):
         log_wf = mlp_output - envelope_param * jnp.sum(x**2, axis=-1, keepdims=True)
         return log_wf
 
+
 class JastrowLogExponentialMLPwithGaussianPenalty(nn.Module):
     architecture: list
     hidden_activation: Callable = nn.tanh
@@ -70,7 +72,7 @@ class JastrowLogExponentialMLPwithGaussianPenalty(nn.Module):
     @nn.compact
     def __call__(self, x):
         # x: (..., n_particles)  — works for (batch, N) and bare (N,)
-        lam   = self.param("lam",   nn.initializers.constant(self.lambda_init), ())
+        lam = self.param("lam", nn.initializers.constant(self.lambda_init), ())
         # omega = self.param("omega", nn.initializers.constant(1.0), ())
 
         n = x.shape[-1]  # n_particles lives in the LAST dim, not dim 0
@@ -82,7 +84,9 @@ class JastrowLogExponentialMLPwithGaussianPenalty(nn.Module):
         mask = jnp.triu(jnp.ones((n, n)), k=1)  # (N, N)
 
         # Jastrow in log-space: λ · Σᵢ<ⱼ log|xᵢ-xⱼ|  →  (...)
-        log_jastrow = lam * jnp.sum(mask * jnp.log(diffs), axis=(-1, -2))[..., None] # the dimensions of sum were (N,) and we need (N,1) :)
+        log_jastrow = (
+            lam * jnp.sum(mask * jnp.log(diffs), axis=(-1, -2))[..., None]
+        )  # the dimensions of sum were (N,) and we need (N,1) :)
         mlp = MLP(
             architecture=self.architecture,
             hidden_activation=self.hidden_activation,

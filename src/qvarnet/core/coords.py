@@ -5,17 +5,15 @@ import jax.numpy as jnp
 
 @dataclass(frozen=True)
 class CoordMode:
-    """Base class for coordinate systems used in VMC.
+    """How sampler space relates to model input space.
 
-    Subclasses must implement three methods that together define how the
-    sampler space relates to the model input space:
+    Hamiltonian potentials always receive lab coordinates; VMC injects the
+    conversion, so a Hamiltonian never handles coord_mode itself.
 
-      model_input_shape  — shape used to initialise model parameters
-      wrap_model_apply   — wraps model_apply to accept sampler-space inputs
-      samples_to_lab     — transforms sampler-space samples to lab coords
-                           (used by the Hamiltonian potential)
+    A new coordinate system is one subclass with three methods:
+    ``model_input_shape``, ``wrap_model_apply``, ``samples_to_lab``.
 
-    Adding a new coordinate system = add one subclass with these three methods.
+    See docs/explainers/coordinates.md.
     """
 
     def model_input_shape(self, sample_shape: tuple) -> tuple:
@@ -83,20 +81,22 @@ class JacobiCoords(CoordMode):
 
     def wrap_model_apply(self, model_apply):
         from qvarnet.core.jacobi import from_jacobi_to_lab
+
         n_phys = self.n_particles_physical
         n_d = self.n_dim
 
         def apply(params, x):
             # x: (..., N)  Jacobi relative coords
             zeros = jnp.zeros((*x.shape[:-1], 1))
-            u_tilde = jnp.concatenate([x, zeros], axis=-1)   # (..., N+1)
-            x_lab = from_jacobi_to_lab(u_tilde, n_phys, n_d) # (..., N+1)
+            u_tilde = jnp.concatenate([x, zeros], axis=-1)  # (..., N+1)
+            x_lab = from_jacobi_to_lab(u_tilde, n_phys, n_d)  # (..., N+1)
             return model_apply(params, x_lab)
 
         return apply
 
     def samples_to_lab(self, samples):
         from qvarnet.core.jacobi import from_jacobi_to_lab
+
         zeros = jnp.zeros((*samples.shape[:-1], 1))
         u_tilde = jnp.concatenate([samples, zeros], axis=-1)
         return from_jacobi_to_lab(u_tilde, self.n_particles_physical, self.n_dim)

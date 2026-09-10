@@ -1,21 +1,14 @@
-"""Boundary condition objects for VMC simulations.
+"""Boundary-condition objects: open (NoBoundary) or periodic (PeriodicBoundary).
 
-Usage
------
-boundary = PeriodicBoundary(L=10.0)   # or NoBoundary()
+    boundary = PeriodicBoundary(L=10.0)
+    model = BoundaryModel(inner=MyModel(...), boundary=boundary)
 
-# Wrap any Flax model:
-model = BoundaryModel(inner=MyModel(...), boundary=boundary)
+Hamiltonians subclass BoundaryHamiltonian and call ``self._min_image(dx)``, which is
+correct under either boundary. A new boundary type implements encode / feature_dim /
+min_image.
 
-# Write Hamiltonians that call self._min_image(dx):
-@struct.dataclass
-class MyHamiltonian(BoundaryHamiltonian):
-    def potential_energy(self, samples):
-        dx = samples[:, i_idx] - samples[:, j_idx]
-        dx = self._min_image(dx)   # correct for both NoBoundary and PeriodicBoundary
-        ...
-
-# To add a new boundary type, implement encode / feature_dim / min_image.
+Periodicity is four independent toggles (ansatz, sampler, potential, Jastrow) and
+they can silently disagree: docs/explainers/periodic-systems.md.
 """
 
 from __future__ import annotations

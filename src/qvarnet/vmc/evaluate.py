@@ -1,28 +1,11 @@
-"""Frozen-parameter evaluation: pure MC measurement of a trained wavefunction.
+"""Measure <E> of a fixed ansatz -- no training, honest error bars.
 
-Training histories average over a *moving* distribution — walkers sampled while the
-parameters were still being optimised. Paper numbers come from here instead: freeze the
-parameters, sample |ψ|² with no gradients, and report a block-averaged energy whose
-error bar honestly accounts for chain autocorrelation.
+Training energies are biased low as an estimate of the final state: they are measured
+while the parameters are still moving. ``evaluate`` freezes the parameters and samples,
+so the number you quote comes from one distribution.
 
-Notebook flow (params straight from the TrainResult in memory):
-
-    result = train(...)
-    ev = evaluate_result(result, model=model, hamiltonian=ham, shape=(1024, dof),
-                         sampling_config=cfg, sample_factor=2.0)   # 2x training samples
-    print(ev)
-
-CLI / artifacts flow (params reloaded from a run dir's best_params.msgpack):
-
-    params = artifacts.load_params(f"{run_dir}/best_params.msgpack")["params"][0]
-    ev = evaluate(model, params, hamiltonian, shape=(1024, dof),
-                  sampling_config=cfg, n_epochs=400)
-
-Error bars use plain fixed-count block averaging over the per-epoch energy series
-(deliberately textbook — auditable in ten lines): split the series into ``n_blocks``
-contiguous blocks; the scatter of block means estimates the true error including
-autocorrelation, provided blocks are longer than the correlation time. Compare
-``error`` to ``error_naive`` — a large ratio means strong autocorrelation.
+``EvalResult`` reports ``error`` (block-averaged, accounts for autocorrelation) beside
+``error_naive`` (sigma/sqrt(M), which does not). Use the former.
 """
 
 from __future__ import annotations
@@ -45,21 +28,23 @@ from qvarnet.sampling import Metropolis
 class EvalResult:
     """Outcome of one frozen-parameter measurement run."""
 
-    energy: float          # mean of the per-epoch energy means
-    error: float           # block-averaged error of the mean (use this one)
-    error_naive: float     # σ_E/√(total samples) — ignores autocorrelation
-    sigma: float           # per-sample spread sqrt(Var(E_loc)), tail mean
+    energy: float  # mean of the per-epoch energy means
+    error: float  # block-averaged error of the mean (use this one)
+    error_naive: float  # σ_E/√(total samples) — ignores autocorrelation
+    sigma: float  # per-sample spread sqrt(Var(E_loc)), tail mean
     acceptance: float
     n_epochs: int
-    n_samples: int         # total kept samples = n_epochs · n_chains · n_eff
+    n_samples: int  # total kept samples = n_epochs · n_chains · n_eff
     n_blocks: int
-    energies: np.ndarray = field(repr=False)   # the per-epoch series that was blocked
+    energies: np.ndarray = field(repr=False)  # the per-epoch series that was blocked
 
     def __str__(self):
         corr = (self.error / self.error_naive) if self.error_naive > 0 else float("nan")
-        return (f"E = {self.energy:.6f} ± {self.error:.2e}   (naive ± {self.error_naive:.2e}, "
-                f"ratio {corr:.1f})   σ_E = {self.sigma:.4f}   acc = {self.acceptance:.3f}   "
-                f"[{self.n_samples} samples / {self.n_epochs} epochs / {self.n_blocks} blocks]")
+        return (
+            f"E = {self.energy:.6f} ± {self.error:.2e}   (naive ± {self.error_naive:.2e}, "
+            f"ratio {corr:.1f})   σ_E = {self.sigma:.4f}   acc = {self.acceptance:.3f}   "
+            f"[{self.n_samples} samples / {self.n_epochs} epochs / {self.n_blocks} blocks]"
+        )
 
 
 def block_error(series, n_blocks: int = 20) -> float:
@@ -125,8 +110,11 @@ def evaluate(
 
     step = step_size if step_size is not None else sampling_config.step_size
     burn_in = burn_in_epochs if burn_in_epochs is not None else max(1, n_epochs // 10)
-    n_eff = max(1, (sampling_config.chain_length - sampling_config.thermalization_steps)
-                // sampling_config.thinning_factor)
+    n_eff = max(
+        1,
+        (sampling_config.chain_length - sampling_config.thermalization_steps)
+        // sampling_config.thinning_factor,
+    )
 
     @partial(jax.jit, static_argnames=["prob_fn", "hamiltonian", "sampling_config"])
     def eval_step(params, key, current_pos, prob_fn, hamiltonian, sampling_config, step_size):
@@ -150,7 +138,8 @@ def evaluate(
     e_means, e_stds, accs = [], [], []
     for epoch in range(burn_in + n_epochs):
         key, positions, e_mean, e_std, acc = eval_step(
-            params, key, positions, prob_fn, hamiltonian, sampling_config, step)
+            params, key, positions, prob_fn, hamiltonian, sampling_config, step
+        )
         if epoch >= burn_in:
             e_means.append(float(e_mean))
             e_stds.append(float(e_std))
@@ -197,5 +186,4 @@ def evaluate_result(
     n_epochs = max(1, math.ceil(sample_factor * len(result.history)))
     if "step_size" not in kwargs and len(result.history):
         kwargs["step_size"] = float(result.history.get("step_size")[-1])
-    return evaluate(model, params, hamiltonian, shape, sampling_config,
-                    n_epochs=n_epochs, **kwargs)
+    return evaluate(model, params, hamiltonian, shape, sampling_config, n_epochs=n_epochs, **kwargs)

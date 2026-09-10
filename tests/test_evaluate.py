@@ -18,8 +18,7 @@ from qvarnet.physics.hamiltonian.continuous import HarmonicOscillatorHamiltonian
 from qvarnet.vmc.evaluate import block_error
 
 DOF = 3
-CFG = SamplingConfig(step_size=0.5, chain_length=12, thermalization_steps=8,
-                     thinning_factor=1)
+CFG = SamplingConfig(step_size=0.5, chain_length=12, thermalization_steps=8, thinning_factor=1)
 
 
 # ── block_error (the error-bar machinery, in isolation) ─────────────────────────────
@@ -55,10 +54,17 @@ def test_evaluate_exact_ho_ground_state():
     """logψ = -x²/2 (alpha=1/2) is exact for H = -½Δ + ½x²: E_loc ≡ dof/2, error ≈ 0."""
     model = LogAnalyticWavefunction()
     params = {"params": {"alpha": jnp.array(0.5)}}
-    ev = evaluate(model, params, HarmonicOscillatorHamiltonian(), shape=(64, DOF),
-                  sampling_config=CFG, n_epochs=20, rng_seed=0)
+    ev = evaluate(
+        model,
+        params,
+        HarmonicOscillatorHamiltonian(),
+        shape=(64, DOF),
+        sampling_config=CFG,
+        n_epochs=20,
+        rng_seed=0,
+    )
     assert ev.energy == pytest.approx(DOF / 2, abs=1e-4)
-    assert ev.error < 1e-4 and ev.sigma < 1e-3   # constant local energy
+    assert ev.error < 1e-4 and ev.sigma < 1e-3  # constant local energy
     assert 0.0 < ev.acceptance < 1.0
     assert ev.n_samples == 20 * 64 * (12 - 8)
 
@@ -67,12 +73,18 @@ def test_evaluate_variational_model_is_above_ground_state():
     """A wrong alpha is still a valid trial state: E > E0, with a finite error bar."""
     model = LogAnalyticWavefunction()
     params = {"params": {"alpha": jnp.array(0.8)}}
-    ev = evaluate(model, params, HarmonicOscillatorHamiltonian(), shape=(64, DOF),
-                  sampling_config=CFG, n_epochs=40, rng_seed=0)
+    ev = evaluate(
+        model,
+        params,
+        HarmonicOscillatorHamiltonian(),
+        shape=(64, DOF),
+        sampling_config=CFG,
+        n_epochs=40,
+        rng_seed=0,
+    )
     assert ev.energy > DOF / 2
     assert ev.error > 0 and ev.sigma > 0
     assert len(ev.energies) == 40
-
 
 
 @pytest.fixture(scope="module")
@@ -85,8 +97,9 @@ def tiny_run(tmp_path_factory):
         model=model,
         optimizer=__import__("optax").adam(1e-2),
         hamiltonian=ham,
-        training_config=TrainingConfig(n_epochs=10, rng_seed=0, print_summary=False,
-                                       checkpoint_path=str(ckpt)),
+        training_config=TrainingConfig(
+            n_epochs=10, rng_seed=0, print_summary=False, checkpoint_path=str(ckpt)
+        ),
         sampler_params=CFG,
         select="std",
         k_best=3,
@@ -96,8 +109,15 @@ def tiny_run(tmp_path_factory):
 
 def test_evaluate_result_uses_best_snapshot_and_factor(tiny_run):
     result, model, ham = tiny_run
-    ev = evaluate_result(result, model=model, hamiltonian=ham, shape=(32, DOF),
-                         sampling_config=CFG, sample_factor=2.0, rng_seed=1)
+    ev = evaluate_result(
+        result,
+        model=model,
+        hamiltonian=ham,
+        shape=(32, DOF),
+        sampling_config=CFG,
+        sample_factor=2.0,
+        rng_seed=1,
+    )
     assert ev.n_epochs == 2 * len(result.history)
     # a trained-for-10-epochs MLP is a rough trial state, but still variational
     assert ev.energy > DOF / 2 - 3 * ev.error
@@ -124,8 +144,7 @@ def test_train_prints_summary_by_default(tmp_path, capsys):
         model=LogAnalyticWavefunction(),
         optimizer=__import__("optax").adam(1e-3),
         hamiltonian=HarmonicOscillatorHamiltonian(),
-        training_config=TrainingConfig(n_epochs=3, rng_seed=0,
-                                       checkpoint_path=str(tmp_path)),
+        training_config=TrainingConfig(n_epochs=3, rng_seed=0, checkpoint_path=str(tmp_path)),
         sampler_params=CFG,
     )
     assert "training summary" in capsys.readouterr().out

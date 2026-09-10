@@ -1,35 +1,17 @@
-"""Metropolis-Hastings kernel and proposal families.
+"""Metropolis-Hastings proposal families and the single-step kernel.
 
-The kernel is generic over a :class:`Proposal` — a frozen, hashable dataclass passed
-as a jit-static argument that owns *how* a new configuration is suggested::
+A Proposal answers one question -- how a new configuration is suggested::
 
     propose(key, position, step_size) -> (proposal, log_q_correction)
 
-``log_q_correction`` is the Hastings term log q(x|x') − log q(x'|x), added to the
-log-acceptance ratio. It is exactly 0 for every symmetric family below; it exists so
-asymmetric proposals (MALA, ...) plug into the same kernel without touching it.
+``log_q_correction`` is the Hastings term log q(x|x') - log q(x'|x). It is 0 for
+every symmetric family here; it exists so asymmetric proposals (MALA, ...) plug in
+without touching the kernel.
 
-Proposal families:
+Coordinate layout is particle-major: ``position.reshape(n_particles, n_dim)``.
 
-- :class:`GaussianMove` — move every coordinate by ``step_size * N(0,1)``.
-- :class:`UniformMove` — move every coordinate by ``step_size * U(-1,1)``.
-- :class:`ParticleSubsetMove` — Gaussian-move all ``n_dim`` coordinates of ``n_move``
-  randomly chosen particles, the rest untouched.
-- :class:`DoFSubsetMove` — Gaussian-move ``k`` randomly chosen coordinates.
-
-Why subset moves: a full-configuration move changes N·d coordinates at once, so its
-acceptance decays with N at fixed step (the log-prob change grows like the sum of N
-per-particle changes). Moving a few particles keeps acceptance high at a *large* step
-for the moved coordinates — better mixing per model evaluation for N ≳ 30.
-(A subset move updates fewer coordinates per accepted step, so mixing per *chain step*
-is lower; the win is acceptance at large steps. Tune ``step_size`` accordingly.)
-
-Subset selection is uniform over subsets and independent of the current position, and
-the coordinate displacement is symmetric — so the total proposal is symmetric and the
-Hastings correction is 0.
-
-Coordinate layout: particle-major, ``position.reshape(n_particles, n_dim)`` — the same
-convention as the Jacobi transforms, PBC Hamiltonians and fermionic models.
+Which family to use, and why subset moves win for N >~ 30:
+docs/explainers/samplers.md.
 """
 
 from dataclasses import dataclass
@@ -116,7 +98,6 @@ class DoFSubsetMove(Proposal):
         return position + step_size * noise * mask, 0.0
 
 
-
 @partial(jax.jit, static_argnames=("prob_fn", "proposal"))
 def mh_kernel_log(
     key,
@@ -129,32 +110,23 @@ def mh_kernel_log(
     box_L=0.0,
     beta=1.0,
 ):
-    """Single Metropolis-Hastings step in log-probability space.
+    """One Metropolis-Hastings step in log-probability space.
 
-    Accepts with probability
-    :math:`A = \\min(1, e^{\\beta(\\log P(x') - \\log P(x)) + \\log q_{corr}})`,
-    where the Hastings correction ``log_q_corr`` comes from the proposal (0 for the
-    symmetric families) and ``beta`` is an inverse temperature (1 = plain MH; the
-    parallel-tempering replicas pass their own β and store the *untempered* log P).
+    Accepts with probability min(1, exp(beta*(log P(x') - log P(x)) + log q_corr)).
 
     Args:
-        key: PRNG key for this step (proposal noise + accept/reject draw).
-        prob_fn: Callable ``(x, params) -> log P(x)``, log-unnormalised probability.
-        prob_params: Parameters passed to ``prob_fn``.
-        position: Current configuration, shape ``(dof,)``.
-        prob: Current log-probability :math:`\\log P(x)` (untempered).
-        step_size: Proposal step scale.
-        proposal: Proposal family (jit-static frozen dataclass).
-        box_L: Periodic box side length. ``> 0`` wraps each proposed coordinate into
-            ``[0, L)`` (PBC sampler). Symmetric proposals stay symmetric on the torus,
-            so detailed balance is unchanged. ``0`` (default) disables wrapping.
-            Passed as a traced value, not a static arg.
-        beta: Inverse temperature multiplying the log-prob ratio (traced).
+        key: PRNG key for this step (proposal noise and the accept draw).
+        prob_fn: ``(x, params) -> log P(x)``, log-unnormalised.
+        prob_params: parameters passed to prob_fn.
+        position: current configuration, shape ``(dof,)``.
+        prob: current (untempered) log P(x).
+        step_size: proposal step scale.
+        proposal: proposal family (jit-static frozen dataclass).
+        box_L: periodic box side; > 0 wraps proposals into [0, L). Traced, not static.
+        beta: inverse temperature multiplying the log-prob ratio (traced).
 
     Returns:
-        new_position: Accepted or current configuration, shape ``(dof,)``.
-        new_log_prob: (Untempered) log-probability at ``new_position``.
-        accept: Boolean indicating whether the proposal was accepted.
+        ``(new_position, new_log_prob, accept)``.
     """
     k_prop, k_accept = random.split(key)
     proposed, log_q_corr = proposal.propose(k_prop, position, step_size)
@@ -180,25 +152,23 @@ def mh_chain(
     proposal: Proposal = GaussianMove(),
     box_L=0.0,
 ):
-    """Run a single Metropolis-Hastings chain for ``n_steps`` steps.
+    """Run one Metropolis-Hastings chain for ``n_steps`` steps.
 
-    Per-step PRNG keys are split inside the scan — no pre-generated random arrays
-    (the old ``(n_steps, dof+1)`` layout coupled the proposal family to the RNG
-    buffer shape and dominated peak memory for long chains).
+    Per-step keys are split inside the scan, so peak memory is the position history
+    alone rather than a pre-generated random buffer.
 
     Args:
         key: PRNG key for the whole chain.
-        prob_fn: Log-probability function ``(x, params) -> log P(x)``.
-        prob_params: Parameters for ``prob_fn``.
-        init_position: Initial configuration, shape ``(dof,)``.
-        step_size: Proposal step scale.
-        n_steps: Number of MH steps (static).
-        proposal: Proposal family (jit-static).
-        box_L: Periodic box side length; ``> 0`` wraps proposals into ``[0, L)``.
+        prob_fn: ``(x, params) -> log P(x)``.
+        prob_params: parameters for prob_fn.
+        init_position: initial configuration, shape ``(dof,)``.
+        step_size: proposal step scale.
+        n_steps: number of MH steps (static).
+        proposal: proposal family (jit-static).
+        box_L: periodic box side; > 0 wraps proposals into [0, L).
 
     Returns:
-        positions: All sampled positions, shape ``(n_steps, dof)``.
-        acceptance_rate: Fraction of accepted proposals over all steps.
+        ``(positions (n_steps, dof), acceptance_rate)``.
     """
     init_prob = prob_fn(init_position, prob_params)
 
@@ -217,8 +187,5 @@ def mh_chain(
         return (new_position, new_prob, count + accepted), (new_position, accepted)
 
     step_keys = random.split(key, n_steps)
-    (_, _, counts), (positions, _) = jax.lax.scan(
-        body_fn, (init_position, init_prob, 0), step_keys
-    )
+    (_, _, counts), (positions, _) = jax.lax.scan(body_fn, (init_position, init_prob, 0), step_keys)
     return positions, counts / n_steps
-

@@ -109,8 +109,18 @@ class Sampler:
         acceptance_rates (n_chains,))``.
         """
         return _draw(
-            self, key, prob_fn, prob_params, init_positions, step_size,
-            n_chains, dof, n_steps, burn_in, thinning, box_L,
+            self,
+            key,
+            prob_fn,
+            prob_params,
+            init_positions,
+            step_size,
+            n_chains,
+            dof,
+            n_steps,
+            burn_in,
+            thinning,
+            box_L,
         )
 
 
@@ -119,8 +129,18 @@ class Sampler:
     static_argnames=("sampler", "prob_fn", "n_chains", "dof", "n_steps", "burn_in", "thinning"),
 )
 def _draw(
-    sampler, key, prob_fn, prob_params, init_positions, step_size,
-    n_chains, dof, n_steps, burn_in, thinning, box_L,
+    sampler,
+    key,
+    prob_fn,
+    prob_params,
+    init_positions,
+    step_size,
+    n_chains,
+    dof,
+    n_steps,
+    burn_in,
+    thinning,
+    box_L,
 ):
     chain_keys = random.split(key, n_chains)
     raw_batch, acceptance_rates = jax.vmap(

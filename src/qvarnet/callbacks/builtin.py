@@ -35,55 +35,19 @@ def _state_to_row(s) -> dict:
 
 
 class RunOutputCallback(Callback):
-    """At the end of training, save the full scalar history and the N best checkpoints.
+    """Write the scalar history and the N best checkpoints when training ends.
 
-    Added automatically by ``train()`` with ``n=1, metric=["energy"]`` unless the
-    caller supplies their own instance in ``callbacks``.
-
-    Two outputs are written under ``path``:
-
-    ``history.csv``
-        Scalar diagnostics for every epoch: step, energy, std, acceptance_rate,
-        step_size, cm_mean, cm_std.  Parameters and gradients are intentionally
-        excluded — this file stays small regardless of model size.
-
-    ``checkpoints/best_<label>_<rank>.msgpack``
-        Full VMCState checkpoints (params + optimizer state) for the N best
-        epochs according to each requested metric.  ``<rank>`` is 0-indexed
-        (0 = best).  For callable metrics the label is ``custom_<index>``.
+    Added automatically by VMC with ``n=1, metric=["energy"]`` unless you pass your
+    own instance. Writes ``history.csv`` (per-epoch scalars only, so it stays small
+    whatever the model size) and ``checkpoints/best_<label>_<rank>.msgpack``
+    (0-indexed, 0 = best).
 
     Args:
-        n:      Number of best states to keep per metric.
-        path:   Base output directory (same value as
-                ``TrainingConfig.checkpoint_path``).
-        metric: List of ranking criteria — same interface as
-                ``TrainResult.best()``.  Each element is either a built-in
-                string shortcut or a callable ``(VMCState) -> float``
-                (lower is better).
-
-                Built-in shortcuts
-                    ``"energy"``  — lowest ⟨E⟩
-                    ``"std"``     — lowest σ_E
-
-    Example::
-
-        result = train(
-            ...,
-            callbacks=[
-                RunOutputCallback(
-                    n=5,
-                    path="./outputs/run/",
-                    metric=["energy", lambda s: float(s.energy) + float(s.std)],
-                )
-            ],
-        )
-        # Writes:
-        #   outputs/run/history.csv
-        #   outputs/run/checkpoints/best_energy_0.msgpack  (lowest ⟨E⟩)
-        #   outputs/run/checkpoints/best_energy_1.msgpack
-        #   ...
-        #   outputs/run/checkpoints/best_custom_1_0.msgpack  (lowest E+σ)
-        #   ...
+        n: how many best states to keep per metric.
+        path: base output directory, usually TrainingConfig.checkpoint_path.
+        metric: ranking criteria, same interface as ``TrainResult.best()`` --
+            "energy", "std", or a callable ``(VMCState) -> float`` (lower is
+            better), which is labelled ``custom_<index>``.
     """
 
     def __init__(self, n: int, path: str, metric: list = None):
@@ -118,9 +82,7 @@ class NaNCallback(Callback):
     def on_step_end(self, step, state, metrics):
         if jnp.isnan(metrics["energy"]):
             print(f"NaN detected at step {step}. Stopping.")
-            save_checkpoint(
-                state, path=self.checkpoint_path, filename="nan_checkpoint.msgpack"
-            )
+            save_checkpoint(state, path=self.checkpoint_path, filename="nan_checkpoint.msgpack")
             return True
         return False
 
@@ -134,9 +96,7 @@ class CheckpointCallback(Callback):
 
     def on_step_end(self, step, state, metrics):
         if step % self.save_every == 0:
-            save_checkpoint(
-                state, path=self.checkpoint_path, filename="checkpoint.msgpack"
-            )
+            save_checkpoint(state, path=self.checkpoint_path, filename="checkpoint.msgpack")
         return False
 
 

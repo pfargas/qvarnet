@@ -99,8 +99,7 @@ def test_folx_sparse_matches_dense():
 def test_weighted_ad_matches_folx_unequal_masses():
     apply, params, samples = _mlp()  # dof = 6
     w = Particles(n=6, n_dim=1, masses=(1.0, 1.0, 2.0, 2.0, 5.0, 5.0)).dof_weights()
-    t_ad = kinetic_log(params, samples, apply,
-                       laplacian_fn=laplacian_forward_ad, dof_weights=w)
+    t_ad = kinetic_log(params, samples, apply, laplacian_fn=laplacian_forward_ad, dof_weights=w)
     t_folx = kinetic_log(params, samples, apply, use_folx=True, dof_weights=w)
     np.testing.assert_allclose(t_folx, t_ad, rtol=2e-4, atol=1e-4)
 
@@ -125,8 +124,9 @@ def test_hutchinson_unit_weights_equal_unweighted():
 
     key = jax.random.PRNGKey(3)
     unweighted = laplacian_hutchinson(log_psi, samples, key, n_terms=4)
-    unit = laplacian_hutchinson(log_psi, samples, key, n_terms=4,
-                                weights=jnp.ones(samples.shape[-1]))
+    unit = laplacian_hutchinson(
+        log_psi, samples, key, n_terms=4, weights=jnp.ones(samples.shape[-1])
+    )
     np.testing.assert_allclose(unit, unweighted, rtol=1e-6)
 
 
@@ -136,7 +136,7 @@ def test_mass_imbalanced_ho_is_analytic(use_folx):
     masses = (1.0, 4.0, 9.0, 16.0)
     sqrt_m = jnp.sqrt(jnp.asarray(masses))
 
-    def analytic_apply(params, x_batch):        # exact ground state, no parameters
+    def analytic_apply(params, x_batch):  # exact ground state, no parameters
         return -0.5 * jnp.sum(sqrt_m * x_batch**2, axis=-1)
 
     w = Particles(n=4, n_dim=1, masses=masses).dof_weights()
@@ -153,8 +153,7 @@ def test_masses_none_equals_unit_masses(use_folx):
     apply, params, samples = _mlp()
     kwargs = dict(use_folx=True) if use_folx else {}
     t_none = kinetic_log(params, samples, apply, dof_weights=None, **kwargs)
-    t_unit = kinetic_log(params, samples, apply,
-                         dof_weights=jnp.ones(samples.shape[-1]), **kwargs)
+    t_unit = kinetic_log(params, samples, apply, dof_weights=jnp.ones(samples.shape[-1]), **kwargs)
     np.testing.assert_allclose(t_unit, t_none, rtol=1e-6)
 
 
@@ -185,7 +184,8 @@ def test_harmonic_oscillator_folx_dispatch():
     apply, params, samples = _mlp()
     e_ad = HarmonicOscillatorHamiltonian().local_energy(params, samples, apply)
     e_folx = HarmonicOscillatorHamiltonian(laplacian_method="folx").local_energy(
-        params, samples, apply)
+        params, samples, apply
+    )
     np.testing.assert_allclose(e_folx, e_ad, rtol=2e-4, atol=1e-4)
 
 
@@ -206,17 +206,22 @@ def test_hamiltonian_masses_flow_into_kinetic():
     apply, params, samples = _mlp()
     particles = Particles(n=6, n_dim=1, masses=(1.0, 1.0, 2.0, 2.0, 5.0, 5.0))
     ham = HarmonicOscillatorHamiltonian(particles=particles)
-    direct = kinetic_log(params, samples, apply, laplacian_fn=laplacian_forward_ad,
-                         dof_weights=particles.dof_weights())
-    np.testing.assert_allclose(
-        ham.kinetic_local_energy(params, samples, apply), direct, rtol=1e-6)
+    direct = kinetic_log(
+        params,
+        samples,
+        apply,
+        laplacian_fn=laplacian_forward_ad,
+        dof_weights=particles.dof_weights(),
+    )
+    np.testing.assert_allclose(ham.kinetic_local_energy(params, samples, apply), direct, rtol=1e-6)
 
 
 def test_unknown_method_still_raises():
     apply, params, samples = _mlp()
     with pytest.raises(ValueError, match="Unknown laplacian_method"):
         HarmonicOscillatorHamiltonian(laplacian_method="nope").kinetic_local_energy(
-            params, samples, apply)
+            params, samples, apply
+        )
 
 
 def test_missing_folx_gives_helpful_error(monkeypatch):

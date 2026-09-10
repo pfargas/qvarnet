@@ -27,9 +27,9 @@ class LatticeBoseHamiltonian(BoundaryHamiltonian):
     so the box length L is an integer multiple of ``a`` for a consistent PBC system.
     """
 
-    a: float = struct.field(pytree_node=False, default=1.0)    # lattice spacing
-    V0: float = 1.0   # lattice depth
-    g: float = 1.0    # contact interaction strength g_1D
+    a: float = struct.field(pytree_node=False, default=1.0)  # lattice spacing
+    V0: float = 1.0  # lattice depth
+    g: float = 1.0  # contact interaction strength g_1D
     sigma: float = struct.field(pytree_node=False, default=0.05)  # Gaussian width
 
     def potential_energy(self, samples):
@@ -41,10 +41,10 @@ class LatticeBoseHamiltonian(BoundaryHamiltonian):
         # ── Contact interaction (Gaussian approx of δ) ────────────────────────
         n_part = samples.shape[-1]
         i_idx, j_idx = jnp.triu_indices(n_part, k=1)
-        dx = samples[:, i_idx] - samples[:, j_idx]           # raw separations
-        dx = self._min_image(dx)                              # minimum image (PBC or identity)
+        dx = samples[:, i_idx] - samples[:, j_idx]  # raw separations
+        dx = self._min_image(dx)  # minimum image (PBC or identity)
         amplitude = self.g / (self.sigma * jnp.sqrt(2 * jnp.pi))
-        V_int = amplitude * jnp.sum(jnp.exp(-dx**2 / (2 * self.sigma**2)), axis=-1)
+        V_int = amplitude * jnp.sum(jnp.exp(-(dx**2) / (2 * self.sigma**2)), axis=-1)
 
         return V_latt + V_int
 
@@ -75,11 +75,11 @@ class PenetrableSphereHamiltonian(BoundaryHamiltonian):
     def potential_energy(self, samples):
         b = samples.shape[0]
         n = samples.shape[-1] // self.n_dim
-        x = samples.reshape(b, n, self.n_dim)              # (batch, N, d)
-        dx = x[:, :, None, :] - x[:, None, :, :]           # (batch, N, N, d)
-        dx = self._min_image(dx)                           # per-component minimum image
-        r = jnp.sqrt(jnp.sum(dx**2, axis=-1) + 1e-12)      # (batch, N, N) pair distances
+        x = samples.reshape(b, n, self.n_dim)  # (batch, N, d)
+        dx = x[:, :, None, :] - x[:, None, :, :]  # (batch, N, N, d)
+        dx = self._min_image(dx)  # per-component minimum image
+        r = jnp.sqrt(jnp.sum(dx**2, axis=-1) + 1e-12)  # (batch, N, N) pair distances
         i_idx, j_idx = jnp.triu_indices(n, k=1)
-        r_pairs = r[:, i_idx, j_idx]                       # (batch, n_pairs)
+        r_pairs = r[:, i_idx, j_idx]  # (batch, n_pairs)
         inside = (r_pairs < self.R).astype(samples.dtype)
         return self.V0 * jnp.sum(inside, axis=-1)

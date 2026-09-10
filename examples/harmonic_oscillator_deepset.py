@@ -21,7 +21,6 @@ Run this script to train the model and generate a dashboard showing:
 - Single-particle and pair-particle correlations
 """
 
-
 import jax
 import jax.numpy as jnp
 import matplotlib.gridspec as gridspec
@@ -143,9 +142,9 @@ def train_deepset_model(
     Returns:
         Dictionary with training results including energy history and final state
     """
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"Training DeepSet for {system_name} (LOG-DOMAIN)")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     # Model and training setup
     model = create_deepset_model()
@@ -165,7 +164,6 @@ def train_deepset_model(
     }
 
     # Train in log-domain for numerical stability
-    key = jax.random.PRNGKey(seed)
     state_history = train(
         n_epochs=n_epochs,
         shape=shape,
@@ -185,9 +183,7 @@ def train_deepset_model(
 
     # Generate samples from the trained model
     print("    Generating samples from trained model...")
-    samples = sample_from_model(
-        model, state_history[-1].params, n_samples=5000, seed=seed
-    )
+    samples = sample_from_model(model, state_history[-1].params, n_samples=5000, seed=seed)
 
     # Check wavefunction symmetry
     print("    Checking wavefunction symmetry...")
@@ -430,9 +426,7 @@ def create_dashboard(results_list: list, save_path: str = "vmc_dashboard.png"):
         h = ax3.hist2d(p0, p1, bins=30, cmap="viridis", alpha=0.9)
         ax3.set_xlabel("Particle 0 Position", fontsize=11, fontweight="bold")
         ax3.set_ylabel("Particle 1 Position", fontsize=11, fontweight="bold")
-        ax3.set_title(
-            "Pair Correlation (Particles 0 & 1)", fontsize=12, fontweight="bold"
-        )
+        ax3.set_title("Pair Correlation (Particles 0 & 1)", fontsize=12, fontweight="bold")
         cbar = plt.colorbar(h[3], ax=ax3, label="Count")
         cbar.ax.tick_params(labelsize=9)
 
@@ -564,9 +558,7 @@ def create_dashboard(results_list: list, save_path: str = "vmc_dashboard.png"):
 
     ax6.set_xlabel("Energy", fontsize=11, fontweight="bold")
     ax6.set_ylabel("Frequency", fontsize=11, fontweight="bold")
-    ax6.set_title(
-        "Energy Distribution (Last 150 Epochs)", fontsize=12, fontweight="bold"
-    )
+    ax6.set_title("Energy Distribution (Last 150 Epochs)", fontsize=12, fontweight="bold")
     ax6.legend(fontsize=10)
     ax6.grid(True, alpha=0.3, axis="y")
 
@@ -591,9 +583,7 @@ def create_dashboard(results_list: list, save_path: str = "vmc_dashboard.png"):
             color=color_neural,
             alpha=0.9,
         )
-        ax7.fill_between(
-            x_grid, np.sqrt(np.abs(psi_squared)), alpha=0.2, color=color_neural
-        )
+        ax7.fill_between(x_grid, np.sqrt(np.abs(psi_squared)), alpha=0.2, color=color_neural)
 
     # Plot exact ground state
     x_exact = np.linspace(-4.5, 4.5, 150)
@@ -666,7 +656,7 @@ def main():
     # Create dashboard
     print("\nGenerating dashboard with wavefunction analysis...")
     results_list = [results_ho]
-    fig = create_dashboard(results_list, save_path="vmc_dashboard.png")
+    create_dashboard(results_list, save_path="vmc_dashboard.png")
 
     # Print summary
     print("\n" + "=" * 70)

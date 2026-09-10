@@ -1,26 +1,11 @@
-"""Per-epoch metrics history (roadmap step 2).
+"""Per-epoch scalar history of a run.
 
-Replaces the old ``state_history`` that stored a full ``VMCState`` (params + grads +
-optimizer state) every epoch — a memory bomb on long runs. Here we keep **only**
-scalars and small per-chain vectors on the host.
+Columns are appended per epoch and retrieved as arrays with ``.get(name)``. Holds
+scalars plus the per-chain energies ``E_chain`` -- deliberately no parameters or
+gradients, so nothing here pins device memory or grows with model size.
 
-Iterating a ``MetricsHistory`` yields lightweight ``EpochRecord`` objects with
-attribute access, so existing code like ``[s.energy for s in result.history]`` and
-``result.history[-1].std`` keeps working. ``get(field)`` stacks a field across epochs
-into an array for analysis/plots.
-
-Canonical per-epoch fields (an objective may emit more — the store is schema-free):
-
-    step           epoch index
-    energy         ⟨E⟩
-    std            σ of E_loc over the batch
-    error_of_mean  σ_E / sqrt(M)  (naive; upgraded to σ_E·sqrt(τ_int/M) in step 4)
-    E_chain        per-chain mean E_loc, shape (n_chains,)  → split-R̂ / Geweke
-    acceptance_rate per-chain MH acceptance, shape (n_chains,)
-    step_size      MH proposal step size
-    cm_mean        centre-of-mass mean (diagnostic)
-    cm_std         centre-of-mass std (diagnostic)
-    wall_time      seconds for the epoch (equal-time comparisons, roadmap §8.4)
+``E_chain`` is what makes split-R-hat and any post-hoc correlated error estimate
+possible; see docs/adr/0001-correlated-error-estimates.md.
 """
 
 import numpy as np

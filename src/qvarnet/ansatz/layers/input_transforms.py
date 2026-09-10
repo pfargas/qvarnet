@@ -25,8 +25,8 @@ class SubtractCM(nn.Module):
     @nn.compact
     def __call__(self, x):
         shape = x.shape[:-1]
-        r = x.reshape(*shape, self.n_particles, self.n_dim)   # (..., N, d)
-        cm = r.mean(axis=-2, keepdims=True)                   # (..., 1, d)
+        r = x.reshape(*shape, self.n_particles, self.n_dim)  # (..., N, d)
+        cm = r.mean(axis=-2, keepdims=True)  # (..., 1, d)
         return (r - cm).reshape(*shape, self.n_particles * self.n_dim)
 
 
@@ -47,8 +47,8 @@ class AppendPairwiseDiffs(nn.Module):
     @nn.compact
     def __call__(self, x):
         shape = x.shape[:-1]
-        r = x.reshape(*shape, self.n_particles, self.n_dim)   # (..., N, d)
+        r = x.reshape(*shape, self.n_particles, self.n_dim)  # (..., N, d)
         i_idx, j_idx = jnp.triu_indices(self.n_particles, k=1)
-        diffs = r[..., i_idx, :] - r[..., j_idx, :]          # (..., n_pairs, d)
-        diffs_flat = diffs.reshape(*shape, -1)                 # (..., n_pairs * d)
+        diffs = r[..., i_idx, :] - r[..., j_idx, :]  # (..., n_pairs, d)
+        diffs_flat = diffs.reshape(*shape, -1)  # (..., n_pairs * d)
         return jnp.concatenate([x, diffs_flat], axis=-1)

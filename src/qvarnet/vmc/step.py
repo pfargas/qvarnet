@@ -15,9 +15,7 @@ from qvarnet.vmc.training_step import compute_step
 
 
 @jax.jit
-def adapt_step_size(
-    step_size, acceptance_rate, min_step, max_step, target_acc, adaptation_rate
-):
+def adapt_step_size(step_size, acceptance_rate, min_step, max_step, target_acc, adaptation_rate):
     """Nudge the MH step toward ``target_acc``, clipped to [min_step, max_step]."""
     factor = 1.0 + adaptation_rate * (jnp.mean(acceptance_rate) - target_acc)
     return jnp.clip(step_size * factor, min_step, max_step)

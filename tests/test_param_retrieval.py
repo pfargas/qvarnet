@@ -22,7 +22,12 @@ def _run(tmp_path, **kw):
         optimizer=optax.adam(1e-2),
         hamiltonian=HarmonicOscillatorHamiltonian(omega=1.0),
         training_config=TrainingConfig(n_epochs=20, rng_seed=0, checkpoint_path=str(tmp_path)),
-        sampler_params={"step_size": 0.6, "chain_length": 80, "thermalization_steps": 20, "thinning_factor": 2},
+        sampler_params={
+            "step_size": 0.6,
+            "chain_length": 80,
+            "thermalization_steps": 20,
+            "thinning_factor": 2,
+        },
         **kw,
     )
 
@@ -64,7 +69,9 @@ def test_best_params_is_min_std_by_default(tmp_path):
 
 def test_custom_callable_metric(tmp_path):
     # V-score-like / arbitrary callable on the metrics dict (lower = better)
-    select = lambda m: float(m["energy"]) + 2.0 * float(m["std"])
+    def select(m):
+        return float(m["energy"]) + 2.0 * float(m["std"])
+
     result = _run(tmp_path, select=select, k_best=2)
     assert len(result.best_k_params()) <= 2
     assert _is_param_pytree(result.best_params())

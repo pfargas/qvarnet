@@ -22,8 +22,17 @@ import jax.numpy as jnp
 from qvarnet.physics.hamiltonian.laplacian import laplacian_forward_ad
 
 
-def kinetic_log(params, samples, model_apply, *, laplacian_fn=None, use_folx=False,
-                sparsity_threshold=0, dof_weights=None, key=None):
+def kinetic_log(
+    params,
+    samples,
+    model_apply,
+    *,
+    laplacian_fn=None,
+    use_folx=False,
+    sparsity_threshold=0,
+    dof_weights=None,
+    key=None,
+):
     """T = -1/2 Σ_k w_k (∂²_k log|ψ| + (∂_k log|ψ|)²), dispatched on the configured method.
 
     samples:     (batch, dof)
@@ -34,6 +43,7 @@ def kinetic_log(params, samples, model_apply, *, laplacian_fn=None, use_folx=Fal
     key:         PRNGKey — only used by laplacian_hutchinson; ignored otherwise
     returns:     (batch,)
     """
+
     def log_psi(x):
         return model_apply(params, x[None]).squeeze()  # x: (dof,) -> scalar
 
@@ -46,7 +56,7 @@ def kinetic_log(params, samples, model_apply, *, laplacian_fn=None, use_folx=Fal
 
 def _kinetic_ad(log_psi, samples, laplacian_fn, dof_weights, key):
     """Gradient via vmap(grad) + pluggable (optionally mass-weighted) Laplacian."""
-    grad_log_psi = jax.vmap(jax.grad(log_psi))(samples)          # (batch, dof)
+    grad_log_psi = jax.vmap(jax.grad(log_psi))(samples)  # (batch, dof)
     lap = laplacian_fn(log_psi, samples, key, weights=dof_weights)  # (batch,)
     grad_sq = grad_log_psi**2 if dof_weights is None else dof_weights * grad_log_psi**2
     return -0.5 * (lap + jnp.sum(grad_sq, axis=-1))
@@ -70,9 +80,9 @@ def _kinetic_folx(log_psi, samples, sparsity_threshold, dof_weights):
     if dof_weights is None:
         fn, xs = log_psi, samples
     else:
-        scale = jnp.sqrt(dof_weights)                 # a_k = √w_k
-        fn = lambda y: log_psi(y * scale)             # noqa: E731  g(y) = f(√w ⊙ y)
-        xs = samples / scale                          # y = x / √w
+        scale = jnp.sqrt(dof_weights)  # a_k = √w_k
+        fn = lambda y: log_psi(y * scale)  # noqa: E731  g(y) = f(√w ⊙ y)
+        xs = samples / scale  # y = x / √w
 
     fwd = forward_laplacian(fn, sparsity_threshold=sparsity_threshold)
 

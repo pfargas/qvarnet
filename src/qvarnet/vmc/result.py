@@ -8,11 +8,7 @@ def e_plus_sigma_metric(alpha: float = 1.0):
 
 def v_score_metric(n_particles: int, e_inf: float = 0.0):
     """Model-selection key = V-score N·Var(E_loc)/(Ē−E_∞)² (arXiv:2302.04919); lower is better."""
-    return (
-        lambda s: n_particles
-        * float(s.std) ** 2
-        / ((float(s.energy) - e_inf) ** 2 + 1e-12)
-    )
+    return lambda s: n_particles * float(s.std) ** 2 / ((float(s.energy) - e_inf) ** 2 + 1e-12)
 
 
 class TrainResult:
@@ -43,9 +39,7 @@ class TrainResult:
         final_step_size=None,
     ):
         self.history = history
-        self.final_params = (
-            final_params  # host pytree of the last-epoch params, or None
-        )
+        self.final_params = final_params  # host pytree of the last-epoch params, or None
         # each snapshot: {"step", "metric", "params"} — from the SnapshotCallback policy
         self.snapshots = list(snapshots) if snapshots else []
         self.final_positions = final_positions  # host (n_chains, dof) array, or None
