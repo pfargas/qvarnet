@@ -38,6 +38,10 @@ def autocorr(chain, max_lag=None):
     n = chain.shape[0]
     if max_lag is None:
         max_lag = n // 4
+    if n < 2 or max_lag < 1:
+        # Degenerate window (empty or very short chain): no lag information to
+        # extract. Returning ρ_0 = 1 alone gives τ_int = 1, i.e. "uncorrelated".
+        return jnp.ones((1,))
     x = chain - chain.mean()
     # Zero-pad to 2n to avoid circular wrap-around
     xf = jnp.fft.rfft(x, n=2 * n)

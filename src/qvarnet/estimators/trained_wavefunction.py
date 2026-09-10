@@ -297,7 +297,7 @@ class TrainedWavefunction:
             lasts.append(raw_batch[:, -1, :])
             accs.append(np.asarray(acc))
 
-            cropped = raw_batch[:, n_steps - burn_in :, :]  # keep last `burn_in` steps
+            cropped = raw_batch[:, burn_in:, :]  # discard the first `burn_in` steps
             if diagnose:
                 taus, ess = chain_stats(cropped)
                 tau_list.append(np.asarray(taus))

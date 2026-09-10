@@ -1,0 +1,10 @@
+{
+  "cpu": {
+    "median_s_per_epoch": 0.04418141799988007,
+    "n_epochs": 60,
+    "n_timed": 50,
+    "p90_s_per_epoch": 0.045641329100180886,
+    "platform": "cpu",
+    "total_s": 6.646526761999667
+  }
+}

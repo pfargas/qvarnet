@@ -21,14 +21,14 @@ class LogJastrow(nn.Module):
     ----------
     n_particles:
         Number of particles.  Used to build the upper-triangle mask.
-    L_box:
+    L:
         Box length.  ``None`` (default) = open boundary; a float enables the
         periodic Sutherland form.
     """
 
     n_particles: int
     lambda_init: float = 1.0
-    L_box: float | None = None
+    L: float | None = None
 
     @nn.compact
     def __call__(self, x):
@@ -37,7 +37,7 @@ class LogJastrow(nn.Module):
         xi = x[..., :, None]   # (..., n, 1)
         xj = x[..., None, :]   # (..., 1, n)
         dx = xi - xj
-        if self.L_box is None:
+        if self.L is None:
             r = jnp.abs(dx)
         else:
             r = jnp.abs(jnp.sin(jnp.pi * dx / self.L))  # exactly L-periodic
