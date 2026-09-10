@@ -70,3 +70,13 @@ def test_error_of_mean_is_naive_sem(tmp_path):
     # n_eff = (chain_length - thermalization)//thinning = (100-20)//2 = 40.
     M = N_CHAINS * 40
     assert float(rec.error_of_mean) == pytest.approx(float(rec.std) / np.sqrt(M), rel=1e-4)
+
+
+def test_keys_lists_available_fields():
+    """You should be able to ask what get() will accept; SR fields are run-dependent."""
+    h = MetricsHistory()
+    assert h.keys() == []  # empty history must not raise
+    h.append({"step": 0, "energy": 1.0, "std": 0.5})
+    assert set(h.keys()) == {"step", "energy", "std"}
+    for field in h.keys():
+        assert h.get(field).shape == (1,)

@@ -53,6 +53,14 @@ class MetricsHistory:
         """Stack ``field`` across all epochs, shape ``(n_epochs, *field_shape)``."""
         return np.array([r[field] for r in self._records])
 
+    def keys(self) -> list[str]:
+        """Field names available to ``get()``.
+
+        Which fields exist depends on the run -- the SR guard diagnostics
+        (``trust_scale``, ``solve_ok``, ...) only appear when use_qgt is on.
+        """
+        return list(self._records[0]) if self._records else []
+
     @property
     def energy(self) -> np.ndarray:
         return self.get("energy")
