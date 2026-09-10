@@ -9,16 +9,14 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from qvarnet import evaluate, evaluate_result
+# NOT `from qvarnet import train`: the legacy shim module qvarnet/train.py shadows the
+# re-exported function on the package as soon as any test imports the submodule.
+from qvarnet import evaluate, evaluate_result, train
 from qvarnet.config.training_setup import SamplingConfig, TrainingConfig
 from qvarnet.hamiltonian.continuous import HarmonicOscillatorHamiltonian
 from qvarnet.models import MLP
 from qvarnet.models.exponential import LogAnalyticWavefunction
 from qvarnet.vmc.evaluate import block_error
-
-# NOT `from qvarnet import train`: the legacy shim module qvarnet/train.py shadows the
-# re-exported function on the package as soon as any test imports the submodule.
-from qvarnet.vmc.train import train
 
 DOF = 3
 CFG = SamplingConfig(step_size=0.5, chain_length=12, thermalization_steps=8,

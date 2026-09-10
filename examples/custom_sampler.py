@@ -25,7 +25,6 @@ Run it:
 import tempfile
 from dataclasses import dataclass
 
-import flax.linen as nn
 import jax.numpy as jnp
 import numpy as np
 import optax
