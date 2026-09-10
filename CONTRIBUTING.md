@@ -90,16 +90,3 @@ uv run python scripts/check_layers.py
 uv run python scripts/check_docs.py
 uv run ruff check src tests examples && uv run ruff format --check src
 ```
-
-## The runq sweep targets
-
-Research sweeps live in a sibling projects repo, not here, as `point.py` targets for
-the [runq](../runq) job scheduler. runq keys completed runs by the canonical JSON of
-the resolved parameter dict, so **adding, removing, renaming or re-defaulting a
-`run_point` parameter re-keys every run in that sweep** and orphans finished work.
-
-`tests/test_runq_targets.py` pins those signatures against a snapshot, checking each
-target only if it is present — so a clone with no siblings simply skips them. The
-library may change freely beneath a target; `point.py` is the adapter and absorbs it.
-That is the whole reason it exists, so put string→object mapping there rather than
-asking the library for a registry.
