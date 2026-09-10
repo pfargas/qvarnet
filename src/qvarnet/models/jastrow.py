@@ -44,3 +44,27 @@ class LogJastrow(nn.Module):
         mask = jnp.triu(jnp.ones((self.n_particles, self.n_particles), bool), k=1)
         log_r = jnp.where(mask, jnp.log(r + 1e-10), 0.0)
         return (lam * jnp.sum(log_r, axis=(-2, -1)))[..., None]
+
+class OrderedLinear1DJastrow(nn.Module):
+
+    n_particles: int
+    a_rod: float = 1.0
+    barrier: float = 1e4  # slope-1 linear penalty past the wall
+
+    @nn.compact
+    def __call__(self, x):
+        xi = x[..., :, None]
+        xj = x[..., None, :]
+        idx = jnp.arange(self.n_particles)
+        min_gap = self.a_rod * (idx[None, :] - idx[:, None])   # [i,j] = (j-i)*a_rod
+        margin = (xj - xi) - min_gap                            # [i,j]; i<j entries meaningful
+
+        legal = margin > 0
+        safe_margin = jnp.where(legal, margin, 1.0)   # never hand log() a non-positive value
+        log_legal = jnp.log(safe_margin + 1e-10)
+        log_illegal = -self.barrier + margin           # smooth, monotone falloff — not flat -> should change to exp maybe
+        log_term = jnp.where(legal, log_legal, log_illegal)
+
+        mask = jnp.triu(jnp.ones((self.n_particles, self.n_particles), bool), k=1)
+        log_term = jnp.where(mask, log_term, 0.0)
+        return (jnp.sum(log_term, axis=(-2, -1)))[..., None]

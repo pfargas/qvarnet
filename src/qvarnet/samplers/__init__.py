@@ -11,7 +11,7 @@ from .kernel import (
     resolve_proposal,
 )
 from .parallel_tempering import geometric_betas, pt_chain, sample_parallel_tempering
-from .step import sample_and_process
+from .step import sample_and_process, sample_and_process_1d_ordered
 
 __all__ = [
     "Proposal",

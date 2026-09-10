@@ -109,7 +109,7 @@ class SamplingConfig:
             raise ValueError(f"step_size must be positive, got {self.step_size}")
         if self.box_L is not None and self.box_L <= 0:
             raise ValueError(f"box_L must be positive when set, got {self.box_L}")
-        if self.sampler not in ("mh", "pt"):
+        if self.sampler not in ("mh", "pt", "1d-ordered"):
             raise ValueError(f"sampler must be 'mh' or 'pt', got {self.sampler!r}")
         if self.pt_betas is not None and abs(self.pt_betas[0] - 1.0) > 1e-12:
             raise ValueError(f"pt_betas[0] must be 1.0 (physical replica), got {self.pt_betas[0]}")

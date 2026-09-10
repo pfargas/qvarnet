@@ -7,7 +7,7 @@ import jax
 import jax.numpy as jnp
 from jax import random
 
-from .kernel import GaussianMove, Proposal, mh_chain
+from .kernel import GaussianMove, Proposal, mh_chain, mh_chain_1d_ordered
 
 
 @partial(
@@ -68,6 +68,46 @@ def sample_and_process(
     chain_keys = random.split(key, n_chains)
     raw_batch, acceptance_rates = jax.vmap(
         lambda k, x0: mh_chain(
+            k, prob_fn, prob_params, x0, step_size, n_steps, proposal, box_L
+        )
+    )(chain_keys, init_positions)
+
+    processed = raw_batch[:, burn_in::thinning, :]  # (n_chains, n_effective, dof)
+    last_positions = raw_batch[:, -1, :]  # (n_chains, dof)
+    batch_flat = processed.reshape(-1, dof)  # (n_chains * n_effective, dof)
+
+    return batch_flat, last_positions, acceptance_rates
+
+@partial(
+    jax.jit,
+    static_argnames=[
+        "prob_fn",
+        "n_chains",
+        "dof",
+        "n_steps",
+        "burn_in",
+        "thinning",
+        "proposal",
+    ],
+)
+def sample_and_process_1d_ordered(
+    key: jax.Array,
+    prob_fn: Callable,
+    prob_params,
+    init_positions: jnp.ndarray,
+    step_size: float,
+    n_chains: int,
+    dof: int,
+    n_steps: int,
+    burn_in: int,
+    thinning: int,
+    proposal: Proposal = GaussianMove(),
+    box_L: float = 0.0,
+) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+
+    chain_keys = random.split(key, n_chains)
+    raw_batch, acceptance_rates = jax.vmap(
+        lambda k, x0: mh_chain_1d_ordered(
             k, prob_fn, prob_params, x0, step_size, n_steps, proposal, box_L
         )
     )(chain_keys, init_positions)

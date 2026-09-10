@@ -25,7 +25,7 @@ from ..config.training_setup import (
 )
 from ..geometry.qgt import DEFAULT_QGT_CONFIG, QGTConfig
 from ..losses import CuspLoss, make_cusp_configs, make_cusp_pair_indices
-from ..samplers import geometric_betas, sample_and_process, sample_parallel_tempering
+from ..samplers import geometric_betas, sample_and_process, sample_parallel_tempering, sample_and_process_1d_ordered
 from ..utils import load_checkpoint, load_doc, save_run_config
 from .metrics_history import MetricsHistory
 from .probability import build_prob_fn
@@ -306,6 +306,21 @@ def train(
                 scale_steps=sampling_config.pt_scale_steps,
                 proposal=sampling_config.proposal,
             )
+        elif sampling_config.sampler == "1d-ordered":
+            batch, new_pos, acceptance_rate = sample_and_process_1d_ordered(
+                key=subkey,
+                prob_fn=prob_fn,
+                prob_params=state.params,
+                init_positions=current_pos,
+                step_size=step_size,
+                n_chains=n_chains,
+                dof=dof,
+                n_steps=sampling_config.chain_length,
+                burn_in=sampling_config.thermalization_steps,
+                thinning=sampling_config.thinning_factor,
+                proposal=sampling_config.proposal,
+                box_L=sampling_config.box_L or 0.0,
+            )
         else:
             batch, new_pos, acceptance_rate = sample_and_process(
                 key=subkey,
@@ -428,21 +443,42 @@ def train(
             block_len = initial_chain_config.warmup_steps // n_blocks
             warmup_step = initial_chain_config.warmup_step_size
             for block in range(n_blocks):
-                block_key = jax.random.fold_in(key, block)
-                _, current_positions, warmup_acc = sample_and_process(
-                    key=block_key,
-                    prob_fn=prob_fn,
-                    prob_params=state.params,
-                    init_positions=current_positions,
-                    step_size=warmup_step,
-                    n_chains=n_chains,
-                    dof=dof,
-                    n_steps=block_len,
-                    burn_in=block_len - 1,
-                    thinning=1,
-                    proposal=sampling_config.proposal,
-                    box_L=sampling_config.box_L or 0.0,
-                )
+                if sampling_config.sampler == "pt":
+                    raise NotImplementedError(
+                        "Block-adaptive warmup is not implemented for parallel tempering."
+                    )
+                elif sampling_config.sampler == "1d-ordered":
+                    block_key = jax.random.fold_in(key, block)
+                    _, current_positions, warmup_acc = sample_and_process_1d_ordered(
+                        key=block_key,
+                        prob_fn=prob_fn,
+                        prob_params=state.params,
+                        init_positions=current_positions,
+                        step_size=warmup_step,
+                        n_chains=n_chains,
+                        dof=dof,
+                        n_steps=block_len,
+                        burn_in=block_len - 1,
+                        thinning=1,
+                        proposal=sampling_config.proposal,
+                        box_L=sampling_config.box_L or 0.0,
+                    )
+                else:
+                    block_key = jax.random.fold_in(key, block)
+                    _, current_positions, warmup_acc = sample_and_process(
+                        key=block_key,
+                        prob_fn=prob_fn,
+                        prob_params=state.params,
+                        init_positions=current_positions,
+                        step_size=warmup_step,
+                        n_chains=n_chains,
+                        dof=dof,
+                        n_steps=block_len,
+                        burn_in=block_len - 1,
+                        thinning=1,
+                        proposal=sampling_config.proposal,
+                        box_L=sampling_config.box_L or 0.0,
+                    )
                 acc_mean = float(jnp.mean(warmup_acc))
                 factor = acc_mean / training_config.target_acceptance
                 warmup_step = float(
