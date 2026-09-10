@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from typing import Any
 
-from ..samplers.kernel import GaussianMove, Proposal, resolve_proposal
+from ..samplers.kernel import GaussianMove, Proposal
 
 
 @dataclass(frozen=True)
@@ -72,30 +72,28 @@ class CuspConfig:
 class SamplingConfig:
     """Immutable sampling configuration for MCMC.
 
-    ``proposal`` selects the MH proposal family (see ``samplers.kernel``): a
-    ``Proposal`` instance, a name ("gaussian" | "uniform"), or ``(name, kwargs)``
-    (e.g. ``("particle-subset", {"n_move": 2, "n_dim": 1})``) — resolved to an
-    instance at construction, so the config stays hashable/jit-static. Subset moves
-    keep acceptance high at large steps for N ≳ 30 (full-configuration moves lose
-    acceptance as N grows).
+    ``proposal`` is a ``Proposal`` instance (see ``samplers.kernel``), e.g.
+    ``GaussianMove()`` or ``ParticleSubsetMove(n_move=2, n_dim=1)``; ``None``
+    means ``GaussianMove()``. Proposals are frozen dataclasses, so the config
+    stays hashable and jit-static. Subset moves keep acceptance high at large
+    steps for N ≳ 30 (full-configuration moves lose acceptance as N grows).
     """
 
-    step_size: float
-    chain_length: int
-    thermalization_steps: int
-    thinning_factor: int
-    proposal: Any = None  # Proposal | name | (name, kwargs); resolved in __post_init__, None → GaussianMove()
+    step_size: float = 1.0
+    chain_length: int = 500
+    thermalization_steps: int = 50
+    thinning_factor: int = 5
+    proposal: Any = None  # a Proposal instance; None → GaussianMove()
     box_L: float | None = None  # PBC sampler: wrap proposals into [0, L). None = off.
     sampler: str = "mh"  # "mh" (plain local-move chain) | "1d-ordered"
 
     def __post_init__(self):
-        # Resolve the proposal spec to a frozen Proposal instance (keeps the config
-        # hashable — it is passed as a jit-static argument).
-        resolved = (
-            resolve_proposal(self.proposal) if self.proposal is not None else GaussianMove()
-        )
+        resolved = self.proposal if self.proposal is not None else GaussianMove()
         if not isinstance(resolved, Proposal):
-            raise ValueError(f"proposal did not resolve to a Proposal: {self.proposal!r}")
+            raise TypeError(
+                f"proposal must be a Proposal instance, got {self.proposal!r}. "
+                "Construct it: GaussianMove(), ParticleSubsetMove(n_move=2, n_dim=3), ..."
+            )
         object.__setattr__(self, "proposal", resolved)
         if self.step_size <= 0:
             raise ValueError(f"step_size must be positive, got {self.step_size}")
@@ -145,48 +143,3 @@ class TrainingConfig:
         if self.min_step >= self.max_step:
             raise ValueError(f"min_step ({self.min_step}) must be < max_step ({self.max_step})")
 
-
-def parse_sampler_params(sampler_args: dict[str, Any]) -> SamplingConfig:
-    """Convert dict-based sampler configuration to typed dataclass."""
-    raw_box_L = sampler_args.get("box_L", None)
-    return SamplingConfig(
-        step_size=float(sampler_args.get("step_size", 1.0)),
-        chain_length=int(sampler_args.get("chain_length", 500)),
-        thermalization_steps=int(sampler_args.get("thermalization_steps", 50)),
-        thinning_factor=int(sampler_args.get("thinning_factor", 5)),
-        proposal=sampler_args.get("proposal", None),
-        box_L=float(raw_box_L) if raw_box_L is not None else None,
-        sampler=str(sampler_args.get("sampler", "mh")),
-    )
-
-
-def parse_training_params(train_args: dict[str, Any]) -> TrainingConfig:
-    """Convert dict-based training configuration to typed dataclass."""
-    cusp = None
-    if bool(train_args.get("use_cusp_condition", False)):
-        raw_L = train_args.get("cusp_L", None)
-        cusp = CuspConfig(
-            alpha=float(train_args.get("cusp_alpha", 0.01)),
-            epsilon=float(train_args.get("cusp_epsilon", 1e-2)),
-            n_configs_per_pair=int(train_args.get("cusp_n_configs_per_pair", 5)),
-            rng_seed=int(train_args.get("cusp_rng_seed", 42)),
-            n=float(train_args.get("cusp_n", 2.0)),
-            C_n=float(train_args.get("cusp_C_n", 1.0)),
-            L=float(raw_L) if raw_L is not None else None,
-        )
-    return TrainingConfig(
-        n_epochs=int(train_args.get("num_epochs", 3000)),
-        rng_seed=int(train_args.get("rng_seed", 0)),
-        init_positions=str(train_args.get("init_positions", "normal")),
-        warm_walkers=bool(train_args.get("warm_walkers", True)),
-        print_summary=bool(train_args.get("print_summary", True)),
-        is_update_step_size=bool(train_args.get("is_update_step_size", False)),
-        min_step=float(train_args.get("min_step", 1e-5)),
-        max_step=float(train_args.get("max_step", 5.0)),
-        use_qgt=bool(train_args.get("use_qgt", False)),
-        checkpoint_path=str(train_args.get("checkpoint_path", "./")),
-        save_checkpoints=bool(train_args.get("save_checkpoints", False)),
-        target_acceptance=float(train_args.get("target_acceptance", 0.5)),
-        adaptation_rate=float(train_args.get("adaptation_rate", 0.1)),
-        cusp=cusp,
-    )

@@ -35,6 +35,7 @@ from qvarnet.hamiltonian.continuous import HarmonicOscillatorHamiltonian
 from qvarnet.models.compose import LogWavefunction
 from qvarnet.models.envelopes import GaussianEnvelope
 from qvarnet.models.mlp import MLP
+from qvarnet.samplers import ParticleSubsetMove
 
 GOLDEN_DIR = Path(__file__).parent / "data"
 N_EPOCHS = 40
@@ -108,7 +109,7 @@ def _run(scenario: str, tmpdir: str):
                 "chain_length": 21,
                 "thermalization_steps": 20,
                 "thinning_factor": 1,
-                "proposal": ("particle-subset", {"n_move": 1, "n_dim": 1}),
+                "proposal": ParticleSubsetMove(n_move=1, n_dim=1),
             },
             coord_mode=LabCoords(),
         )

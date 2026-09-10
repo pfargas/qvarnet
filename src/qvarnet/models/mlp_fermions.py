@@ -4,17 +4,13 @@ import jax.nn
 import jax.numpy as jnp
 from flax import linen as nn
 
-from .base import BaseModel
 from .layers import CustomDense
-from .registry import register_model
 
 
-@register_model("fermionic-mlp")
-class FermionicMLP(BaseModel):
+class FermionicMLP(nn.Module):
     """Slater determinant wavefunction using a shared orbital network.
 
     Dimension contract:
-        get_input_shape → (batch, n_fermions * n_dim)
 
         __call__ input:  (..., n_fermions * n_dim)
         After reshape:   (..., n_fermions, n_dim)
@@ -74,21 +70,7 @@ class FermionicMLP(BaseModel):
 
         return psi
 
-    @classmethod
-    def from_config(cls, model_args: dict):
-        return cls(
-            architecture=model_args["architecture"],
-            n_fermions=model_args["n_fermions"],
-            n_dim=model_args["n_dim"],
-        )
-
-    @classmethod
-    def get_input_shape(cls, model_args: dict, batch_size: int) -> tuple:
-        return (batch_size, model_args["n_fermions"] * model_args["n_dim"])
-
-
-@register_model("half-spin-non-interacting-fermion")
-class HalfSpinNonInteractingFermion(BaseModel):
+class HalfSpinNonInteractingFermion(nn.Module):
     """
     A neural network ansatz for non-interacting fermions with spin.
     It includes an exponential envelope to satisfy boundary conditions
@@ -215,29 +197,10 @@ class HalfSpinNonInteractingFermion(BaseModel):
         # Squeeze ensures we return a scalar per batch element
         return (psi_up * psi_down * envelope).squeeze()
 
-    @classmethod
-    def from_config(cls, model_args: dict):
-        return cls(
-            architecture=model_args["architecture"],
-            n_up=model_args["n_up"],
-            n_down=model_args["n_down"],
-            n_dim=model_args["n_dim"],
-        )
-
-    @classmethod
-    def get_input_shape(cls, model_args: dict, batch_size: int) -> tuple:
-        return (
-            batch_size,
-            (model_args["n_up"] + model_args["n_down"]) * model_args["n_dim"],
-        )
-
-
-@register_model("fermionic-mlp-2")
-class FermionicMLP2ferms(BaseModel):
+class FermionicMLP2ferms(nn.Module):
     """Hard-coded 2-fermion Slater determinant (1D only, no n_dim param).
 
     Dimension contract:
-        get_input_shape → (batch, 2)   ← one coordinate per fermion
 
         __call__ input:  (..., 2)
         x[..., :1]  → (..., 1)   fermion 1 position
@@ -296,15 +259,3 @@ class FermionicMLP2ferms(BaseModel):
 
         return phi1_A * phi2_B - phi1_B * phi2_A
         # det([[φ_A(x1), φ_B(x1)], [φ_A(x2), φ_B(x2)]]) → (...)
-
-    @classmethod
-    def from_config(cls, model_args: dict):
-        return cls(
-            architecture=model_args["architecture"],
-            n_fermions=model_args.get("n_fermions", 2),
-        )
-
-    @classmethod
-    def get_input_shape(cls, model_args: dict, batch_size: int) -> tuple:
-        # → (batch, n_fermions)  — one 1D coord per fermion
-        return (batch_size, model_args.get("n_fermions", 2))

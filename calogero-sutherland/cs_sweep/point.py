@@ -36,6 +36,12 @@ from qvarnet.models.compose import LogWavefunction
 from qvarnet.models.envelopes import GaussianEnvelope
 from qvarnet.models.jastrow import LogJastrow
 from qvarnet.models.mlp import MLP
+from qvarnet.samplers import (
+    DoFSubsetMove,
+    GaussianMove,
+    ParticleSubsetMove,
+    UniformMove,
+)
 from qvarnet import train
 
 # ── what we solve: the physics (defines the exact ground-state energy) ───────────────
@@ -279,21 +285,23 @@ def _build_model(physics: Physics, hp: HyperParams) -> object:
 
 
 def _proposal_spec(physics: Physics, hp: HyperParams):
-    """Flat (proposal, proposal_ratio) axes → the SamplingConfig proposal spec.
+    """Flat (proposal, proposal_ratio) axes → a Proposal instance.
 
     The ratio resolves against the point's own physics, so one axis value means the
     same thing at every N / n_dim in a mixed grid.
     """
     if not (0.0 < hp.proposal_ratio <= 1.0):
         raise ValueError(f"proposal_ratio must be in (0, 1], got {hp.proposal_ratio}")
-    if hp.proposal in ("gaussian", "uniform"):
-        return hp.proposal
+    if hp.proposal == "gaussian":
+        return GaussianMove()
+    if hp.proposal == "uniform":
+        return UniformMove()
     if hp.proposal == "particle-subset":
         n_move = max(1, round(hp.proposal_ratio * physics.N))
-        return ("particle-subset", {"n_move": n_move, "n_dim": physics.n_dim})
+        return ParticleSubsetMove(n_move=n_move, n_dim=physics.n_dim)
     if hp.proposal == "dof-subset":
         k = max(1, round(hp.proposal_ratio * physics.dof))
-        return ("dof-subset", {"k": k})
+        return DoFSubsetMove(k=k)
     raise ValueError(f"unknown proposal {hp.proposal!r}")
 
 

@@ -24,12 +24,12 @@ os.environ.setdefault("XLA_FLAGS", "--xla_force_host_platform_device_count=1")
 import optax
 from flax import linen as nn
 
+from qvarnet import train
 from qvarnet.boundaries import NoBoundary
 from qvarnet.config.training_setup import TrainingConfig
 from qvarnet.hamiltonian.continuous import HarmonicOscillatorHamiltonian
 from qvarnet.models.compose import LogWavefunction
 from qvarnet.models.mlp import MLP
-from qvarnet import train
 
 N_PARTICLES = 4
 N_DIM = 1

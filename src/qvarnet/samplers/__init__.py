@@ -7,7 +7,6 @@ from .kernel import (
     UniformMove,
     mh_chain,
     mh_kernel_log,
-    resolve_proposal,
 )
 from .step import sample_and_process, sample_and_process_1d_ordered
 
@@ -17,7 +16,6 @@ __all__ = [
     "UniformMove",
     "ParticleSubsetMove",
     "DoFSubsetMove",
-    "resolve_proposal",
     "mh_chain",
     "mh_kernel_log",
     "sample_and_process",

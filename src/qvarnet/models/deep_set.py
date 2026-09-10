@@ -3,13 +3,10 @@ from collections.abc import Callable
 from flax import linen as nn
 from jax import numpy as jnp
 
-from .base import BaseModel
 from .mlp import MLP
-from .registry import register_model
 
 
-@register_model("deep-set")
-class DeepSet(BaseModel):
+class DeepSet(nn.Module):
     """Permutation-invariant log-wavefunction: log|ψ| = F(mean_i φ(rᵢ)).
 
     Dimension contract:
@@ -53,18 +50,3 @@ class DeepSet(BaseModel):
         h = self.phi(x)  # (..., n_particles, hidden_internal_dim)
         h = jnp.mean(h, axis=-2)  # (..., hidden_internal_dim)
         return self.F(h)  # (..., 1)
-
-    @classmethod
-    def from_config(cls, model_args: dict):
-        return cls(
-            phi_hidden=model_args["phi_hidden"],
-            F_hidden=model_args["F_hidden"],
-        )
-
-    @classmethod
-    def get_input_shape(cls, model_args: dict, batch_size: int) -> tuple:
-        raise NotImplementedError("DeepSet input shape depends on LogWavefunction geometry.")
-
-
-# Backward-compat aliases — old code that imports these names still works.
-DeepSetNoEnvelope = DeepSet

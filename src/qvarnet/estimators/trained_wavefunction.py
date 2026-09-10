@@ -25,7 +25,7 @@ import jax.numpy as jnp
 import numpy as np
 
 from ..config.coord_mode import CoordMode, JacobiCoords, LabCoords
-from ..samplers import mh_chain, resolve_proposal
+from ..samplers import GaussianMove, mh_chain
 from ..samplers.diagnostics import chain_stats
 from ..vmc.probability import build_prob_fn
 from . import kernels
@@ -112,17 +112,19 @@ class TrainedWavefunction:
 
     @classmethod
     def from_checkpoint(
-        cls, path, n_particles=None, checkpoint_filename="checkpoint.msgpack", **kwargs
+        cls, path, model, n_particles=None, checkpoint_filename="checkpoint.msgpack", **kwargs
     ):
-        """Build from a run directory saved with ``save_run_config`` (uses ``load_run``).
+        """Load a finished run's parameters into ``model``.
 
+        ``model`` is the ansatz you trained with — construct the same one. (It
+        used to be rebuilt from a name via a registry; now you pass the object.)
         ``n_particles`` is inferred from a JacobiCoords run; for LabCoords it
         must be given (the flat dof alone doesn't determine N vs d). Extra
         kwargs go to the constructor (``box_L``, ``n_dim``, ``seed``).
         """
         from ..utils.checkpoint import load_run
 
-        run = load_run(path, checkpoint_filename=checkpoint_filename)
+        run = load_run(path, model, checkpoint_filename=checkpoint_filename)
         if n_particles is None:
             if isinstance(run.coord_mode, JacobiCoords):
                 n_particles = run.coord_mode.n_particles_physical
@@ -149,7 +151,7 @@ class TrainedWavefunction:
         burn_in: int = 100,
         thinning: int = 1,
         step_size: float | None = None,
-        proposal="gaussian",
+        proposal=None,
         key=None,
         reset: bool = False,
         accumulate: bool = False,
@@ -184,7 +186,7 @@ class TrainedWavefunction:
             self._key, key = jax.random.split(self._key)
         if step_size is not None:
             self._step_size = float(step_size)
-        proposal_fn = resolve_proposal(proposal)
+        proposal_fn = proposal if proposal is not None else GaussianMove()
 
         init = self._last_positions
         if reset or init is None or init.shape[0] != n_chains:
@@ -237,7 +239,7 @@ class TrainedWavefunction:
         n_steps: int = 400,
         burn_in: int = 100,
         thinning: int = 1,
-        proposal="gaussian",
+        proposal=None,
         key=None,
         block_chains: int | None = None,
         diagnose: bool = True,
@@ -255,7 +257,7 @@ class TrainedWavefunction:
             raise RuntimeError("No pool yet — call sample() first.")
         if key is None:
             self._key, key = jax.random.split(self._key)
-        proposal_fn = resolve_proposal(proposal)
+        proposal_fn = proposal if proposal is not None else GaussianMove()
 
         key, init_key = jax.random.split(key)
         init = self._init_walkers(init_key, int(n_extra_chains))

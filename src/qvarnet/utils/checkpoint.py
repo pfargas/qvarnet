@@ -87,7 +87,9 @@ def save_run_config(path, model_name, model_args, sample_shape, coord_mode, trai
 
     Args:
         path: checkpoint_path from TrainingConfig (base directory for the run).
-        model_name: key in MODEL_REGISTRY (e.g. "mlp", "deep-set").
+        model_name: provenance label for the ansatz (e.g. "mlp", "deep-set").
+            Recorded for the human reading the run later; nothing reconstructs
+            a model from it.
         model_args: dict of model constructor kwargs — must be JSON-serialisable.
         sample_shape: tuple (n_chains, dof) passed to train().
         coord_mode: CoordMode instance used for this run.
@@ -110,33 +112,28 @@ def save_run_config(path, model_name, model_args, sample_shape, coord_mode, trai
 LoadedRun = collections.namedtuple("LoadedRun", ["model", "params", "training_config", "coord_mode"])
 
 
-def load_run(path, checkpoint_filename="checkpoint.msgpack"):
-    """Reconstruct a trained run from disk — no archaeology required.
-
-    Reads run_config.json written by save_run_config(), rebuilds the model,
-    and loads the saved parameters.
+def load_run(path, model, checkpoint_filename="checkpoint.msgpack"):
+    """Load the parameters and config of a finished run into ``model``.
 
     Args:
-        path: the checkpoint_path used during training (same as TrainingConfig.checkpoint_path).
-        checkpoint_filename: which checkpoint file to load (default: "checkpoint.msgpack").
+        path: the checkpoint_path used during training.
+        model: the ansatz to load into — construct the same one you trained with.
+        checkpoint_filename: which checkpoint to load (default "checkpoint.msgpack").
 
     Returns:
         LoadedRun(model, params, training_config, coord_mode)
 
     Example:
-        run = load_run("./outputs/my_run/")
-        energies = compute_observables(run.model, run.params, run.training_config)
+        model = LogWavefunction(network=MLP(hidden=[64, 64]), ...)
+        run = load_run("./outputs/my_run/", model)
     """
-    # Import here to trigger @register_model decorators for all model classes
-    from ..models import MODEL_REGISTRY  # noqa: F401
-
     checkpoint_dir = os.path.join(path, "checkpoints")
     config_path = os.path.join(checkpoint_dir, "run_config.json")
     if not os.path.exists(config_path):
         raise FileNotFoundError(
             f"No run_config.json found at {config_path}. "
             "Was save_run_config() called during training? "
-            "Make sure to pass model_name and model_args to train()."
+            "train() writes it only when model_name and model_args are passed."
         )
 
     with open(config_path) as f:
@@ -146,15 +143,6 @@ def load_run(path, checkpoint_filename="checkpoint.msgpack"):
     coord_mode = _coord_mode_from_dict(config["coord_mode"])
     training_config = _training_config_from_dict(config["training_config"])
     sample_shape = tuple(config["sample_shape"])
-
-    model_name = config["model_name"]
-    model_args = config["model_args"]
-    if model_name not in MODEL_REGISTRY:
-        raise ValueError(
-            f"Model '{model_name}' not found in MODEL_REGISTRY. "
-            f"Available: {list(MODEL_REGISTRY)}"
-        )
-    model = MODEL_REGISTRY[model_name].from_config(model_args)
 
     # Init model to get parameter tree shape, then restore only the params
     # from the checkpoint (ignore optimizer state — load_run is for inference).

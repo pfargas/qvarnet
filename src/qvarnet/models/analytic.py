@@ -2,12 +2,8 @@
 from flax import linen as nn
 from jax import numpy as jnp
 
-from .base import BaseModel
-from .registry import register_model
 
-
-@register_model("CS-analytic")
-class CalogeroSutherlandAnalyticModel(BaseModel):
+class CalogeroSutherlandAnalyticModel(nn.Module):
     """Exact log-wavefunction for the Calogero model (IS_LOG_MODEL=True).
 
     log|ψ₀| = λ · Σᵢ<ⱼ log|xᵢ-xⱼ|  −  ω/2 · Σᵢ xᵢ²

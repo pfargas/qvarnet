@@ -38,6 +38,7 @@ def _bench() -> dict:
     import jax
     import optax
 
+    from qvarnet import train
     from qvarnet.boundaries import NoBoundary
     from qvarnet.config.coord_mode import LabCoords
     from qvarnet.config.training_setup import TrainingConfig
@@ -45,7 +46,6 @@ def _bench() -> dict:
     from qvarnet.models.compose import LogWavefunction
     from qvarnet.models.envelopes import GaussianEnvelope
     from qvarnet.models.mlp import MLP
-    from qvarnet import train
 
     model = LogWavefunction(
         network=MLP(hidden=[64, 64], output_dim=1),

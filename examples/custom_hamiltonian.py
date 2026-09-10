@@ -3,7 +3,7 @@
 Adding a new physical system to qvarnet requires three things:
   1. Subclass ContinuousHamiltonian
   2. Implement potential_energy(samples) → (batch,)
-  3. Decorate with @register_hamiltonian("my-name") and @struct.dataclass
+  3. Decorate with @struct.dataclass (a JAX pytree, so it can cross jit)
 
 potential_energy always receives lab coordinates regardless of which
 CoordMode is active — the transform is handled by ContinuousHamiltonian.
@@ -19,14 +19,12 @@ from qvarnet import train
 from qvarnet.config.coord_mode import LabCoords
 from qvarnet.config.training_setup import TrainingConfig
 from qvarnet.hamiltonian.continuous import ContinuousHamiltonian
-from qvarnet.hamiltonian.hamiltonian_registry import register_hamiltonian
 from qvarnet.models.mlp import MLP
 
 # ---------------------------------------------------------------------------
 # Step 1–3: define and register the Hamiltonian
 # ---------------------------------------------------------------------------
 
-@register_hamiltonian("double-well")
 @struct.dataclass
 class DoubleWellHamiltonian(ContinuousHamiltonian):
     """1-D double-well: V(x) = a·x⁴ − b·x².

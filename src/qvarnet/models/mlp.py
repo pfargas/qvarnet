@@ -2,13 +2,10 @@ from collections.abc import Callable
 
 from flax import linen as nn
 
-from .base import BaseModel
 from .layers import CustomDense
-from .registry import register_model
 
 
-@register_model("mlp")
-class MLP(BaseModel):
+class MLP(nn.Module):
     """Multi-layer perceptron using CustomDense layers.
 
     Two interfaces (exactly one must be provided):
@@ -48,11 +45,3 @@ class MLP(BaseModel):
         if self.has_output_activation:
             x = self.hidden_activation(x)
         return x
-
-    @classmethod
-    def from_config(cls, model_args: dict):
-        return cls(architecture=model_args["architecture"])
-
-    @classmethod
-    def get_input_shape(cls, model_args: dict, batch_size: int) -> tuple:
-        return (batch_size, model_args["architecture"][0])

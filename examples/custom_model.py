@@ -1,12 +1,18 @@
-"""Minimal example: define a new model and register it.
+"""Minimal example: define your own ansatz and use it.
 
-Adding a new ansatz to qvarnet requires:
-  1. Subclass BaseModel (a Flax nn.Module)
-  2. Implement __call__(x) → (batch, 1)  — output is log|ψ(x)|
-  3. Implement from_config(config) so load_run() can reconstruct it
-  4. Decorate with @register_model("my-name")
+Adding a new ansatz to qvarnet takes two steps:
+  1. Subclass ``flax.linen.Module``
+  2. Implement ``__call__(x) -> (batch, 1)``, returning **log|psi(x)|**
 
-The model must output log|ψ|, not ψ directly.
+That is the whole contract. There is nothing to register and no name to invent --
+you construct the object and pass it to ``train()``, exactly as you pass an optax
+optimizer. (Earlier versions needed a ``@register_model`` decorator and a
+``from_config`` classmethod so a registry could rebuild the model from a string;
+both are gone.)
+
+Run it:
+
+    uv run python examples/custom_model.py
 """
 
 import tempfile
@@ -17,43 +23,26 @@ import optax
 
 from qvarnet import train
 from qvarnet.config.coord_mode import LabCoords
-from qvarnet.config.training_setup import TrainingConfig
+from qvarnet.config.training_setup import SamplingConfig, TrainingConfig
 from qvarnet.hamiltonian.continuous import HarmonicOscillatorHamiltonian
-from qvarnet.models.base import BaseModel
-from qvarnet.models.registry import register_model
 from qvarnet.utils.checkpoint import load_run
 
-# ---------------------------------------------------------------------------
-# Step 1–4: define and register the model
-# ---------------------------------------------------------------------------
 
-@register_model("gaussian-ansatz")
-class GaussianAnsatz(BaseModel):
-    """Log-Gaussian ansatz: log|ψ(x)| = −α Σ xᵢ².
+class GaussianAnsatz(nn.Module):
+    """Log-Gaussian ansatz: log|psi(x)| = -alpha * sum_i x_i^2.
 
-    One learnable parameter α (initialised to 1).
-    The exact ground state of a 1-D harmonic oscillator (ω=1) has α = 0.5.
-    VMC should converge toward this value.
+    One learnable parameter alpha (initialised to 1). The exact ground state of a
+    1-D harmonic oscillator (omega=1) has alpha = 0.5, so VMC should converge there.
     """
 
     @nn.compact
     def __call__(self, x):
-        # x: (batch, dof)
-        # output: (batch, 1)  — log|ψ|
+        # x: (batch, dof)  ->  (batch, 1), the log-amplitude
         alpha = self.param("alpha", nn.initializers.ones, (1,))
-        return (-jnp.abs(alpha) * jnp.sum(x ** 2, axis=-1, keepdims=True))
+        return -jnp.abs(alpha) * jnp.sum(x**2, axis=-1, keepdims=True)
 
-    @classmethod
-    def from_config(cls, config: dict):
-        return cls()
-
-
-# ---------------------------------------------------------------------------
-# Use it in a short VMC run, then reload from disk
-# ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    hamiltonian = HarmonicOscillatorHamiltonian(omega=1.0)
     model = GaussianAnsatz()
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -61,27 +50,28 @@ if __name__ == "__main__":
             shape=(256, 1),
             model=model,
             optimizer=optax.adam(1e-2),
-            hamiltonian=hamiltonian,
+            hamiltonian=HarmonicOscillatorHamiltonian(omega=1.0),
             training_config=TrainingConfig(
                 n_epochs=300,
                 checkpoint_path=tmpdir,
                 save_checkpoints=True,
                 rng_seed=0,
             ),
-            sampler_params={
-                "step_size": 0.5,
-                "chain_length": 100,
-                "thermalization_steps": 10,
-            },
+            sampler_params=SamplingConfig(
+                step_size=0.5,
+                chain_length=100,
+                thermalization_steps=10,
+                thinning_factor=5,
+            ),
             coord_mode=LabCoords(),
-            model_name="gaussian-ansatz",
+            model_name="gaussian-ansatz",  # provenance label only
             model_args={},
         )
 
         best = result.best(n=1)[0]
         print(f"Best energy: {float(best.energy):.6f}  (exact: 0.5)")
 
-        # Reload from disk — no manual archaeology
-        run = load_run(tmpdir)
+        # Reloading needs the ansatz object: construct the same one you trained.
+        run = load_run(tmpdir, GaussianAnsatz())
         alpha_val = float(run.params["params"]["alpha"].squeeze())
-        print(f"Loaded α = {alpha_val:.4f}  (exact: 0.5000)")
+        print(f"Loaded alpha = {alpha_val:.4f}  (exact: 0.5000)")

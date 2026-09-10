@@ -1,7 +1,6 @@
 from .boundaries import BoundaryHamiltonian, BoundaryModel, NoBoundary, PeriodicBoundary
 from .config.coord_mode import JacobiCoords, LabCoords
 from .config.training_setup import SamplingConfig, TrainingConfig
-from .hamiltonian import define_hamiltonian, list_hamiltonians
 
 # Imported after .boundaries (line 1) so its BoundaryHamiltonian base is available; this
 # also registers "lattice-bose" in the Hamiltonian registry.
@@ -21,8 +20,6 @@ __all__ = [
     "evaluate",
     "evaluate_result",
     "EvalResult",
-    "define_hamiltonian",
-    "list_hamiltonians",
     "LabCoords",
     "JacobiCoords",
     "TrainingConfig",

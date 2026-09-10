@@ -5,7 +5,6 @@ from qvarnet.config.coord_mode import CoordMode, LabCoords
 from qvarnet.particles import Particles
 
 from .base import BaseHamiltonian
-from .hamiltonian_registry import register_hamiltonian
 from .kinetic import kinetic_log
 from .laplacian import (
     laplacian_central_difference,
@@ -94,7 +93,6 @@ class ContinuousHamiltonian(BaseHamiltonian):
         return kinetic.squeeze() + self.potential_energy(lab_samples).squeeze()
 
 
-@register_hamiltonian("harmonic-oscillator")
 @struct.dataclass
 class HarmonicOscillatorHamiltonian(ContinuousHamiltonian):
     omega: float = 1.0
@@ -103,7 +101,6 @@ class HarmonicOscillatorHamiltonian(ContinuousHamiltonian):
         return 0.5 * (self.omega**2) * jnp.sum(samples**2, axis=-1)
 
 
-@register_hamiltonian("nn-oscillator")
 @struct.dataclass
 class NN_OscillatorHamiltonian(ContinuousHamiltonian):
     """Nearest-neighbour harmonic oscillator."""
@@ -122,7 +119,6 @@ class NN_OscillatorHamiltonian(ContinuousHamiltonian):
         return trap + nn_term
 
 
-@register_hamiltonian("soft-core")
 @struct.dataclass
 class SoftCoreHamiltonian(ContinuousHamiltonian):
     R: float = 1.0
@@ -133,7 +129,6 @@ class SoftCoreHamiltonian(ContinuousHamiltonian):
         return jnp.where(r < self.R, self.V0, 0.0)
 
 
-@register_hamiltonian("gross-struct-hamiltonian")
 @struct.dataclass
 class GrossStructHamiltonian(ContinuousHamiltonian):
     """Electron-nuclear attraction. DoF = n_fermions * 3 (3D)."""
@@ -147,7 +142,6 @@ class GrossStructHamiltonian(ContinuousHamiltonian):
         return -self.Z * jnp.sum(1.0 / (r_i + 1e-12), axis=-1)
 
 
-@register_hamiltonian("CS-model")
 @struct.dataclass
 class CalogeroSutherlandHamiltonian(ContinuousHamiltonian):
     """Calogero-Sutherland model: particles on a line with inverse-square interactions.
@@ -197,7 +191,6 @@ class CalogeroSutherlandHamiltonian(ContinuousHamiltonian):
 
         return 2 * interaction + trap # factor 2 cause g = 2L(L-1) in CS convention, not L(L-1)
 
-@register_hamiltonian("CS-sin-model")
 @struct.dataclass
 class CalogeroSutherlandSinHamiltonian(ContinuousHamiltonian):
     """Calogero-Sutherland model with sine interaction."""

@@ -10,30 +10,17 @@ from collections.abc import Callable
 from flax import linen as nn
 from jax import numpy as jnp
 
-from .base import BaseModel
 from .mlp import MLP
-from .registry import register_model
 
 
-@register_model("log-analytic")
-class LogAnalyticWavefunction(BaseModel):
+class LogAnalyticWavefunction(nn.Module):
 
     @nn.compact
     def __call__(self, x):
         alpha = self.param("alpha", nn.initializers.constant(1.0), ())
         return -alpha * jnp.sum(x**2, axis=-1)
 
-    @classmethod
-    def from_config(cls, model_args: dict):
-        return cls()
-    
-    @classmethod
-    def get_input_shape(cls, model_args: dict, batch_size: int) -> tuple:
-        return (batch_size, model_args["input_dim"])
-
-
-@register_model("mlp-fourth-decay")
-class LogExponentialMLPwithPenalty(BaseModel):
+class LogExponentialMLPwithPenalty(nn.Module):
     architecture: list
     hidden_activation: Callable = nn.tanh
     kernel_init: Callable = nn.initializers.lecun_normal()
@@ -52,16 +39,7 @@ class LogExponentialMLPwithPenalty(BaseModel):
         log_wf = mlp_output - envelope_param * jnp.sum(x**4, axis=-1, keepdims=True)
         return log_wf
 
-    @classmethod
-    def from_config(cls, model_args: dict):
-        return cls(architecture=model_args["architecture"])
-
-    @classmethod
-    def get_input_shape(cls, model_args: dict, batch_size: int) -> tuple:
-        return (batch_size, model_args["architecture"][0])
-
-@register_model("mlp-gaussian-decay")
-class LogExponentialMLPwithGaussianPenalty(BaseModel):
+class LogExponentialMLPwithGaussianPenalty(nn.Module):
     architecture: list
     hidden_activation: Callable = nn.tanh
     kernel_init: Callable = nn.initializers.normal(1.0)
@@ -82,16 +60,7 @@ class LogExponentialMLPwithGaussianPenalty(BaseModel):
         log_wf = mlp_output - envelope_param * jnp.sum(x**2, axis=-1, keepdims=True)
         return log_wf
 
-    @classmethod
-    def from_config(cls, model_args: dict):
-        return cls(architecture=model_args["architecture"])
-
-    @classmethod
-    def get_input_shape(cls, model_args: dict, batch_size: int) -> tuple:
-        return (batch_size, model_args["architecture"][0])
-    
-@register_model("j-mlp-gaussian-decay")
-class JastrowLogExponentialMLPwithGaussianPenalty(BaseModel):
+class JastrowLogExponentialMLPwithGaussianPenalty(nn.Module):
     architecture: list
     hidden_activation: Callable = nn.tanh
     kernel_init: Callable = nn.initializers.lecun_normal()
@@ -124,11 +93,3 @@ class JastrowLogExponentialMLPwithGaussianPenalty(BaseModel):
         mlp_output = mlp(x)
         log_wf = mlp_output - envelope_param * jnp.sum(x**2, axis=-1, keepdims=True) + log_jastrow
         return log_wf
-
-    @classmethod
-    def from_config(cls, model_args: dict):
-        return cls(architecture=model_args["architecture"])
-
-    @classmethod
-    def get_input_shape(cls, model_args: dict, batch_size: int) -> tuple:
-        return (batch_size, model_args["architecture"][0])

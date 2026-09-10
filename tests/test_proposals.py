@@ -12,13 +12,12 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from qvarnet.config.training_setup import SamplingConfig, parse_sampler_params
+from qvarnet.config.training_setup import SamplingConfig
 from qvarnet.samplers import (
     DoFSubsetMove,
     GaussianMove,
     ParticleSubsetMove,
     UniformMove,
-    resolve_proposal,
     sample_and_process,
 )
 
@@ -99,33 +98,25 @@ def test_subset_acceptance_survives_large_dof():
     assert a_sub > 0.5
 
 
-def test_resolve_proposal_and_config_wiring():
-    assert resolve_proposal("gaussian") == GaussianMove()
-    assert resolve_proposal("uniform") == UniformMove()
-    assert resolve_proposal(("particle-subset", {"n_move": 3, "n_dim": 2})) == ParticleSubsetMove(
-        3, 2
-    )
-    assert resolve_proposal(DoFSubsetMove(4)) == DoFSubsetMove(4)
-    with pytest.raises(ValueError, match="Unknown proposal"):
-        resolve_proposal("mala")
-    with pytest.raises(ValueError, match="needs parameters"):
-        resolve_proposal("particle-subset")
-
-    # dict path (train(sampler_params={...})) and default
-    cfg = parse_sampler_params(
-        {"step_size": 0.5, "chain_length": 21, "thermalization_steps": 20,
-         "thinning_factor": 1, "proposal": ("particle-subset", {"n_move": 2})}
-    )
-    assert cfg.proposal == ParticleSubsetMove(2, 1)
+def test_config_defaults_and_hashability():
     cfg = SamplingConfig(step_size=0.5, chain_length=21, thermalization_steps=20,
                          thinning_factor=1)
-    assert cfg.proposal == GaussianMove()
-    assert hash(cfg) is not None  # stays jit-static
+    assert cfg.proposal == GaussianMove()          # None -> the default family
+    assert hash(cfg) is not None                    # stays jit-static
+
+    cfg = SamplingConfig(step_size=0.5, chain_length=21, thermalization_steps=20,
+                         thinning_factor=1, proposal=ParticleSubsetMove(2, 1))
+    assert cfg.proposal == ParticleSubsetMove(2, 1)
+
+    # A name is no longer a proposal: pass the object.
+    with pytest.raises(TypeError, match="must be a Proposal instance"):
+        SamplingConfig(step_size=0.5, chain_length=21, thermalization_steps=20,
+                       thinning_factor=1, proposal="gaussian")
 
 
 def test_train_end_to_end_with_subset_proposal(tmp_path):
-    """Wiring regression: proposal flows dict → parse_sampler_params → SamplingConfig
-    → full_update → sample_and_process inside train() without a retrace error."""
+    """Wiring regression: the proposal flows SamplingConfig -> full_update ->
+    sample_and_process inside train() without a retrace error."""
     import optax
     from conftest import make_ho_model
 
@@ -146,7 +137,7 @@ def test_train_end_to_end_with_subset_proposal(tmp_path):
             "chain_length": 21,
             "thermalization_steps": 20,
             "thinning_factor": 1,
-            "proposal": ("particle-subset", {"n_move": 1}),
+            "proposal": ParticleSubsetMove(n_move=1),
         },
     )
     e = np.array([float(s.energy) for s in result.history])

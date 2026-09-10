@@ -49,7 +49,7 @@ class NoBoundary:
         """Feature dimension per particle for a DeepSet inner model.
 
         Pass this as ``n_dim`` when constructing any model that reshapes its
-        input to ``(batch, n_particles, n_dim)`` (e.g. DeepSet, DeepSetNoEnvelope).
+        input to ``(batch, n_particles, n_dim)`` (e.g. DeepSet).
         """
         return n_spatial
 
@@ -91,7 +91,7 @@ class PeriodicBoundary:
         """Feature dimension per particle for a DeepSet inner model.
 
         Pass this as ``n_dim`` when constructing any model that reshapes its
-        input to ``(batch, n_particles, n_dim)`` (e.g. DeepSet, DeepSetNoEnvelope).
+        input to ``(batch, n_particles, n_dim)`` (e.g. DeepSet).
         sin/cos encoding doubles the dimension: returns ``2 * n_spatial``.
         """
         return 2 * n_spatial

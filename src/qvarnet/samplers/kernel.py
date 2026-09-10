@@ -116,37 +116,6 @@ class DoFSubsetMove(Proposal):
         return position + step_size * noise * mask, 0.0
 
 
-_PROPOSALS = {
-    "gaussian": GaussianMove,
-    "uniform": UniformMove,
-    "particle-subset": ParticleSubsetMove,
-    "dof-subset": DoFSubsetMove,
-}
-
-
-def resolve_proposal(spec) -> Proposal:
-    """Turn a proposal spec into a Proposal instance.
-
-    Accepts a Proposal instance (returned as-is), a name ("gaussian" | "uniform" —
-    the parameter-free families), or a ``(name, kwargs)`` pair for the rest, e.g.
-    ``("particle-subset", {"n_move": 2, "n_dim": 3})``.
-    """
-    if isinstance(spec, Proposal):
-        return spec
-    if isinstance(spec, str):
-        try:
-            return _PROPOSALS[spec]()
-        except KeyError:
-            raise ValueError(
-                f"Unknown proposal {spec!r}; known: {sorted(_PROPOSALS)}"
-            ) from None
-        except TypeError:
-            raise ValueError(
-                f"Proposal {spec!r} needs parameters — pass ({spec!r}, {{...}}) or an instance"
-            ) from None
-    name, kwargs = spec
-    return _PROPOSALS[name](**kwargs)
-
 
 @partial(jax.jit, static_argnames=("prob_fn", "proposal"))
 def mh_kernel_log(

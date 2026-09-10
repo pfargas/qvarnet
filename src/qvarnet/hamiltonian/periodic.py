@@ -11,10 +11,8 @@ import jax.numpy as jnp
 from flax import struct
 
 from ..boundaries import BoundaryHamiltonian
-from .hamiltonian_registry import register_hamiltonian
 
 
-@register_hamiltonian("lattice-bose")
 @struct.dataclass
 class LatticeBoseHamiltonian(BoundaryHamiltonian):
     """N bosons in a 1D optical lattice with contact interactions.
@@ -51,7 +49,6 @@ class LatticeBoseHamiltonian(BoundaryHamiltonian):
         return V_latt + V_int
 
 
-@register_hamiltonian("penetrable-sphere")
 @struct.dataclass
 class PenetrableSphereHamiltonian(BoundaryHamiltonian):
     r"""N "soft" bosons with a pairwise penetrable-sphere (soft-core step) interaction.

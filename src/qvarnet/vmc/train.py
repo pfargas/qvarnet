@@ -21,7 +21,6 @@ from ..config.training_setup import (
     ChainInitAndWarmupConfig,
     SamplingConfig,
     TrainingConfig,
-    parse_sampler_params,
 )
 from ..geometry.qgt import DEFAULT_QGT_CONFIG, QGTConfig
 from ..losses import CuspLoss, make_cusp_configs, make_cusp_pair_indices
@@ -157,7 +156,7 @@ def train(
     if isinstance(sampler_params, SamplingConfig):
         sampling_config = sampler_params
     else:
-        sampling_config = parse_sampler_params(sampler_params)
+        sampling_config = SamplingConfig(**sampler_params)
 
     # PBC sanity check: the periodic-ansatz toggle (model transform) and the PBC-sampler
     # toggle (sampling_config.box_L) are independent by design, but a mismatch is a likely
