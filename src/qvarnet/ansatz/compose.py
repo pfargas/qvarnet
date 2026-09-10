@@ -36,9 +36,11 @@ class LogWavefunction(nn.Module):
 
     @nn.compact
     def __call__(self, x):
-        if self.transform is None:
-            self.transform = NoBoundary()
-        if isinstance(self.transform, PeriodicBoundary) and self.envelope is not None:
+        # A local, not self.transform = ...: a Flax module is frozen outside setup(),
+        # so assigning here raised SetAttributeFrozenModuleError for every caller who
+        # left transform at its default.
+        transform = self.transform if self.transform is not None else NoBoundary()
+        if isinstance(transform, PeriodicBoundary) and self.envelope is not None:
             # A confining envelope (e.g. Gaussian) breaks L-periodicity of log|ψ|:
             # there is no trap on a ring. The envelope is applied to *raw* x and is
             # not periodic, so it silently corrupts the PBC wavefunction.
@@ -49,12 +51,9 @@ class LogWavefunction(nn.Module):
                 "periodic systems (use a periodic Jastrow for interactions instead).",
                 stacklevel=2,
             )
-        x_enc = self.transform(x)
+        x_enc = transform(x)
         if self.n_particles is not None:
             ppd = x_enc.shape[-1] // self.n_particles
-            # assert (
-            #     ppd == self.n_dim
-            # ), f"Expected ppd={self.n_dim} but got {ppd} from transform output shape {x_enc.shape}"
             x_for_net = x_enc.reshape(*x_enc.shape[:-1], self.n_particles, ppd)
         else:
             x_for_net = x_enc

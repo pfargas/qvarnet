@@ -133,3 +133,25 @@ def test_train_end_to_end_with_subset_proposal(tmp_path):
     )
     e = np.array([float(s.energy) for s in result.history])
     assert np.all(np.isfinite(e))
+
+
+def test_logwavefunction_default_transform():
+    """Omitting `transform` must work: it used to raise SetAttributeFrozenModuleError.
+
+    A Flax module is frozen outside setup(), so LogWavefunction.__call__ could not
+    assign its own default. Every test passed transform= explicitly, which hid it.
+    """
+    import jax
+    from flax import linen as nn
+
+    from qvarnet.ansatz.compose import LogWavefunction
+    from qvarnet.ansatz.envelopes import GaussianEnvelope
+    from qvarnet.ansatz.mlp import MLP
+
+    psi = LogWavefunction(
+        network=MLP(hidden=[8], output_dim=1, hidden_activation=nn.tanh),
+        envelope=GaussianEnvelope(),
+    )
+    x = jnp.ones((3, 4))
+    params = psi.init(jax.random.PRNGKey(0), x)
+    assert psi.apply(params, x).shape == (3, 1)
