@@ -7,7 +7,7 @@ import optax
 import numpy as np
 import matplotlib.pyplot as plt
 
-from qvarnet.train import train
+from qvarnet import train
 from qvarnet.models.exponential import LogExponentialMLPwithPenalty
 from qvarnet.models.deep_set import DeepSet
 from qvarnet.hamiltonian.continuous import HarmonicOscillatorHamiltonian

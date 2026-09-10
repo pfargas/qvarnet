@@ -1,16 +1,14 @@
+import collections
+import dataclasses
 import json
 import os
-import dataclasses
-import collections
 
 import flax
 import jax
 import jax.numpy as jnp
-import optax
 
-from ..config.coord_mode import CoordMode, LabCoords, JacobiCoords
-from ..config.training_setup import TrainingConfig, CuspConfig
-
+from ..config.coord_mode import CoordMode, JacobiCoords, LabCoords
+from ..config.training_setup import CuspConfig, TrainingConfig
 
 # ---------------------------------------------------------------------------
 # Low-level save / load (unchanged from before)

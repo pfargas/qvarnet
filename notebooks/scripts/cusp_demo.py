@@ -17,7 +17,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import optax
 
-from qvarnet.train import train
+from qvarnet import train
 from qvarnet.config.training_setup import TrainingConfig
 from qvarnet.config.coord_mode import LabCoords
 from qvarnet.models.exponential import JastrowLogExponentialMLPwithPenalty

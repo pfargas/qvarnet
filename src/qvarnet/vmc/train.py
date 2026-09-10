@@ -25,8 +25,8 @@ from ..config.training_setup import (
 )
 from ..geometry.qgt import DEFAULT_QGT_CONFIG, QGTConfig
 from ..losses import CuspLoss, make_cusp_configs, make_cusp_pair_indices
-from ..samplers import geometric_betas, sample_and_process, sample_parallel_tempering, sample_and_process_1d_ordered
-from ..utils import load_checkpoint, load_doc, save_run_config
+from ..samplers import sample_and_process, sample_and_process_1d_ordered
+from ..utils import load_checkpoint, save_run_config
 from .metrics_history import MetricsHistory
 from .probability import build_prob_fn
 from .train_result import TrainResult
@@ -64,7 +64,6 @@ def _update_step_size(
     return jnp.clip(step_size * factor, min_step, max_step)
 
 
-@load_doc("train.txt")
 def train(
     shape,
     model,
@@ -159,14 +158,6 @@ def train(
         sampling_config = sampler_params
     else:
         sampling_config = parse_sampler_params(sampler_params)
-
-    # Resolve the parallel-tempering ladder once (a concrete tuple captured by full_update).
-    _pt_betas = None
-    # PT replicas run the same shared MH kernel (samplers/kernel.py) at tempered β.
-    if sampling_config.sampler == "pt":
-        _pt_betas = sampling_config.pt_betas or geometric_betas(
-            sampling_config.pt_n_replicas, sampling_config.pt_beta_min
-        )
 
     # PBC sanity check: the periodic-ansatz toggle (model transform) and the PBC-sampler
     # toggle (sampling_config.box_L) are independent by design, but a mismatch is a likely
@@ -288,25 +279,7 @@ def train(
         key, subkey, lap_key = jax.random.split(key, 3)
         n_chains, dof = current_pos.shape
 
-        if sampling_config.sampler == "pt":
-            batch, new_pos, acceptance_rate = sample_parallel_tempering(
-                key=subkey,
-                prob_fn=prob_fn,
-                prob_params=state.params,
-                init_positions=current_pos,
-                step_size=step_size,
-                n_chains=n_chains,
-                dof=dof,
-                n_steps=sampling_config.chain_length,
-                burn_in=sampling_config.thermalization_steps,
-                thinning=sampling_config.thinning_factor,
-                betas=_pt_betas,
-                swap_every=sampling_config.swap_every,
-                box_L=sampling_config.box_L or 0.0,
-                scale_steps=sampling_config.pt_scale_steps,
-                proposal=sampling_config.proposal,
-            )
-        elif sampling_config.sampler == "1d-ordered":
+        if sampling_config.sampler == "1d-ordered":
             batch, new_pos, acceptance_rate = sample_and_process_1d_ordered(
                 key=subkey,
                 prob_fn=prob_fn,
@@ -443,11 +416,7 @@ def train(
             block_len = initial_chain_config.warmup_steps // n_blocks
             warmup_step = initial_chain_config.warmup_step_size
             for block in range(n_blocks):
-                if sampling_config.sampler == "pt":
-                    raise NotImplementedError(
-                        "Block-adaptive warmup is not implemented for parallel tempering."
-                    )
-                elif sampling_config.sampler == "1d-ordered":
+                if sampling_config.sampler == "1d-ordered":
                     block_key = jax.random.fold_in(key, block)
                     _, current_positions, warmup_acc = sample_and_process_1d_ordered(
                         key=block_key,

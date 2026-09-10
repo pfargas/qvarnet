@@ -29,7 +29,7 @@ from qvarnet.config.training_setup import TrainingConfig
 from qvarnet.hamiltonian.continuous import HarmonicOscillatorHamiltonian
 from qvarnet.models.compose import LogWavefunction
 from qvarnet.models.mlp import MLP
-from qvarnet.train import train
+from qvarnet import train
 
 N_PARTICLES = 4
 N_DIM = 1

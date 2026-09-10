@@ -7,6 +7,7 @@ import optax
 import pytest
 from flax import linen as nn
 
+from qvarnet import train
 from qvarnet.boundaries import NoBoundary
 from qvarnet.config.training_setup import TrainingConfig
 from qvarnet.diagnostics import (
@@ -23,7 +24,6 @@ from qvarnet.hamiltonian.continuous import HarmonicOscillatorHamiltonian
 from qvarnet.models.compose import LogWavefunction
 from qvarnet.models.envelopes import GaussianEnvelope
 from qvarnet.models.mlp import MLP
-from qvarnet.train import train
 
 
 def ar1(phi, n, seed=0, drift=0.0):

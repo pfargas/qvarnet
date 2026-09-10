@@ -52,9 +52,6 @@ class LogExponentialMLPwithPenalty(BaseModel):
         log_wf = mlp_output - envelope_param * jnp.sum(x**4, axis=-1, keepdims=True)
         return log_wf
 
-    def build_from_params(self, params):
-        pass
-
     @classmethod
     def from_config(cls, model_args: dict):
         return cls(architecture=model_args["architecture"])
@@ -84,9 +81,6 @@ class LogExponentialMLPwithGaussianPenalty(BaseModel):
         mlp_output = mlp(x)
         log_wf = mlp_output - envelope_param * jnp.sum(x**2, axis=-1, keepdims=True)
         return log_wf
-
-    def build_from_params(self, params):
-        pass
 
     @classmethod
     def from_config(cls, model_args: dict):
@@ -130,9 +124,6 @@ class JastrowLogExponentialMLPwithGaussianPenalty(BaseModel):
         mlp_output = mlp(x)
         log_wf = mlp_output - envelope_param * jnp.sum(x**2, axis=-1, keepdims=True) + log_jastrow
         return log_wf
-
-    def build_from_params(self, params):
-        pass
 
     @classmethod
     def from_config(cls, model_args: dict):

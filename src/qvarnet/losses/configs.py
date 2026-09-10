@@ -1,7 +1,7 @@
 """Cusp condition utilities: fixed near-coalescence configuration generation."""
 
-import numpy as np
 import jax.numpy as jnp
+import numpy as np
 
 
 def make_cusp_configs(n_particles, L, epsilon, n_configs_per_pair, rng_seed=0):

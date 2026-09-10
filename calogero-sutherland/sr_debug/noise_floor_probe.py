@@ -27,7 +27,7 @@ from qvarnet.models.compose import LogWavefunction
 from qvarnet.models.envelopes import GaussianEnvelope
 from qvarnet.models.jastrow import LogJastrow
 from qvarnet.models.mlp import MLP
-from qvarnet.train import train
+from qvarnet import train
 
 N, CS_L = 30, 0.8
 N_CHAINS = 2048  # 4096 OOMs next to the live notebook kernel; η-scaling is internal

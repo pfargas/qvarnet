@@ -6,6 +6,7 @@ import numpy as np
 import optax
 from conftest import make_ho_model
 
+from qvarnet import train
 from qvarnet.config.training_setup import TrainingConfig
 from qvarnet.diagnostics import (
     d_eff,
@@ -19,7 +20,6 @@ from qvarnet.diagnostics import (
     theta_ratios,
 )
 from qvarnet.hamiltonian.continuous import HarmonicOscillatorHamiltonian
-from qvarnet.train import train
 
 
 def test_grad_norm_matches_manual():

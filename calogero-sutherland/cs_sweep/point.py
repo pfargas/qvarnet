@@ -36,7 +36,7 @@ from qvarnet.models.compose import LogWavefunction
 from qvarnet.models.envelopes import GaussianEnvelope
 from qvarnet.models.jastrow import LogJastrow
 from qvarnet.models.mlp import MLP
-from qvarnet.train import train
+from qvarnet import train
 
 # ── what we solve: the physics (defines the exact ground-state energy) ───────────────
 

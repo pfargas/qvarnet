@@ -24,7 +24,7 @@ from qvarnet.models.jastrow import LogJastrow
 from qvarnet.models.mlp import MLP
 from qvarnet.callbacks import SnapshotCallback
 from qvarnet.recipes import adam_train, sr_train
-from qvarnet.train import train
+from qvarnet import train
 
 N, CS_L = 30, 0.8
 N_CHAINS = 4096  # notebook value — also flips auto solver: P=4099 > M=4096 → minSR

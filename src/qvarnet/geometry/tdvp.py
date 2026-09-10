@@ -1,4 +1,9 @@
-"""Time-dependent variational Monte Carlo (TDVP) pieces (roadmap §8d, step 9).
+"""UNUSED / UNSUPPORTED -- kept for future imaginary-time (t-VMC) work.
+
+Nothing in qvarnet calls this module; it has no coverage beyond its own test and
+is not part of the supported API. Validate it before relying on it.
+
+Time-dependent variational Monte Carlo (TDVP) pieces (roadmap §8d, step 9).
 
 TDVP / McLachlan projects the exact evolution onto the variational manifold:
 

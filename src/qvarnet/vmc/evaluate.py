@@ -103,9 +103,6 @@ def evaluate(
     n_blocks:        blocks for the block-averaged error bar.
     progress:        optional callable(epoch_index) for external progress reporting.
     """
-    if sampling_config.sampler == "pt":
-        raise NotImplementedError("evaluate() supports the plain MH sampler only (for now)")
-
     coord_mode = coord_mode or LabCoords()
     hamiltonian = hamiltonian.replace(coord_mode=coord_mode)
     n_chains, dof = shape

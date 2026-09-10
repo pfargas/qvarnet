@@ -77,18 +77,6 @@ def test_evaluate_variational_model_is_above_ground_state():
     assert len(ev.energies) == 40
 
 
-def test_evaluate_rejects_parallel_tempering():
-    with pytest.raises(NotImplementedError):
-        evaluate(LogAnalyticWavefunction(), {"params": {"alpha": jnp.array(0.5)}},
-                 HarmonicOscillatorHamiltonian(), shape=(8, DOF),
-                 sampling_config=SamplingConfig(step_size=0.5, chain_length=4,
-                                                thermalization_steps=2, thinning_factor=1,
-                                                sampler="pt"),
-                 n_epochs=2)
-
-
-# ── the notebook flow: train -> evaluate_result -> summary ──────────────────────────
-
 
 @pytest.fixture(scope="module")
 def tiny_run(tmp_path_factory):

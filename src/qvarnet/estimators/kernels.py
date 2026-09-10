@@ -1,8 +1,8 @@
 """Numerical kernels for post-training estimators — host/numpy, 1-D.
 
-Standalone copies of the estimator maths (independent of ``qvarnet.observables``
-so that module can evolve or disappear without breaking this package). All
-functions take raw **lab-coordinate** samples ``(M, N*d)`` drawn from |ψ|².
+The single home for the estimator maths (the older ``qvarnet.observables``
+duplicate has been removed). All functions take raw **lab-coordinate** samples
+``(M, N*d)`` drawn from |ψ|².
 
 The OBDM kernels take a ``log_psi`` callable ``(batch, dof) -> (batch,)``
 instead of ``(model, params)`` — coordinate handling and parameter baking is

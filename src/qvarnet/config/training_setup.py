@@ -86,15 +86,7 @@ class SamplingConfig:
     thinning_factor: int
     proposal: Any = None  # Proposal | name | (name, kwargs); resolved in __post_init__, None → GaussianMove()
     box_L: float | None = None  # PBC sampler: wrap proposals into [0, L). None = off.
-    # Parallel tempering (generic barrier-crossing addition; see samplers/parallel_tempering.py).
-    # sampler="mh" (default) is the plain local-move chain; "pt" stacks replicas per chain at
-    # inverse temperatures 1=β₁>…>β_R sampling |ψ|^{2β} and returns only the cold (β=1) replica.
-    sampler: str = "mh"            # "mh" | "pt"
-    pt_n_replicas: int = 4         # number of temperature replicas (used if pt_betas is None)
-    pt_beta_min: float = 0.1       # coldest→hottest geometric ladder endpoint
-    pt_betas: tuple | None = None  # explicit ladder (must start at 1.0); overrides the two above
-    swap_every: int = 1            # attempt a replica swap every this many steps
-    pt_scale_steps: bool = True    # hotter replicas take larger steps (σ/√β)
+    sampler: str = "mh"  # "mh" (plain local-move chain) | "1d-ordered"
 
     def __post_init__(self):
         # Resolve the proposal spec to a frozen Proposal instance (keeps the config
@@ -109,12 +101,8 @@ class SamplingConfig:
             raise ValueError(f"step_size must be positive, got {self.step_size}")
         if self.box_L is not None and self.box_L <= 0:
             raise ValueError(f"box_L must be positive when set, got {self.box_L}")
-        if self.sampler not in ("mh", "pt", "1d-ordered"):
-            raise ValueError(f"sampler must be 'mh' or 'pt', got {self.sampler!r}")
-        if self.pt_betas is not None and abs(self.pt_betas[0] - 1.0) > 1e-12:
-            raise ValueError(f"pt_betas[0] must be 1.0 (physical replica), got {self.pt_betas[0]}")
-        if self.pt_n_replicas < 1:
-            raise ValueError(f"pt_n_replicas must be >= 1, got {self.pt_n_replicas}")
+        if self.sampler not in ("mh", "1d-ordered"):
+            raise ValueError(f"sampler must be 'mh' or '1d-ordered', got {self.sampler!r}")
         if self.thinning_factor < 1:
             raise ValueError(f"thinning_factor must be >= 1, got {self.thinning_factor}")
         if self.thermalization_steps >= self.chain_length:
@@ -161,7 +149,6 @@ class TrainingConfig:
 def parse_sampler_params(sampler_args: dict[str, Any]) -> SamplingConfig:
     """Convert dict-based sampler configuration to typed dataclass."""
     raw_box_L = sampler_args.get("box_L", None)
-    raw_betas = sampler_args.get("pt_betas", None)
     return SamplingConfig(
         step_size=float(sampler_args.get("step_size", 1.0)),
         chain_length=int(sampler_args.get("chain_length", 500)),
@@ -170,11 +157,6 @@ def parse_sampler_params(sampler_args: dict[str, Any]) -> SamplingConfig:
         proposal=sampler_args.get("proposal", None),
         box_L=float(raw_box_L) if raw_box_L is not None else None,
         sampler=str(sampler_args.get("sampler", "mh")),
-        pt_n_replicas=int(sampler_args.get("pt_n_replicas", 4)),
-        pt_beta_min=float(sampler_args.get("pt_beta_min", 0.1)),
-        pt_betas=tuple(float(b) for b in raw_betas) if raw_betas is not None else None,
-        swap_every=int(sampler_args.get("swap_every", 1)),
-        pt_scale_steps=bool(sampler_args.get("pt_scale_steps", True)),
     )
 
 

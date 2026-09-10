@@ -1,9 +1,10 @@
 import inspect
-from typing import Callable
+from collections.abc import Callable
+
 from flax import struct
-from .base import BaseHamiltonian
-from .hamiltonian_registry import register_hamiltonian
+
 from .continuous import ContinuousHamiltonian
+from .hamiltonian_registry import register_hamiltonian
 
 
 def define_hamiltonian(name: str):

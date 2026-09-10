@@ -21,31 +21,23 @@ Run this script to train the model and generate a dashboard showing:
 - Single-particle and pair-particle correlations
 """
 
-import os
-import json
-from pathlib import Path
-from datetime import datetime
 
 import jax
 import jax.numpy as jnp
-from flax import linen as nn
-import optax
-import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
+import matplotlib.pyplot as plt
 import numpy as np
+import optax
+from flax import linen as nn
+
+from qvarnet import train
+from qvarnet.hamiltonian.continuous import (
+    HarmonicOscillatorHamiltonian,
+)
 
 # Import refactored modules
 from qvarnet.models.deep_set import DeepSet
-from qvarnet.hamiltonian.continuous import (
-    HarmonicOscillatorHamiltonian,
-    NN_OscillatorHamiltonian,
-)
-from qvarnet.train import train
-from qvarnet.probability import build_prob_fn
-from qvarnet.sampling_step import sample_and_process
-from qvarnet.training_step import compute_step
-from qvarnet.vmc_state import VMCState
-from qvarnet.config.training_setup import parse_sampler_params
+from qvarnet.vmc.probability import build_prob_fn
 
 
 def create_deepset_model(
@@ -192,13 +184,13 @@ def train_deepset_model(
     energies = jnp.array([float(state.energy) for state in state_history])
 
     # Generate samples from the trained model
-    print(f"    Generating samples from trained model...")
+    print("    Generating samples from trained model...")
     samples = sample_from_model(
         model, state_history[-1].params, n_samples=5000, seed=seed
     )
 
     # Check wavefunction symmetry
-    print(f"    Checking wavefunction symmetry...")
+    print("    Checking wavefunction symmetry...")
     symmetry_metrics = check_wavefunction_symmetry(model, state_history[-1].params)
 
     return {
@@ -233,7 +225,6 @@ def check_wavefunction_symmetry(
     Returns:
         Dictionary with permutation symmetry metrics
     """
-    from qvarnet.probability import build_prob_fn
 
     prob_fn = build_prob_fn(model.apply, is_log_model=True)
 
@@ -290,7 +281,6 @@ def sample_from_model(
     Returns:
         Samples of shape (n_samples, DoF)
     """
-    from qvarnet.probability import build_prob_fn
     from qvarnet.samplers import mh_chain
 
     key = jax.random.PRNGKey(seed)
@@ -372,14 +362,14 @@ def create_dashboard(results_list: list, save_path: str = "vmc_dashboard.png"):
     # ========== Row 1, Col 3: Training info ==========
     ax_info = fig.add_subplot(gs[0, 2])
     ax_info.axis("off")
-    info_text = f"Training Summary\n\n"
+    info_text = "Training Summary\n\n"
     info_text += f"Final E: {results['final_energy']:.6f}\n"
     info_text += f"Min E: {results['min_energy']:.6f}\n"
-    info_text += f"Exact E₀: 5.000000\n"
+    info_text += "Exact E₀: 5.000000\n"
     info_text += f"Error: {abs(results['final_energy'] - 5.0):.6f}\n"
     info_text += f"Epochs: {results['n_epochs']}\n\n"
-    info_text += f"System: 10 particles, 1D\n"
-    info_text += f"ω = 1.0\n"
+    info_text += "System: 10 particles, 1D\n"
+    info_text += "ω = 1.0\n"
     ax_info.text(
         0.05,
         0.5,
@@ -640,7 +630,7 @@ def create_dashboard(results_list: list, save_path: str = "vmc_dashboard.png"):
     # Save figure
     plt.savefig(save_path, dpi=300, bbox_inches="tight")
     print(f"\n✓ Dashboard saved to: {save_path}")
-    print(f"  Figure size: 18x14 inches @ 300 DPI")
+    print("  Figure size: 18x14 inches @ 300 DPI")
 
     return fig
 
@@ -668,7 +658,7 @@ def main():
     print(f"  ✓ Final energy: {results_ho['final_energy']:.6f}")
     print(f"  ✓ Min energy:   {results_ho['min_energy']:.6f}")
     print(f"  ✓ Epochs:       {results_ho['n_epochs']}")
-    print(f"\nPermutation Symmetry Check (DeepSet invariance):")
+    print("\nPermutation Symmetry Check (DeepSet invariance):")
     print(f"  ✓ Mean error:  {results_ho['symmetry']['mean_perm_error']:.2e}")
     print(f"  ✓ Max error:   {results_ho['symmetry']['max_perm_error']:.2e}")
     print(f"  ✓ Std error:   {results_ho['symmetry']['std_perm_error']:.2e}")
@@ -682,19 +672,19 @@ def main():
     print("\n" + "=" * 70)
     print("TRAINING COMPLETE")
     print("=" * 70)
-    print(f"\nEnergy Results:")
+    print("\nEnergy Results:")
     print(f"  Neural Network Final Energy:  {results_ho['final_energy']:.6f}")
-    print(f"  Theoretical Ground State (E₀ = D/2 = 5.0): 5.000000")
+    print("  Theoretical Ground State (E₀ = D/2 = 5.0): 5.000000")
     print(f"  Error: {abs(results_ho['final_energy'] - 5.0):.6f}")
-    print(f"\nPermutation Symmetry (DeepSet Invariance):")
-    print(f"  Relative error under random particle permutations:")
+    print("\nPermutation Symmetry (DeepSet Invariance):")
+    print("  Relative error under random particle permutations:")
     print(f"    Mean:  {results_ho['symmetry']['mean_perm_error']:.2e}")
     print(f"    Max:   {results_ho['symmetry']['max_perm_error']:.2e}")
     print(f"    Std:   {results_ho['symmetry']['std_perm_error']:.2e}")
     print(
         f"  Interpretation: {'✓ Perfect symmetry' if results_ho['symmetry']['mean_perm_error'] < 1e-6 else '✓ Excellent symmetry' if results_ho['symmetry']['mean_perm_error'] < 1e-4 else '✓ Good symmetry' if results_ho['symmetry']['mean_perm_error'] < 1e-2 else '⚠ Imperfect symmetry'}"
     )
-    print(f"\nDashboard saved as: vmc_dashboard.png")
+    print("\nDashboard saved as: vmc_dashboard.png")
     print("\nKey visualizations:")
     print("  • Energy convergence during training")
     print("  • Single-particle marginal density")

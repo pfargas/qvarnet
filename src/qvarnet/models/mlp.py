@@ -49,19 +49,6 @@ class MLP(BaseModel):
             x = self.hidden_activation(x)
         return x
 
-    def build_from_params(self, params):
-        architecture = []
-        layers = params["params"]
-        for layer_name in layers:
-            layer_params = layers[layer_name]
-            if "kernel" in layer_params:
-                architecture.append(layer_params["kernel"].shape[0])
-        # Append output layer size
-        last_layer = list(layers.keys())[-1]
-        output_size = layers[last_layer]["kernel"].shape[1]
-        architecture.append(output_size)
-        return MLP(architecture=architecture)
-
     @classmethod
     def from_config(cls, model_args: dict):
         return cls(architecture=model_args["architecture"])

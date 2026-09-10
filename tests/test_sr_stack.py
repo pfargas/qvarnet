@@ -4,6 +4,7 @@ recipes). Pins the 2026-07 numerical fixes so config refactors stay safe."""
 import jax.numpy as jnp
 import numpy as np
 
+from qvarnet import train
 from qvarnet.boundaries import NoBoundary
 from qvarnet.config.coord_mode import LabCoords
 from qvarnet.geometry.qgt import (
@@ -18,7 +19,6 @@ from qvarnet.models.envelopes import GaussianEnvelope
 from qvarnet.models.jastrow import LogJastrow
 from qvarnet.models.mlp import MLP
 from qvarnet.recipes import adam_train, sr_train
-from qvarnet.train import train
 
 
 def _linear_apply(p, x):

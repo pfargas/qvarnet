@@ -15,14 +15,6 @@ class BaseModel(nn.Module):
         """
         raise NotImplementedError("Subclasses must implement __call__ method.")
 
-    def build_from_params(self, params):
-        """Build the model from a set of parameters.
-
-        Args:
-            params: A dictionary of parameters to build the model.
-        """
-        raise NotImplementedError("Subclasses must implement build_from_params method.")
-
     @classmethod
     def from_config(cls, model_args: dict):
         """Instantiate this model from a model_args config dict.

@@ -14,7 +14,6 @@ from .mlp import MLP as MLP
 from .mlp_fermions import FermionicMLP as FermionicMLP
 from .registry import MODEL_REGISTRY as MODEL_REGISTRY
 from .registry import register_model as register_model
-from .transformer import TransformerWavefunction as TransformerWavefunction
 
 
 def get_model(model_name, **kwargs):

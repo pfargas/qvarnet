@@ -6,9 +6,9 @@ import numpy as np
 import optax
 from conftest import make_ho_model
 
+from qvarnet import train
 from qvarnet.config.training_setup import TrainingConfig
 from qvarnet.hamiltonian.continuous import HarmonicOscillatorHamiltonian
-from qvarnet.train import train
 
 
 def test_single_particle_ho_converges_to_half(tmp_path):

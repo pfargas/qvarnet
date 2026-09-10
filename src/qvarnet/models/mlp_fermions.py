@@ -1,10 +1,11 @@
-import jax.numpy as jnp
-import jax.nn
-from .layers import CustomDense
-from flax import linen as nn
-from typing import Callable
-from .base import BaseModel
+from collections.abc import Callable
 
+import jax.nn
+import jax.numpy as jnp
+from flax import linen as nn
+
+from .base import BaseModel
+from .layers import CustomDense
 from .registry import register_model
 
 

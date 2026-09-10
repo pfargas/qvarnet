@@ -129,9 +129,9 @@ def test_train_end_to_end_with_subset_proposal(tmp_path):
     import optax
     from conftest import make_ho_model
 
+    from qvarnet import train
     from qvarnet.config.training_setup import TrainingConfig
     from qvarnet.hamiltonian.continuous import HarmonicOscillatorHamiltonian
-    from qvarnet.train import train
 
     result = train(
         shape=(32, 2),
@@ -153,25 +153,3 @@ def test_train_end_to_end_with_subset_proposal(tmp_path):
     assert np.all(np.isfinite(e))
 
 
-def test_pt_with_subset_proposal_crosses_barrier():
-    """Shared-kernel regression: PT with a non-default proposal still mixes modes."""
-    from jax.scipy.special import logsumexp
-
-    from qvarnet.samplers import geometric_betas, sample_parallel_tempering
-
-    D, S = 4.0, 0.4
-
-    def prob_fn(x, _):
-        a = -((x - D) ** 2) / (2 * S**2)
-        b = -((x + D) ** 2) / (2 * S**2)
-        return jnp.squeeze(logsumexp(jnp.stack([a, b], axis=-1), axis=-1))
-
-    pt, _, _ = sample_parallel_tempering(
-        key=jax.random.PRNGKey(0), prob_fn=prob_fn, prob_params={},
-        init_positions=jnp.full((128, 1), D), step_size=0.5, n_chains=128, dof=1,
-        n_steps=400, burn_in=100, thinning=2,
-        betas=geometric_betas(6, beta_min=0.03), swap_every=1,
-        proposal=DoFSubsetMove(k=1),
-    )
-    frac_other = float(np.mean(np.asarray(pt).ravel() < 0.0))
-    assert frac_other > 0.2, f"PT with subset proposal stayed trapped: {frac_other:.3f}"

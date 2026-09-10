@@ -9,7 +9,6 @@ from .hamiltonian.periodic import LatticeBoseHamiltonian, PenetrableSphereHamilt
 from .models.layers import AppendPairwiseDiffs, SubtractCM
 from .particles import Particles
 from .recipes import adam_train, sr_train
-from .utils import load_custom_module
 from .vmc.evaluate import EvalResult, evaluate, evaluate_result
 from .vmc.train import train
 from .vmc.train_result import TrainResult
@@ -24,7 +23,6 @@ __all__ = [
     "EvalResult",
     "define_hamiltonian",
     "list_hamiltonians",
-    "load_custom_module",
     "LabCoords",
     "JacobiCoords",
     "TrainingConfig",

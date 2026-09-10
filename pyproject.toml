@@ -30,9 +30,6 @@ dependencies = [
 [tool.uv.sources]
 runq = { path = "../runq", editable = true }
 
-[project.scripts]
-qvarnet = "qvarnet.runner:main"
-
 # ---------------------------------------------------------------------------
 # Optional extras (pip install qvarnet[docs])
 # ---------------------------------------------------------------------------

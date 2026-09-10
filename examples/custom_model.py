@@ -15,12 +15,12 @@ import flax.linen as nn
 import jax.numpy as jnp
 import optax
 
+from qvarnet import train
 from qvarnet.config.coord_mode import LabCoords
 from qvarnet.config.training_setup import TrainingConfig
 from qvarnet.hamiltonian.continuous import HarmonicOscillatorHamiltonian
 from qvarnet.models.base import BaseModel
 from qvarnet.models.registry import register_model
-from qvarnet.train import train
 from qvarnet.utils.checkpoint import load_run
 
 # ---------------------------------------------------------------------------

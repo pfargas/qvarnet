@@ -14,6 +14,7 @@ import optax
 import pytest
 from conftest import make_ho_model
 
+from qvarnet import train
 from qvarnet.config.training_setup import TrainingConfig
 from qvarnet.geometry.qgt import (
     QGTConfig,
@@ -21,7 +22,6 @@ from qvarnet.geometry.qgt import (
     compute_natural_gradient_minsr,
 )
 from qvarnet.hamiltonian.continuous import HarmonicOscillatorHamiltonian
-from qvarnet.train import train
 from qvarnet.vmc.training_step import compute_local_energy
 
 

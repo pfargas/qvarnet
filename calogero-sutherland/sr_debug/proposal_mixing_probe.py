@@ -32,7 +32,7 @@ from qvarnet.samplers import (
     integrated_autocorr_time,
     sample_and_process,
 )
-from qvarnet.train import train
+from qvarnet import train
 from qvarnet.vmc.probability import build_prob_fn
 
 N, CS_L = 30, 0.8

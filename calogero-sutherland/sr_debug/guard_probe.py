@@ -29,7 +29,7 @@ from qvarnet.models.envelopes import GaussianEnvelope
 from qvarnet.models.jastrow import LogJastrow
 from qvarnet.models.mlp import MLP
 from qvarnet.recipes import adam_train, sr_train
-from qvarnet.train import train
+from qvarnet import train
 
 N, CS_L = 30, 0.8
 N_CHAINS = 2048

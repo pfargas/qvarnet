@@ -1,6 +1,7 @@
-from flax import linen as nn
+from collections.abc import Callable
+
 import jax.numpy as jnp
-from typing import Callable
+from flax import linen as nn
 
 
 class CustomDense(nn.Module):

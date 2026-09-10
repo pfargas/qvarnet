@@ -1,13 +1,10 @@
-from typing import Callable
 
-import jax
 from flax import linen as nn
 from jax import numpy as jnp
 
 from .base import BaseModel
-from .layers.custom_dense import CustomDense
-from .mlp import MLP
 from .registry import register_model
+
 
 @register_model("CS-analytic")
 class CalogeroSutherlandAnalyticModel(BaseModel):

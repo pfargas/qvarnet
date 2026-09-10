@@ -10,10 +10,10 @@ import jax.numpy as jnp
 import optax
 from conftest import make_ho_model
 
+from qvarnet import train
 from qvarnet.callbacks.snapshot import resolve_metric_fn
 from qvarnet.config.training_setup import TrainingConfig
 from qvarnet.hamiltonian.continuous import HarmonicOscillatorHamiltonian
-from qvarnet.train import train
 
 
 def _run(tmp_path, **kw):

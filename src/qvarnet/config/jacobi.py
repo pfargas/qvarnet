@@ -1,6 +1,8 @@
+from functools import partial
+
 import jax
 import jax.numpy as jnp
-from functools import partial
+
 
 def jacobi_transformation(n_particles: int):
     """

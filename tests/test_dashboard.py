@@ -3,10 +3,10 @@
 import optax
 from conftest import make_ho_model
 
+from qvarnet import train
 from qvarnet.config.training_setup import TrainingConfig
 from qvarnet.diagnostics import plot_dashboard
 from qvarnet.hamiltonian.continuous import HarmonicOscillatorHamiltonian
-from qvarnet.train import train
 
 
 def test_dashboard_builds_and_saves(tmp_path):

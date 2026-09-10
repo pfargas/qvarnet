@@ -30,7 +30,7 @@ from qvarnet.models.compose import LogWavefunction
 from qvarnet.models.envelopes import GaussianEnvelope
 from qvarnet.models.jastrow import LogJastrow
 from qvarnet.models.mlp import MLP
-from qvarnet.train import train
+from qvarnet import train
 
 N, CS_L = 30, 0.8
 E0 = N * (1 + CS_L * (N - 1))
