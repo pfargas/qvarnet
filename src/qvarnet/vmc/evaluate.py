@@ -123,7 +123,7 @@ def evaluate(
             key=subkey,
             prob_fn=prob_fn,
             prob_params=params,
-            init_positions=positions,
+            init_positions=current_pos,
             step_size=step_size,
             n_chains=n_chains,
             dof=dof,
