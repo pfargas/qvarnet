@@ -2,7 +2,7 @@
 
 A guided tour of the API, from a first run to writing your own sampler.
 
-All four are committed **with their outputs**, so you can read them straight through
+All five are committed **with their outputs**, so you can read them straight through
 without running anything — and so a diff shows when a change moves the numbers. They
 pin `JAX_PLATFORMS=cpu` in the first cell: they are small, and it keeps them off your
 GPU while real runs are going. Delete that line to use the default device.
@@ -19,6 +19,7 @@ uv run jupyter nbconvert --to notebook --execute --inplace notebooks/*.ipynb
 | `02-custom-sampler.ipynb` | writing your own sampler. The 1-D hard-rod ordered sector in one method, plus a reflecting-wall variant | ~15 s |
 | `03-estimators.ipynb` | `TrainedWavefunction`: density against the analytic HO, pair correlation, S(k), and blocking error bars | ~40 s |
 | `04-diagnostics-and-sr.ipynb` | the three convergence referees, SR vs Adam, the SR guard diagnostics, and early stopping | ~3 min |
+| `05-calogero-sutherland.ipynb` | VMC on the Calogero–Sutherland model (N=4, λ=2) against the exact energy | ~45 s |
 
 ## Two things they show that are worth knowing
 
