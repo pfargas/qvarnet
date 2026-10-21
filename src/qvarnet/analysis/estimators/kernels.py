@@ -149,11 +149,17 @@ def pair_correlation_grid(samples, grid, n_particles, n_dim=1, L=None):
 # ---------------------------------------------------------------------------
 
 
-def structure_factor(samples, n_particles, k_values, n_dim=1):
-    """S(k) = ⟨|ρ_k|²⟩ / N with ρ_k = Σ_j e^{i k x_j}, for k ≠ 0.
+def structure_factor(samples, n_particles, k_values, n_dim=1, connected=True):
+    """S(k) = (⟨|ρ_k|²⟩ − |⟨ρ_k⟩|²) / N with ρ_k = Σ_j e^{i k x_j}.
 
-    Returns ``(k_values, S)``. Sanity: S(k) → 1 as k → ∞; in a periodic box
-    only commensurate k = 2πn/L are valid. Currently 1-D.
+    The connected form is 1 + FT of ρ₂(x,x′) − ρ(x)ρ(x′) in (x − x′), valid for
+    trapped systems too: without the subtraction a trap leaks |ρ̃(k)|²/N into
+    S(k), which blows up as k → 0. With PBC and commensurate k, ⟨ρ_k⟩ = 0 and
+    both forms agree. ``connected=False`` returns the bare ⟨|ρ_k|²⟩ / N.
+
+    Returns ``(k_values, S)``. Sanity: S(k) → 1 as k → ∞, S(0) = 0 at fixed N
+    (connected). In a periodic box only commensurate k = 2πn/L are valid.
+    Currently 1-D.
     """
     if n_dim != 1:
         raise NotImplementedError("structure_factor currently supports n_dim=1")
@@ -163,8 +169,10 @@ def structure_factor(samples, n_particles, k_values, n_dim=1):
     k = np.asarray(k_values, dtype=float)
     phases = np.exp(1j * x[:, :, None] * k[None, None, :])  # (M, N, K)
     rho_k = phases.sum(axis=1)  # (M, K)
-    S = (np.abs(rho_k) ** 2).mean(axis=0) / n_particles
-    return k, S.real
+    S = (np.abs(rho_k) ** 2).mean(axis=0)
+    if connected:
+        S = S - np.abs(rho_k.mean(axis=0)) ** 2
+    return k, S / n_particles
 
 
 def commensurate_k(L, n_max):

@@ -222,3 +222,16 @@ def test_structure_factor_invariant_on_commensurate_k():
     _, S_x = structure_factor(x, n_particles=4, k_values=k)
     _, S_shift = structure_factor(x + L, n_particles=4, k_values=k)  # shift by a box
     np.testing.assert_allclose(S_x, S_shift, atol=1e-6)
+
+
+def test_structure_factor_connected_iid_gaussian():
+    # N iid particles with unit Gaussian density: exact connected S(k) = 1 − e^{−k²},
+    # while the bare ⟨|ρ_k|²⟩/N = 1 + (N−1) e^{−k²} keeps the trap's form factor.
+    rng = np.random.default_rng(2)
+    N = 4
+    x = rng.normal(size=(200000, N))
+    k = np.array([0.1, 0.5, 1.0, 2.0])
+    _, S_c = structure_factor(x, n_particles=N, k_values=k)
+    _, S_bare = structure_factor(x, n_particles=N, k_values=k, connected=False)
+    np.testing.assert_allclose(S_c, 1.0 - np.exp(-(k**2)), atol=0.02)
+    np.testing.assert_allclose(S_bare, 1.0 + (N - 1) * np.exp(-(k**2)), atol=0.05)

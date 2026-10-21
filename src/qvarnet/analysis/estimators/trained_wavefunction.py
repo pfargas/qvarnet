@@ -363,11 +363,12 @@ class TrainedWavefunction:
             L=self._L(),
         )
 
-    def structure_factor(self, k_values=None, n_max=20, samples=None):
+    def structure_factor(self, k_values=None, n_max=20, samples=None, connected=True):
         """Static structure factor S(k). Returns ``(k, S)``.
 
         ``k_values=None`` uses the commensurate k = 2πn/L, n = 1..n_max
-        (requires ``box_L > 0``).
+        (requires ``box_L > 0``). ``connected=True`` subtracts |⟨ρ_k⟩|², i.e. S is
+        the FT of ρ₂ − ρρ (needed for trapped systems); see ``kernels.structure_factor``.
         """
         if k_values is None:
             if self.box_L <= 0:
@@ -376,7 +377,8 @@ class TrainedWavefunction:
                 )
             k_values = kernels.commensurate_k(self.box_L, n_max)
         return kernels.structure_factor(
-            self._resolve_samples(samples), self.n_particles, k_values, self.n_dim
+            self._resolve_samples(samples), self.n_particles, k_values, self.n_dim,
+            connected=connected,
         )
 
     def obdm(self, grid, samples=None):
