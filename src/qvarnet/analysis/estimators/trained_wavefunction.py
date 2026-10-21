@@ -363,22 +363,36 @@ class TrainedWavefunction:
             L=self._L(),
         )
 
-    def structure_factor(self, k_values=None, n_max=20, samples=None, connected=True):
-        """Static structure factor S(k). Returns ``(k, S)``.
-
-        ``k_values=None`` uses the commensurate k = 2πn/L, n = 1..n_max
-        (requires ``box_L > 0``). ``connected=True`` subtracts |⟨ρ_k⟩|², i.e. S is
-        the FT of ρ₂ − ρρ (needed for trapped systems); see ``kernels.structure_factor``.
-        """
+    def _k_values(self, k_values, n_max):
         if k_values is None:
             if self.box_L <= 0:
                 raise ValueError(
                     "k_values=None needs a periodic box (box_L > 0) to pick commensurate k"
                 )
             k_values = kernels.commensurate_k(self.box_L, n_max)
+        return k_values
+
+    def structure_factor(self, k_values=None, n_max=20, samples=None, connected=True):
+        """Static structure factor S(k) = S(k, k). Returns ``(k, S)``.
+
+        ``k_values=None`` uses the commensurate k = 2πn/L, n = 1..n_max
+        (requires ``box_L > 0``). ``connected=True`` subtracts |⟨ρ_k⟩|², i.e. S is
+        the FT of ρ₂ − ρρ (needed for trapped systems); see ``kernels.structure_factor``.
+        """
         return kernels.structure_factor(
-            self._resolve_samples(samples), self.n_particles, k_values, self.n_dim,
-            connected=connected,
+            self._resolve_samples(samples), self.n_particles,
+            self._k_values(k_values, n_max), self.n_dim, connected=connected,
+        )
+
+    def structure_factor_matrix(self, k_values=None, n_max=20, samples=None, connected=True):
+        """General S(k, k′). Returns ``(k, S)``, S complex Hermitian (K, K).
+
+        Unlike ``structure_factor`` this keeps both momenta (valid for
+        trapped/inhomogeneous systems, where k ≠ k′ couple). Same arguments.
+        """
+        return kernels.structure_factor_matrix(
+            self._resolve_samples(samples), self.n_particles,
+            self._k_values(k_values, n_max), self.n_dim, connected=connected,
         )
 
     def obdm(self, grid, samples=None):

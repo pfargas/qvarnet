@@ -149,17 +149,15 @@ def pair_correlation_grid(samples, grid, n_particles, n_dim=1, L=None):
 # ---------------------------------------------------------------------------
 
 
-def structure_factor(samples, n_particles, k_values, n_dim=1, connected=True):
-    """S(k) = (⟨|ρ_k|²⟩ − |⟨ρ_k⟩|²) / N with ρ_k = Σ_j e^{i k x_j}.
+def structure_factor_matrix(samples, n_particles, k_values, n_dim=1, connected=True):
+    """S(k, k′) = (⟨ρ_k ρ_k′*⟩ − ⟨ρ_k⟩⟨ρ_k′⟩*) / N with ρ_k = Σ_j e^{i k x_j}.
 
-    The connected form is 1 + FT of ρ₂(x,x′) − ρ(x)ρ(x′) in (x − x′), valid for
-    trapped systems too: without the subtraction a trap leaks |ρ̃(k)|²/N into
-    S(k), which blows up as k → 0. With PBC and commensurate k, ⟨ρ_k⟩ = 0 and
-    both forms agree. ``connected=False`` returns the bare ⟨|ρ_k|²⟩ / N.
+    The general two-momentum form, i.e. the FT of ρ₂(x,x′) − ρ(x)ρ(x′) in both x
+    and x′. Translation invariance (PBC, commensurate k) makes it diagonal; a trap
+    couples k ≠ k′ within ~1/(cloud size). Hermitian, complex in general (real
+    for parity-symmetric states). ``connected=False`` drops the ⟨ρ_k⟩⟨ρ_k′⟩* term.
 
-    Returns ``(k_values, S)``. Sanity: S(k) → 1 as k → ∞, S(0) = 0 at fixed N
-    (connected). In a periodic box only commensurate k = 2πn/L are valid.
-    Currently 1-D.
+    Returns ``(k_values, S)`` with S of shape (K, K). Currently 1-D.
     """
     if n_dim != 1:
         raise NotImplementedError("structure_factor currently supports n_dim=1")
@@ -167,12 +165,29 @@ def structure_factor(samples, n_particles, k_values, n_dim=1, connected=True):
     M = s.shape[0]
     x = s.reshape(M, n_particles)
     k = np.asarray(k_values, dtype=float)
-    phases = np.exp(1j * x[:, :, None] * k[None, None, :])  # (M, N, K)
-    rho_k = phases.sum(axis=1)  # (M, K)
-    S = (np.abs(rho_k) ** 2).mean(axis=0)
+    rho_k = np.exp(1j * x[:, :, None] * k[None, None, :]).sum(axis=1)  # (M, K)
+    S = rho_k.T @ rho_k.conj() / M  # (K, K)
     if connected:
-        S = S - np.abs(rho_k.mean(axis=0)) ** 2
+        mean = rho_k.mean(axis=0)
+        S = S - np.outer(mean, mean.conj())
     return k, S / n_particles
+
+
+def structure_factor(samples, n_particles, k_values, n_dim=1, connected=True):
+    """S(k) = S(k, k), the diagonal of ``structure_factor_matrix``.
+
+    The connected form is 1 + FT of ρ₂(x,x′) − ρ(x)ρ(x′) in (x − x′), integrated
+    over (x + x′)/2, so for a trap it is the trap-averaged S (what whole-cloud
+    Bragg measures). Without the subtraction a trap leaks |ρ̃(k)|²/N into S(k),
+    which blows up as k → 0. With PBC and commensurate k, ⟨ρ_k⟩ = 0 and both
+    forms agree. ``connected=False`` returns the bare ⟨|ρ_k|²⟩ / N.
+
+    Returns ``(k_values, S)``. Sanity: S(k) → 1 as k → ∞, S(0) = 0 at fixed N
+    (connected). In a periodic box only commensurate k = 2πn/L are valid.
+    Currently 1-D.
+    """
+    k, S = structure_factor_matrix(samples, n_particles, k_values, n_dim, connected)
+    return k, np.diagonal(S).real
 
 
 def commensurate_k(L, n_max):

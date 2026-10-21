@@ -10,7 +10,7 @@ import jax.numpy as jnp
 import numpy as np
 from flax import linen as nn
 
-from qvarnet.analysis.estimators import TrainedWavefunction
+from qvarnet.analysis.estimators import TrainedWavefunction, kernels
 from qvarnet.core.coords import JacobiCoords
 
 
@@ -84,6 +84,24 @@ def test_pair_correlation_and_structure_factor():
     k, S = wf.structure_factor(k_values=[0.5, 5.0, 30.0])
     assert np.all(S > 0)
     assert abs(S[-1] - 1.0) < 0.15  # S(k) → 1 as k → ∞
+
+
+def test_structure_factor_matrix_free_ho():
+    # independent N(0, 1/2) particles (exact |ψ₀|²):
+    # S(k,k′) = e^{−(k−k′)²/4} − e^{−(k²+k′²)/4}; diagonal = 1 − e^{−k²/2}
+    rng = np.random.default_rng(0)
+    N = 3
+    x = rng.normal(scale=np.sqrt(0.5), size=(200_000, N))
+    k = np.array([0.3, 1.0, 2.0, 4.0])
+    _, S = kernels.structure_factor_matrix(x, N, k)
+    assert S.shape == (4, 4)
+    exact = np.exp(-((k[:, None] - k[None, :]) ** 2) / 4) - np.exp(
+        -(k[:, None] ** 2 + k[None, :] ** 2) / 4
+    )
+    np.testing.assert_allclose(S, S.conj().T, atol=1e-12)  # Hermitian
+    np.testing.assert_allclose(S.real, exact, atol=0.01)
+    _, S_diag = kernels.structure_factor(x, N, k)
+    np.testing.assert_allclose(S_diag, np.diagonal(S).real)
 
 
 def test_structure_factor_needs_k_without_box():

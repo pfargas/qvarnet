@@ -235,3 +235,23 @@ def test_structure_factor_connected_iid_gaussian():
     _, S_bare = structure_factor(x, n_particles=N, k_values=k, connected=False)
     np.testing.assert_allclose(S_c, 1.0 - np.exp(-(k**2)), atol=0.02)
     np.testing.assert_allclose(S_bare, 1.0 + (N - 1) * np.exp(-(k**2)), atol=0.05)
+
+
+# ---------- Sutherland model: exact ground state on a ring ----------
+
+
+def test_sutherland_exact_state_has_constant_local_energy():
+    # ψ₀ = Π|sin(π x_ij/L)|^λ is an eigenstate: E_loc ≡ (π/L)² λ² N(N²−1)/3 for any x,
+    # in both pairwise paths.
+    from qvarnet.physics.hamiltonian.continuous import CalogeroSutherlandSinHamiltonian
+
+    n, lam = 3, 2.0
+    model = LogJastrow(n_particles=n, lambda_init=lam, L=L)
+    x = jnp.asarray(np.random.default_rng(0).uniform(0.0, L, size=(32, n)))
+    params = model.init(jax.random.PRNGKey(0), x)
+    E0 = (np.pi / L) ** 2 * lam**2 * n * (n**2 - 1) / 3
+    for impl in ("vectorized", "scan"):
+        H = CalogeroSutherlandSinHamiltonian(L=lam, L_box=L, pairwise_impl=impl)
+        e = np.asarray(H.local_energy(params, x, model.apply))
+        assert e.shape == (32,)
+        np.testing.assert_allclose(e, E0, rtol=1e-4)
