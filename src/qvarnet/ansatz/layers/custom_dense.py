@@ -23,4 +23,4 @@ class CustomDense(nn.Module):
         kernel = self.param("kernel", self.kernel_init, (inputs.shape[-1], self.features))
         y = jnp.dot(inputs, self.beta * kernel)  # (..., features)
         bias = self.param("bias", self.bias_init, (self.features,))
-        return y + bias  # (..., features)
+        return y + bias.reshape((1,) * (y.ndim - 1) + (-1,))  # explicit broadcast: same rank as y
