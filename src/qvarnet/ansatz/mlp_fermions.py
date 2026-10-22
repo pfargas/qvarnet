@@ -15,8 +15,11 @@ class FermionicMLP(nn.Module):
         __call__ input:  (..., n_fermions * n_dim)
         After reshape:   (..., n_fermions, n_dim)
         After hidden:    (..., n_fermions, architecture[-1])
-        After output:    (..., n_fermions, n_fermions)   ← orbital matrix
-        After det:       (...)                            ← one scalar per config
+        After output:    (..., n_fermions, n_fermions)   ← orbital matrix Φ_ij = φ_j(x_i)
+        After slogdet:   (log_abs, phase), each (...,)    ← phase ∈ {0, π}
+
+    Spin-polarised (one determinant). Orbitals are bounded (tanh), so wrap it in
+    ``LogWavefunction(network=..., envelope=GaussianEnvelope())`` for a trap.
 
     architecture: hidden layer widths only (NOT including input/output sizes).
     output_layer always has features=n_fermions to form square orbital matrix.
@@ -51,24 +54,17 @@ class FermionicMLP(nn.Module):
             name="orbital_output",
         )
 
-    def __call__(self, x):
-        # x: (..., n_fermions * n_dim)
-        n_dim = getattr(self, "n_dim", 1)
-        h = x.reshape(*x.shape[:-1], self.n_fermions, n_dim)
-        # h: (..., n_fermions, n_dim)
-
+    def orbitals(self, x):
+        """Orbital matrix Φ_ij = φ_j(x_i): (..., n_fermions * n_dim) → (..., n_fermions, n_fermions)."""
+        h = x.reshape(*x.shape[:-1], self.n_fermions, self.n_dim)
         for layer in self.hidden_layers:
-            h = layer(h)
-            h = self.hidden_activation(h)
-        # h: (..., n_fermions, architecture[-1])
+            h = self.hidden_activation(layer(h))
+        return self.output_layer(h)
 
-        orbitals = self.output_layer(h)
-        # orbitals: (..., n_fermions, n_fermions)  ← [particle i, orbital j]
-
-        psi = jnp.linalg.det(orbitals)
-        # psi: (...)  ← det over last two dims; one scalar per config
-
-        return psi
+    def __call__(self, x):
+        sign, log_abs = jnp.linalg.slogdet(self.orbitals(x))  # (...,) each
+        phase = jnp.where(sign < 0, jnp.pi, 0.0)
+        return log_abs, phase
 
 
 class HalfSpinNonInteractingFermion(nn.Module):

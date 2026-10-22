@@ -154,4 +154,5 @@ def test_logwavefunction_default_transform():
     )
     x = jnp.ones((3, 4))
     params = psi.init(jax.random.PRNGKey(0), x)
-    assert psi.apply(params, x).shape == (3, 1)
+    log_abs, phase = psi.apply(params, x)
+    assert log_abs.shape == phase.shape == (3,)

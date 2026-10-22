@@ -10,6 +10,8 @@ from functools import partial
 import jax
 import jax.numpy as jnp
 
+from qvarnet.ansatz.output import split_log_psi
+
 
 def build_prob_fn(model_apply: Callable) -> Callable:
     """Build the log-probability function for MCMC sampling.
@@ -23,7 +25,7 @@ def build_prob_fn(model_apply: Callable) -> Callable:
 
     @partial(jax.jit, static_argnames=[])
     def prob_fn(x, params):
-        forward = model_apply(params, x).flatten()
+        forward = split_log_psi(model_apply(params, x))[0].flatten()
         return jnp.squeeze(2 * forward)  # log(|psi|^2) = 2*log|psi|
 
     return prob_fn

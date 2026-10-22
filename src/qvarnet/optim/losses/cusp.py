@@ -1,6 +1,7 @@
 import jax
 import jax.numpy as jnp
 
+from qvarnet.ansatz.output import split_log_psi
 from qvarnet.optim.losses.base import AuxiliaryLoss
 
 
@@ -22,7 +23,7 @@ class CuspLoss(AuxiliaryLoss):
 
     def __call__(self, params, model_apply, batch):
         def log_psi_single(pos):
-            return model_apply(params, pos[None]).squeeze()
+            return split_log_psi(model_apply(params, pos[None]))[0].squeeze()
 
         grad_log_psi = jax.vmap(jax.grad(log_psi_single))(self.cusp_configs)
         n_cusp = self.cusp_configs.shape[0]

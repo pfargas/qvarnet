@@ -19,6 +19,7 @@ implementations of the same operator:
 import jax
 import jax.numpy as jnp
 
+from qvarnet.ansatz.output import split_log_psi
 from qvarnet.physics.hamiltonian.laplacian import laplacian_forward_ad
 
 
@@ -45,7 +46,7 @@ def kinetic_log(
     """
 
     def log_psi(x):
-        return model_apply(params, x[None]).squeeze()  # x: (dof,) -> scalar
+        return split_log_psi(model_apply(params, x[None]))[0].squeeze()  # x: (dof,) -> scalar
 
     if use_folx:
         return _kinetic_folx(log_psi, samples, sparsity_threshold, dof_weights)

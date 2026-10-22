@@ -7,6 +7,7 @@ import jax
 import jax.numpy as jnp
 from jax.flatten_util import ravel_pytree
 
+from qvarnet.ansatz.output import split_log_psi
 from qvarnet.optim.qgt import (
     DEFAULT_QGT_CONFIG,
     QGTConfig,
@@ -64,7 +65,7 @@ def energy_and_grads(
     E, E_loc, sigma_e = energy_fn(hamiltonian, params, batch, model_apply, key=key)
 
     def loss(p):
-        log_psi = model_apply(p, batch).squeeze()
+        log_psi = split_log_psi(model_apply(p, batch))[0].squeeze()
         vmc = 2 * jnp.mean(jax.lax.stop_gradient(E_loc - E) * log_psi)
         if auxiliary_losses:
             aux = sum(aux_loss(p, model_apply, batch) for aux_loss in auxiliary_losses)

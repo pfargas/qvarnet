@@ -22,6 +22,7 @@ uv run jupyter nbconvert --to notebook --execute --inplace notebooks/*.ipynb
 | `05-calogero-sutherland.ipynb` | VMC on the Calogero–Sutherland model (N=4, λ=2) against the exact energy | ~45 s |
 | `06-moshinsky.ipynb` | Interacting trapped bosons (Moshinsky, N=3): trained MLP vs analytic g(x,x′) and S(k,k′) | ~50 s |
 | `07-sutherland-ring.ipynb` | Interacting ring (Sutherland, λ=2, any N via exact CβE sampling): trained periodic MLP vs exact g(x,x′) and diagonal S(k,k′) | ~60 s |
+| `08-trapped-fermions.ipynb` | Non-interacting spin-polarised fermions in a 1D trap (N=3): `(log_abs, phase)` convention, exact Hermite Slater (zero-variance check), trained `FermionicMLP` vs exact E₀ = N²/2 and density | ~50 s |
 
 ## Two things they show that are worth knowing
 

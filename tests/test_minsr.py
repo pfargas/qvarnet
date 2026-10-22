@@ -40,7 +40,7 @@ def test_minsr_matches_full_sr_same_reg():
 
     # autodiff force F = ∇θ 2⟨(E_loc-Ē) logψ⟩ — what the full-SR path solves S δ = F with.
     def loss(p):
-        log_psi = model.apply(p, batch).squeeze()
+        log_psi, _ = model.apply(p, batch)
         return 2 * jnp.mean(jax.lax.stop_gradient(e_loc - jnp.mean(e_loc)) * log_psi)
 
     grads = jax.grad(loss)(params)

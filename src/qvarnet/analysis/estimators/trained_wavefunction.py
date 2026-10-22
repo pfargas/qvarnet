@@ -25,6 +25,7 @@ import jax.numpy as jnp
 import numpy as np
 
 from qvarnet.analysis.estimators import kernels
+from qvarnet.ansatz.output import split_log_psi
 from qvarnet.ansatz.probability import build_prob_fn
 from qvarnet.core.coords import CoordMode, JacobiCoords, LabCoords
 from qvarnet.sampling import Metropolis
@@ -118,7 +119,7 @@ class TrainedWavefunction:
 
     def log_psi(self, x):
         """log|ψ(x)| with everything baked. ``x``: lab coords ``(..., N*d)`` → ``(...,)``."""
-        return jnp.squeeze(self.model.apply(self.params, jnp.asarray(x)), axis=-1)
+        return split_log_psi(self.model.apply(self.params, jnp.asarray(x)))[0]
 
     # -- sampling ------------------------------------------------------------
 

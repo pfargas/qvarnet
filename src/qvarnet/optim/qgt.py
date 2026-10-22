@@ -17,6 +17,8 @@ import jax
 import jax.numpy as jnp
 from jax.flatten_util import ravel_pytree
 
+from qvarnet.ansatz.output import split_log_psi
+
 
 class QGTConfig:
     """Configuration for stochastic reconfiguration (natural-gradient) optimisation.
@@ -129,7 +131,7 @@ def compute_log_derivatives(params, batch, model_apply):
     """
 
     def log_psi(p, x):
-        return model_apply(p, x[None]).squeeze()  # x[None]: (1, dof) → scalar
+        return split_log_psi(model_apply(p, x[None]))[0].squeeze()  # x[None]: (1, dof) → scalar
 
     return jax.vmap(jax.grad(log_psi, argnums=0), in_axes=(None, 0))(params, batch)
 

@@ -1,6 +1,7 @@
 import warnings
 from typing import Any
 
+import jax.numpy as jnp
 from flax import linen as nn
 
 from qvarnet.physics.boundaries import NoBoundary, PeriodicBoundary
@@ -10,10 +11,13 @@ class LogWavefunction(nn.Module):
     """Composable log-wavefunction.
 
     log|psi(x)| = network(transform(x)) [+ envelope(x)] [+ jastrow(x)]
+    phase(x)    = network phase, or 0
 
-    All active components output ``(..., 1)`` and are summed in log space. The
-    envelope and Jastrow see the *raw* coordinates, so their physics stays tied to
-    real-space geometry.
+    Returns ``(log_abs, phase)``, each ``(...,)`` (see ``ansatz/output.py``).
+    Envelope and Jastrow output ``(..., 1)`` and add to log|ψ| only. The network
+    outputs either ``(..., 1)`` (bosonic: phase 0) or its own ``(log_abs, phase)``
+    pair (e.g. a Slater determinant). The envelope and Jastrow see the *raw*
+    coordinates, so their physics stays tied to real-space geometry.
 
     Args:
         network: maps encoded coordinates to ``(..., 1)``. An MLP takes flat
@@ -57,9 +61,14 @@ class LogWavefunction(nn.Module):
             x_for_net = x_enc.reshape(*x_enc.shape[:-1], self.n_particles, ppd)
         else:
             x_for_net = x_enc
-        log_psi = self.network(x_for_net)
+        net_out = self.network(x_for_net)
+        if isinstance(net_out, tuple):
+            log_abs, phase = net_out  # (...,) each
+        else:
+            log_abs = net_out[..., 0]  # (..., 1) -> (...,)
+            phase = jnp.zeros_like(log_abs)
         if self.envelope is not None:
-            log_psi = log_psi + self.envelope(x)
+            log_abs = log_abs + self.envelope(x).reshape(log_abs.shape)  # (..., 1) or (...,)
         if self.jastrow is not None:
-            log_psi = log_psi + self.jastrow(x)
-        return log_psi  # (..., 1)
+            log_abs = log_abs + self.jastrow(x).reshape(log_abs.shape)
+        return log_abs, phase  # (...,), (...,)
