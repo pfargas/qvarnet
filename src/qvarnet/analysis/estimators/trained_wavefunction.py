@@ -121,6 +121,10 @@ class TrainedWavefunction:
         """log|ψ(x)| with everything baked. ``x``: lab coords ``(..., N*d)`` → ``(...,)``."""
         return split_log_psi(self.model.apply(self.params, jnp.asarray(x)))[0]
 
+    def phase(self, x):
+        """Phase of ψ(x) (0 or π for a real signed ψ). ``x``: ``(..., N*d)`` → ``(...,)``."""
+        return split_log_psi(self.model.apply(self.params, jnp.asarray(x)))[1]
+
     # -- sampling ------------------------------------------------------------
 
     def sample(
@@ -408,6 +412,7 @@ class TrainedWavefunction:
             grid,
             self.n_particles,
             self.n_dim,
+            phase=self.phase,
         )
         self._obdm_cache = (grid, rho)
         return grid, rho
@@ -437,6 +442,7 @@ class TrainedWavefunction:
             displacements,
             particle=particle,
             n_dim=self.n_dim,
+            phase=self.phase,
         )
 
     # -- misc ------------------------------------------------------------------

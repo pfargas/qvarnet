@@ -6,7 +6,9 @@ duplicate has been removed). All functions take raw **lab-coordinate** samples
 
 The OBDM kernels take a ``log_psi`` callable ``(batch, dof) -> (batch,)``
 instead of ``(model, params)`` — coordinate handling and parameter baking is
-the job of ``TrainedWavefunction``, not the kernels.
+the job of ``TrainedWavefunction``, not the kernels. For a signed ψ (fermions)
+also pass ``phase``; the ratio ψ′/ψ is then exp(Δlog|ψ|)·cos(Δphase). Taking the
+real part is exact for a real ψ (phase ∈ {0, π}), not for a complex one.
 
 Error bars on correlated series come from Flyvbjerg-Petersen blocking.
 """
@@ -200,7 +202,15 @@ def commensurate_k(L, n_max):
 # ---------------------------------------------------------------------------
 
 
-def obdm_grid(log_psi, samples, grid, n_particles, n_dim=1):
+def _psi_ratio(log_psi, phase, x_new, x_old_log, x_old_phase):
+    """Re ψ(x_new)/ψ(x_old) from cached log|ψ| and phase at x_old."""
+    ratio = np.exp(np.asarray(log_psi(x_new)).reshape(-1) - x_old_log)
+    if phase is not None:
+        ratio = ratio * np.cos(np.asarray(phase(x_new)).reshape(-1) - x_old_phase)
+    return ratio
+
+
+def obdm_grid(log_psi, samples, grid, n_particles, n_dim=1, phase=None):
     """Estimate ρ₁(x, x′) on ``grid`` (1-D). Returns ``(grid, rho)``, rho symmetric (G, G).
 
     McMillan ratio estimator: for each particle bin its current position x and,
@@ -209,6 +219,8 @@ def obdm_grid(log_psi, samples, grid, n_particles, n_dim=1):
     fraction n₀ = λ_max / Σλ (ODLRO).
 
     log_psi: callable ``(batch, N*d) -> (batch,)`` of lab coords, everything baked.
+    phase: optional callable, same signature, giving the phase of ψ. Without it the
+        sign is ignored, which is wrong for fermions (ψ′/ψ changes sign across nodes).
     """
     if n_dim != 1:
         raise NotImplementedError("obdm_grid currently supports n_dim=1")
@@ -223,13 +235,16 @@ def obdm_grid(log_psi, samples, grid, n_particles, n_dim=1):
         return np.asarray(log_psi(c)).reshape(-1)
 
     log0 = logpsi(s)  # (M,)
+    phase0 = np.asarray(phase(s)).reshape(-1) if phase is not None else None
     rho = np.zeros((G, G))
     for p in range(n_particles):
         idx = np.clip(((coords[:, p] - grid[0]) / width + 0.5).astype(int), 0, G - 1)
         rep = np.repeat(s[:, None, :], G, axis=1)  # (M, G, N)
         rep[:, :, p] = grid[None, :]  # replace particle p by each grid point x′
-        log_disp = logpsi(rep.reshape(M * G, n_particles)).reshape(M, G)
-        ratio = np.exp(log_disp - log0[:, None])  # (M, G)
+        ratio = _psi_ratio(
+            log_psi, phase, rep.reshape(M * G, n_particles),
+            np.repeat(log0, G), None if phase0 is None else np.repeat(phase0, G),
+        ).reshape(M, G)
         np.add.at(rho, idx, ratio)  # rho[bin(x), :] += ratio
     rho /= M * width
     return grid, 0.5 * (rho + rho.T)
@@ -250,13 +265,14 @@ def condensate_fraction(rho, grid):
     return float(vals[0] / (vals.sum() + 1e-12))
 
 
-def obdm_displacement(log_psi, samples, displacements, particle=0, n_dim=1):
+def obdm_displacement(log_psi, samples, displacements, particle=0, n_dim=1, phase=None):
     """Translationally-averaged ρ₁(Δ) = ⟨ψ(x+Δ,…)/ψ(x,…)⟩ for a homogeneous system.
 
     ρ₁(0) = 1; the large-Δ plateau is the condensate fraction (ODLRO). Returns
     ``(displacements, rho1)``. Currently 1-D, displacing a single ``particle``.
 
     log_psi: callable ``(batch, N*d) -> (batch,)`` of lab coords, everything baked.
+    phase: optional phase callable, as in ``obdm_grid``.
     """
     if n_dim != 1:
         raise NotImplementedError("obdm_displacement currently supports n_dim=1")
@@ -268,9 +284,10 @@ def obdm_displacement(log_psi, samples, displacements, particle=0, n_dim=1):
         return np.asarray(log_psi(c)).reshape(-1)
 
     log0 = logpsi(s)  # (M,)
+    phase0 = np.asarray(phase(s)).reshape(-1) if phase is not None else None
     out = np.empty(deltas.shape[0])
     for di, d in enumerate(deltas):
         disp = s.copy()
         disp[:, particle] = disp[:, particle] + d
-        out[di] = np.mean(np.exp(logpsi(disp) - log0))
+        out[di] = np.mean(_psi_ratio(log_psi, phase, disp, log0, phase0))
     return deltas, out
