@@ -83,6 +83,9 @@ class TrainingConfig:
     warm_walkers: bool = True
     # Print TrainResult.summary() when training ends (notebook-friendly run report).
     print_summary: bool = True
+    # Up to this many chunks for the local energy if the step does not fit in GPU memory
+    # (vmc/chunking.py). 1 = off: one evaluation over the whole batch, no memory check.
+    max_chunks: int = 1
     is_update_step_size: bool = False
     min_step: float = 1e-5
     max_step: float = 5.0

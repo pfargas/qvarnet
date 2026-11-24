@@ -117,13 +117,25 @@ class BSplineJastrow(nn.Module):
         c_free = self.param("coeffs", nn.initializers.zeros, (M - 1,))  # c_0 .. c_{M-2}
         c_m1 = c_free[1] - 2.0 * dr * self.cusp if M > 2 else -2.0 * dr * self.cusp
         c = jnp.concatenate([c_m1[None], c_free, jnp.zeros(3)])  # c_{-1} .. c_{M+1}
-        k = jnp.arange(-1, M + 2).astype(x.dtype)  # (M+3,)
 
         dx = x[..., :, None] - x[..., None, :]
         if self.L is not None:
             dx = dx - self.L * jnp.round(dx / self.L)
         r = jnp.abs(dx)
-        basis = _cubic_bspline(r[..., None] / dr - jnp.broadcast_to(k, r.shape + k.shape))
-        u = basis @ c  # (..., n, n)
+        # Local evaluation: at t = r/dr only the 4 B-splines k = i-1 .. i+2 (i = floor t) are nonzero,
+        # so gather those 4 coefficients instead of evaluating all M+3 (memory (..., n, n, 4), not M+3).
+        t = r / dr
+        i = jnp.clip(jnp.floor(t), 0, M).astype(jnp.int32)
+        j = jnp.arange(4).reshape((1,) * t.ndim + (4,))
+        w = _cubic_bspline((t - i)[..., None] + 1.0 - j)  # B(t - k), k = i - 1 + j
+        c_pad = jnp.concatenate([c, jnp.zeros(1, c.dtype)])  # c_{-1} .. c_{M+2}: c_pad[i + j] = c_k
+        # Read from G copies of c (copy = position mod G): the gradient w.r.t. c is a scatter-add, and with one
+        # copy all B·n²·4 additions collide on M+4 slots (GPU, N = 84, 10^4 samples: 1.2 s → 35 ms with G = 64). G small: SR keeps a
+        # per-sample gradient of all G copies (G = 1024 needed 16 GiB there).
+        G = 64
+        g = (jnp.arange(t.size, dtype=jnp.int32).reshape(t.shape) % G)[..., None]
+        c_rep = jnp.broadcast_to(c_pad, (G, M + 4))
+        u = jnp.sum(w * c_rep[g, i[..., None] + j], axis=-1)  # (..., n, n)
+        u = jnp.where(t < M, u, 0.0)  # u = 0 beyond r_cut (only reached without PBC)
         mask = jnp.triu(jnp.ones((self.n_particles, self.n_particles), bool), k=1)
         return jnp.sum(jnp.where(mask, u, 0.0), axis=(-2, -1))[..., None]

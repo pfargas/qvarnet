@@ -9,6 +9,7 @@ thing you have to read to understand the flow is short, and the thing you have t
 read to change one phase is only that phase.
 """
 
+from qvarnet.vmc.chunking import choose_n_chunks
 from qvarnet.vmc.loop import run_loop
 from qvarnet.vmc.result import TrainResult
 from qvarnet.vmc.setup import build_context
@@ -82,7 +83,9 @@ class VMC:
         """Train, and return the run's history, parameters and final sampler state."""
         ctx = build_context(**self._kwargs)
         warm_up(ctx)
-        result = run_loop(ctx, make_update_fn(ctx))
+        update_fn = make_update_fn(ctx)
+        choose_n_chunks(ctx, update_fn, ctx.training_config.max_chunks)
+        result = run_loop(ctx, update_fn)
         if ctx.training_config.print_summary:
             result.summary()
         return result
