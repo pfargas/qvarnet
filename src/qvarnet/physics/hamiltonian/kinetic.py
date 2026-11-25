@@ -44,26 +44,41 @@ def kinetic_log(
     key:         PRNGKey — only used by laplacian_hutchinson; ignored otherwise
     returns:     (batch,)
     """
+    # Parts with closed-form derivatives (``derivs``, e.g. BSplineJastrow) are taken analytically,
+    # the rest by the method below. Needs model_apply = module.apply (coordinate wrappers: no).
+    model = getattr(model_apply, "__self__", None)
+    if model is not None and hasattr(model, "analytic_parts") and model.analytic_parts():
+        extra = model_apply(params, samples, method="analytic_derivs")  # (∂_k, ∂²_k), (batch, dof) each
+        assert extra[0].shape == extra[1].shape == samples.shape, (extra[0].shape, samples.shape)
 
-    def log_psi(x):
-        return split_log_psi(model_apply(params, x[None]))[0].squeeze()  # x: (dof,) -> scalar
+        def log_psi(x):
+            return model_apply(params, x[None], method="log_abs_ad").squeeze()
+    else:
+        extra = None
+
+        def log_psi(x):
+            return split_log_psi(model_apply(params, x[None]))[0].squeeze()  # x: (dof,) -> scalar
 
     if use_folx:
-        return _kinetic_folx(log_psi, samples, sparsity_threshold, dof_weights)
+        return _kinetic_folx(log_psi, samples, sparsity_threshold, dof_weights, extra)
     if laplacian_fn is None:
         laplacian_fn = laplacian_forward_ad
-    return _kinetic_ad(log_psi, samples, laplacian_fn, dof_weights, key)
+    return _kinetic_ad(log_psi, samples, laplacian_fn, dof_weights, key, extra)
 
 
-def _kinetic_ad(log_psi, samples, laplacian_fn, dof_weights, key):
-    """Gradient via vmap(grad) + pluggable (optionally mass-weighted) Laplacian."""
+def _kinetic_ad(log_psi, samples, laplacian_fn, dof_weights, key, extra=None):
+    """Gradient via vmap(grad) + pluggable (optionally mass-weighted) Laplacian; ``extra`` = closed-form part."""
     grad_log_psi = jax.vmap(jax.grad(log_psi))(samples)  # (batch, dof)
     lap = laplacian_fn(log_psi, samples, key, weights=dof_weights)  # (batch,)
-    grad_sq = grad_log_psi**2 if dof_weights is None else dof_weights * grad_log_psi**2
+    if extra is not None:
+        g_an, d2_an = extra
+        grad_log_psi = grad_log_psi + g_an  # summed before squaring: cross terms included
+        lap = lap + jnp.sum(d2_an if dof_weights is None else dof_weights[None, :] * d2_an, axis=-1)
+    grad_sq = grad_log_psi**2 if dof_weights is None else dof_weights[None, :] * grad_log_psi**2
     return -0.5 * (lap + jnp.sum(grad_sq, axis=-1))
 
 
-def _kinetic_folx(log_psi, samples, sparsity_threshold, dof_weights):
+def _kinetic_folx(log_psi, samples, sparsity_threshold, dof_weights, extra=None):
     """One forward-Laplacian pass per sample; masses via exact √m rescaling.
 
     With g(y) = log_psi(√w ⊙ y) evaluated at y = x / √w (w = 1/m), the chain rule gives
@@ -83,7 +98,7 @@ def _kinetic_folx(log_psi, samples, sparsity_threshold, dof_weights):
     else:
         scale = jnp.sqrt(dof_weights)  # a_k = √w_k
         fn = lambda y: log_psi(y * scale)  # noqa: E731  g(y) = f(√w ⊙ y)
-        xs = samples / scale  # y = x / √w
+        xs = samples / scale[None, :]  # y = x / √w
 
     fwd = forward_laplacian(fn, sparsity_threshold=sparsity_threshold)
 
@@ -91,4 +106,15 @@ def _kinetic_folx(log_psi, samples, sparsity_threshold, dof_weights):
         r = fwd(x)
         return -0.5 * (r.laplacian + jnp.sum(r.jacobian.dense_array**2))
 
-    return jax.vmap(kinetic_single)(xs)
+    if extra is None:
+        return jax.vmap(kinetic_single)(xs)
+    # closed-form part in y: ∂_y = √w ∂_x, ∂²_y = w ∂²_x
+    g_an, d2_an = extra
+    s = 1.0 if dof_weights is None else jnp.sqrt(dof_weights)[None, :]
+    jac_an, lap_an = g_an * s, jnp.sum(d2_an * s**2, axis=-1)
+
+    def kinetic_single_an(x, j, lap):
+        r = fwd(x)
+        return -0.5 * (r.laplacian + lap + jnp.sum((r.jacobian.dense_array + j) ** 2))
+
+    return jax.vmap(kinetic_single_an)(xs, jac_an, lap_an)

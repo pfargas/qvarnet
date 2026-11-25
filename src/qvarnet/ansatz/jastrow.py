@@ -115,12 +115,9 @@ class BSplineJastrow(nn.Module):
         M = self.n_knots
         dr = self.r_cut / M
         c_free = self.param("coeffs", nn.initializers.zeros, (M - 1,))  # c_0 .. c_{M-2}
-        c_m1 = c_free[1] - 2.0 * dr * self.cusp if M > 2 else -2.0 * dr * self.cusp
-        c = jnp.concatenate([c_m1[None], c_free, jnp.zeros(3)])  # c_{-1} .. c_{M+1}
+        c = self._full_coeffs(c_free)  # c_{-1} .. c_{M+1}
 
-        dx = x[..., :, None] - x[..., None, :]
-        if self.L is not None:
-            dx = dx - self.L * jnp.round(dx / self.L)
+        dx = self._pair_dx(x)
         r = jnp.abs(dx)
         # Local evaluation: at t = r/dr only the 4 B-splines k = i-1 .. i+2 (i = floor t) are nonzero,
         # so gather those 4 coefficients instead of evaluating all M+3 (memory (..., n, n, 4), not M+3).
@@ -139,3 +136,35 @@ class BSplineJastrow(nn.Module):
         u = jnp.where(t < M, u, 0.0)  # u = 0 beyond r_cut (only reached without PBC)
         mask = jnp.triu(jnp.ones((self.n_particles, self.n_particles), bool), k=1)
         return jnp.sum(jnp.where(mask, u, 0.0), axis=(-2, -1))[..., None]
+
+    def _full_coeffs(self, c_free):
+        """c_0..c_{M-2} → c_{-1}..c_{M+1}: cusp constraint below, three zeros above."""
+        M, dr = self.n_knots, self.r_cut / self.n_knots
+        c_m1 = c_free[1] - 2.0 * dr * self.cusp if M > 2 else -2.0 * dr * self.cusp
+        return jnp.concatenate([c_m1[None], c_free, jnp.zeros(3)])
+
+    def _pair_dx(self, x):
+        """x_a - x_b, (..., n, n), minimum image when periodic."""
+        dx = x[..., :, None] - x[..., None, :]
+        if self.L is not None:
+            dx = dx - self.L * jnp.round(dx / self.L)
+        return dx
+
+    def derivs(self, x):
+        """Closed-form ∂_a log J and ∂²_a log J, each (..., n_particles). Only on a bound module (apply)."""
+        M, dr = self.n_knots, self.r_cut / self.n_knots
+        c = self._full_coeffs(jnp.asarray(self.variables["params"]["coeffs"], x.dtype))
+        c = jnp.concatenate([c, jnp.zeros(1, c.dtype)])  # c_{-1}..c_{M+2}: interval i uses c[i..i+3]
+        # u on [i, i+1) as a cubic in f = t - i (uniform cubic B-spline basis matrix)
+        A = jnp.array([[1, 4, 1, 0], [-3, 0, 3, 0], [3, -6, 3, 0], [-1, 3, -3, 1]], x.dtype) / 6.0
+        tab = c[jnp.arange(M + 1)[:, None] + jnp.arange(4)[None, :]] @ A.T  # (M+1, 4)
+        dx = self._pair_dx(x)
+        t = jnp.abs(dx) / dr
+        i = jnp.clip(jnp.floor(t), 0, M).astype(jnp.int32)
+        f = t - i
+        a1, a2, a3 = tab[:, 1][i], tab[:, 2][i], tab[:, 3][i]
+        eye = jnp.eye(self.n_particles, dtype=bool).reshape((1,) * (t.ndim - 2) + t.shape[-2:])
+        live = (t < M) & ~eye  # u = 0 beyond r_cut; no self-pair
+        up = jnp.where(live, a1 + f * (2 * a2 + 3 * f * a3), 0.0) / dr  # u'(r_ab)
+        upp = jnp.where(live, 2 * a2 + 6 * f * a3, 0.0) / dr**2  # u''(r_ab)
+        return jnp.sum(up * jnp.sign(dx), axis=-1), jnp.sum(upp, axis=-1)

@@ -40,6 +40,14 @@ class LogWavefunction(nn.Module):
 
     @nn.compact
     def __call__(self, x):
+        log_abs, phase = self._network_out(x)
+        if self.envelope is not None:
+            log_abs = log_abs + self.envelope(x).reshape(log_abs.shape)  # (..., 1) or (...,)
+        if self.jastrow is not None:
+            log_abs = log_abs + self.jastrow(x).reshape(log_abs.shape)
+        return log_abs, phase  # (...,), (...,)
+
+    def _network_out(self, x):
         # A local, not self.transform = ...: a Flax module is frozen outside setup(),
         # so assigning here raised SetAttributeFrozenModuleError for every caller who
         # left transform at its default.
@@ -67,8 +75,24 @@ class LogWavefunction(nn.Module):
         else:
             log_abs = net_out[..., 0]  # (..., 1) -> (...,)
             phase = jnp.zeros_like(log_abs)
-        if self.envelope is not None:
-            log_abs = log_abs + self.envelope(x).reshape(log_abs.shape)  # (..., 1) or (...,)
-        if self.jastrow is not None:
-            log_abs = log_abs + self.jastrow(x).reshape(log_abs.shape)
-        return log_abs, phase  # (...,), (...,)
+        return log_abs, phase
+
+    def analytic_parts(self):
+        """The envelope/Jastrow modules with a closed-form ``derivs`` method."""
+        return [m for m in (self.envelope, self.jastrow) if m is not None and hasattr(m, "derivs")]
+
+    def log_abs_ad(self, x):
+        """log|ψ| without the parts that have closed-form ``derivs``, (...,): what autodiff must handle."""
+        log_abs = self._network_out(x)[0]
+        for m in (self.envelope, self.jastrow):
+            if m is not None and not hasattr(m, "derivs"):
+                log_abs = log_abs + m(x).reshape(log_abs.shape)
+        return log_abs
+
+    def analytic_derivs(self, x):
+        """Sum of the closed-form parts' (∂_k log|ψ|, ∂²_k log|ψ|), each (..., dof); zeros if none."""
+        g, d2 = jnp.zeros_like(x), jnp.zeros_like(x)
+        for m in self.analytic_parts():
+            gm, d2m = m.derivs(x)
+            g, d2 = g + gm, d2 + d2m
+        return g, d2

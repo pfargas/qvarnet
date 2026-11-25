@@ -76,3 +76,50 @@ def test_local_evaluation_matches_dense(L):
          jax.vmap(lambda xi: jax.grad(ref)(params, xi)["params"]["coeffs"])),
     ]:
         np.testing.assert_allclose(f_new(x), f_ref(x), rtol=1e-4, atol=1e-4)
+
+
+@pytest.mark.parametrize("L", [None, 7.0])
+def test_derivs_match_autodiff(L):
+    """Closed-form ∂_a log J and ∂²_a log J == jax.grad / Hessian diagonal (float64), incl. r beyond r_cut."""
+    n = 6
+    model = BSplineJastrow(n_particles=n, r_cut=3.5, n_knots=12, cusp=0.7, L=L)
+    with jax.enable_x64(True):
+        x = jax.random.uniform(jax.random.PRNGKey(0), (32, n), jnp.float64, maxval=10.0 if L is None else L)
+        x = x.at[0, 1].set(x[0, 0] + 1e-3)  # a pair near contact
+        c = jax.random.normal(jax.random.PRNGKey(2), (model.n_knots - 1,), jnp.float64)
+        params = {"params": {"coeffs": c}}
+        g, d2 = model.apply(params, x, method="derivs")
+        assert g.shape == d2.shape == x.shape
+        f = lambda xi: model.apply(params, xi[None])[0, 0]  # noqa: E731
+        np.testing.assert_allclose(g, jax.vmap(jax.grad(f))(x), rtol=1e-12, atol=1e-12)
+        np.testing.assert_allclose(d2, jax.vmap(lambda xi: jnp.diag(jax.hessian(f)(xi)))(x), rtol=1e-11, atol=1e-11)
+
+
+@pytest.mark.parametrize("method", ["forward_ad", "folx"])
+def test_analytic_kinetic_matches_autodiff(method):
+    """E_loc with the Jastrow via derivs (auto) == full Hessian of everything: MLP + Jastrow, masses, PBC, f64.
+
+    folx alone is ~1e-6 off the full Hessian on this model (also without the Jastrow), hence its tolerance."""
+    from qvarnet.ansatz import LogWavefunction
+    from qvarnet.ansatz.mlp import MLP
+    from qvarnet.physics.boundaries import PeriodicBoundary
+    from qvarnet.physics.hamiltonian.continuous import HarmonicOscillatorHamiltonian
+    from qvarnet.physics.particles import Particles
+
+    n, L = 5, 6.0
+    model = LogWavefunction(network=MLP(hidden=[8]), transform=PeriodicBoundary(L),
+                            jastrow=BSplineJastrow(n_particles=n, r_cut=L / 2, n_knots=10, cusp=0.5, L=L))
+    promo = "allow" if method == "folx" else "raise"  # folx's own internals broadcast implicitly
+    with jax.enable_x64(True), jax.numpy_rank_promotion(promo):
+        x = jax.random.uniform(jax.random.PRNGKey(0), (16, n), jnp.float64, maxval=L)
+        params = model.init(jax.random.PRNGKey(1), x)
+        params = jax.tree.map(lambda a: jax.random.normal(jax.random.PRNGKey(2), a.shape, jnp.float64), params)
+        if method == "folx":
+            pytest.importorskip("folx")
+        pt = Particles(n=n, masses=(1.0, 2.0, 0.5, 1.0, 3.0))
+        assert model.analytic_parts()  # so model.apply takes the closed-form path
+        e_an = HarmonicOscillatorHamiltonian(laplacian_method=method, particles=pt).local_energy(params, x, model.apply)
+        e_ref = HarmonicOscillatorHamiltonian(laplacian_method="full_hessian", particles=pt).local_energy(
+            params, x, lambda p, y: model.apply(p, y))  # a plain function has no __self__: all AD
+        assert e_an.shape == e_ref.shape == (16,)
+        np.testing.assert_allclose(e_an, e_ref, rtol=1e-11 if method == "forward_ad" else 1e-5)
