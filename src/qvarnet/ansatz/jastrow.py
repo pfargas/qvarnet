@@ -155,14 +155,15 @@ class BSplineJastrow(nn.Module):
         M, dr = self.n_knots, self.r_cut / self.n_knots
         c = self._full_coeffs(jnp.asarray(self.variables["params"]["coeffs"], x.dtype))
         c = jnp.concatenate([c, jnp.zeros(1, c.dtype)])  # c_{-1}..c_{M+2}: interval i uses c[i..i+3]
-        # u on [i, i+1) as a cubic in f = t - i (uniform cubic B-spline basis matrix)
-        A = jnp.array([[1, 4, 1, 0], [-3, 0, 3, 0], [3, -6, 3, 0], [-1, 3, -3, 1]], x.dtype) / 6.0
-        tab = c[jnp.arange(M + 1)[:, None] + jnp.arange(4)[None, :]] @ A.T  # (M+1, 4)
+        # u on [i, i+1) as a cubic a0 + a1 f + a2 f² + a3 f³ in f = t - i (uniform cubic B-spline basis).
+        # Elementwise, not a matmul: float32 matmuls on Ampere default to TF32 (~1e-3 relative).
+        c0, c1, c2, c3 = c[: M + 1], c[1 : M + 2], c[2 : M + 3], c[3 : M + 4]
+        b1, b2, b3 = (c2 - c0) / 2, (c0 - 2 * c1 + c2) / 2, (-c0 + 3 * c1 - 3 * c2 + c3) / 6  # (M+1,)
         dx = self._pair_dx(x)
         t = jnp.abs(dx) / dr
         i = jnp.clip(jnp.floor(t), 0, M).astype(jnp.int32)
         f = t - i
-        a1, a2, a3 = tab[:, 1][i], tab[:, 2][i], tab[:, 3][i]
+        a1, a2, a3 = b1[i], b2[i], b3[i]
         eye = jnp.eye(self.n_particles, dtype=bool).reshape((1,) * (t.ndim - 2) + t.shape[-2:])
         live = (t < M) & ~eye  # u = 0 beyond r_cut; no self-pair
         up = jnp.where(live, a1 + f * (2 * a2 + 3 * f * a3), 0.0) / dr  # u'(r_ab)

@@ -123,3 +123,18 @@ def test_analytic_kinetic_matches_autodiff(method):
             params, x, lambda p, y: model.apply(p, y))  # a plain function has no __self__: all AD
         assert e_an.shape == e_ref.shape == (16,)
         np.testing.assert_allclose(e_an, e_ref, rtol=1e-11 if method == "forward_ad" else 1e-5)
+
+
+def test_derivs_float32_accuracy():
+    """float32 derivs vs float64 truth: catches reduced-precision (TF32) matmuls on GPU (gave ~1e-3)."""
+    n = 40
+    model = BSplineJastrow(n_particles=n, r_cut=20.0, n_knots=200, cusp=0.7, L=40.0)
+    rng = np.random.default_rng(0)
+    x = np.mod(np.arange(n) + 0.5 + 0.15 * rng.standard_normal((64, n)), 40.0).astype(np.float32)
+    c = np.cumsum(rng.standard_normal(model.n_knots - 1)).astype(np.float32) * 0.05  # smooth, like a trained u
+    g32, d32 = model.apply({"params": {"coeffs": jnp.asarray(c)}}, jnp.asarray(x), method="derivs")
+    with jax.enable_x64(True):
+        g64, d64 = model.apply({"params": {"coeffs": jnp.asarray(c, jnp.float64)}}, jnp.asarray(x, jnp.float64),
+                               method="derivs")
+    for a, b in [(g32, g64), (d32, d64)]:
+        assert float(np.max(np.abs(np.asarray(a, np.float64) - b)) / np.max(np.abs(b))) < 1e-4  # roundoff ~1e-5
