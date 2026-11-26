@@ -95,7 +95,13 @@ class TrainingConfig:
     target_acceptance: float = 0.5
     adaptation_rate: float = 0.1
     cusp: CuspConfig | None = None  # None = cusp disabled
+    # Clip E_loc in the gradient only (plain, full SR and minSR) to median ± clip_scale·MAD,
+    # MAD = mean |E_loc − median|. Reported E, σ_E and error bars stay unclipped.
+    clip_local_energy: bool = False
+    clip_scale: float = 5.0
 
     def __post_init__(self):
         if self.min_step >= self.max_step:
             raise ValueError(f"min_step ({self.min_step}) must be < max_step ({self.max_step})")
+        if self.clip_scale <= 0:
+            raise ValueError(f"clip_scale must be > 0, got {self.clip_scale}")

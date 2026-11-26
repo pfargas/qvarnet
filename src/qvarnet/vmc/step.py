@@ -90,6 +90,7 @@ def make_update_fn(ctx):
             qgt_config=qgt_config,
             auxiliary_losses=auxiliary_losses,
             key=lap_key,
+            clip_scale=training_config.clip_scale if training_config.clip_local_energy else None,
         )
 
         # Naive MC error of the mean -- it ignores autocorrelation. See
